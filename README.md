@@ -25,6 +25,16 @@ conda env create -f env/environment.yml
 conda activate multi_dwpc
 ```
 
+### Run the pipeline
+
+```bash
+mkdir -p notebooks/executed
+papermill notebooks/1.1_data_loading.ipynb notebooks/executed/1.1_data_loading.ipynb
+```
+
+Pipeline notebooks:
+
+1. **1.1_data_loading.ipynb** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
