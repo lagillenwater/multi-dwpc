@@ -23,37 +23,51 @@ cd multi-dwpc
 ```bash
 conda env create -f env/environment.yml
 conda activate multi_dwpc
+pip install -e ".[dev]"
 ```
 
 ## Prepare the Data
 
 ```bash
-papermill notebooks/1.1_data_loading.ipynb notebooks/1.1_data_loading.ipynb && \
-papermill notebooks/1.2_percent_change_and_filtering.ipynb notebooks/1.2_percent_change_and_filtering.ipynb && \
-papermill notebooks/1.3_jaccard_similarity_and_filtering.ipynb notebooks/1.3_jaccard_similarity_and_filtering.ipynb
+# Run individual steps
+poe load-data
+poe filter-change
+poe filter-jaccard
+
+# Or run grouped tasks
+poe pipeline-prep   # load-data + filter-change + filter-jaccard
+poe pipeline-null   # gen-permutation + gen-random
+poe pipeline-all    # full pipeline
 ```
 
-Pipeline notebooks:
+### Available tasks
 
-1. **1.1_data_loading.ipynb** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
-2. **1.2_percent_change_and_filtering.ipynb** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
-3. **1.3_jaccard_similarity_and_filtering.ipynb** - Calculates Jaccard similarity between GO terms, filters overlapping terms (>0.1 threshold), and generates Neo4j ID mappings from the Hetionet API
+Run `poe --help` to see all available tasks:
 
-### Papermill Parameters
+| Task | Description |
+|------|-------------|
+| `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
+| `filter-change` | Filter GO terms by percent change between 2016 and 2024 |
+| `filter-jaccard` | Filter GO terms by Jaccard similarity |
+| `gen-permutation` | Generate permutation null datasets |
+| `gen-random` | Generate random null datasets |
+| `pipeline-prep` | Run data loading and filtering steps |
+| `pipeline-null` | Run null dataset generation |
+| `pipeline-all` | Run full pipeline |
+| `convert-notebooks` | Convert notebooks to Python scripts |
+| `clean` | Remove generated data directories |
 
-Some notebooks support papermill parameters for customizing execution:
+### Pipeline scripts
 
-**1.3_jaccard_similarity_and_filtering.ipynb**:
-- `FORCE_RECOMPUTE` (default: `False`) - Force recomputation of Jaccard similarity matrices and heatmaps, ignoring cached results
+Located in `scripts/`:
 
-Example usage:
-```bash
-papermill notebooks/1.3_jaccard_similarity_and_filtering.ipynb \
-    notebooks/1.3_jaccard_similarity_and_filtering.ipynb \
-    -p FORCE_RECOMPUTE True
-```
+1. **1_1_data_loading.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
+2. **1_2_percent_change_and_filtering.py** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
+3. **1_3_jaccard_similarity_and_filtering.py** - Calculates Jaccard similarity between GO terms, filters overlapping terms (>0.1 threshold), and generates Neo4j ID mappings from the Hetionet API
+4. **1_4_permutation_null_datasets.py** - Generates permutation-based null datasets
+5. **1_5_random_datasets.py** - Generates random null datasets
 
-## Run the DWPC computation 
+## Run the DWPC computation
 
 Notebook 2 computes Degree-Weighted Path Counts (DWPC) via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
 
@@ -82,9 +96,7 @@ curl http://localhost:8015/v1/nodes/
 **3. Run notebook 2:**
 
 ```bash
-cd ..
-papermill notebooks/2_compute_hetio_stat_via_docker.ipynb \
-    notebooks/2_compute_hetio_stat_via_docker.ipynb
+poe compute-dwpc
 ```
 
 **4. Stop the Docker stack when finished:**
