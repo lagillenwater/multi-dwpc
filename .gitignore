@@ -23,7 +23,8 @@ env/
 venv/
 
 # Jupyter Notebook
-notebooks/ # Ignore notebooks since switching to poethepoet for pipeline management
+ # Ignore notebooks since switching to poethepoet for pipeline management
+/notebooks/
 .ipynb_checkpoints/
 
 # Testing
