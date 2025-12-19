@@ -1,0 +1,55 @@
+[project]
+name = "multi-dwpc"
+version = "0.1.0"
+description = "Scripts testing aggregate degree weighted path count (DWPC) statistics"
+readme = "README.md"
+license = "BSD-2-Clause-Patent"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas",
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "statsmodels",
+    "matplotlib",
+    "seaborn",
+    "jupyterlab",
+    "jupytext",
+    "tqdm",
+    "httpx",
+    "pyarrow",
+    "hetmatpy==0.1.0",
+    "hetnetpy @ git+https://github.com/hetio/hetio.git@0a81e9ea675e2c20f235f5d74598053c1332cb85",
+    "hetnet-analysis @ git+https://github.com/CU-DBMI/hetionet-analysis.git@f371064da1498ac984aa6ec6ed0ba2739c7b0259",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupytext",
+    "poethepoet",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.poe.tasks]
+# Individual pipeline steps
+load-data = "python scripts/1_1_data_loading.py"
+filter-change = "python scripts/1_2_percent_change_and_filtering.py"
+filter-jaccard = "python scripts/1_3_jaccard_similarity_and_filtering.py"
+gen-permutation = "python scripts/1_4_permutation_null_datasets.py"
+gen-random = "python scripts/1_5_random_datasets.py"
+
+# Grouped tasks
+pipeline-prep = ["load-data", "filter-change", "filter-jaccard"]
+pipeline-null = ["gen-permutation", "gen-random"]
+pipeline-all = ["pipeline-prep", "pipeline-null"]
+
+# Utility tasks
+convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to py:percent -o scripts/$(basename \"$nb\" .ipynb | tr '.' '_').py \"$nb\"; done" }
+clean = { shell = "rm -rf data/ output/ gene_ontology/" }

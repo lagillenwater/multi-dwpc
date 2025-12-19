@@ -23,19 +23,49 @@ cd multi-dwpc
 ```bash
 conda env create -f env/environment.yml
 conda activate multi_dwpc
+pip install -e ".[dev]"
 ```
 
 ### Run the pipeline
 
 ```bash
-papermill notebooks/1.1_data_loading.ipynb notebooks/1.1_data_loading.ipynb && \
-papermill notebooks/1.2_percent_change_and_filtering.ipynb notebooks/1.2_percent_change_and_filtering.ipynb
+# Run individual steps
+poe load-data
+poe filter-change
+poe filter-jaccard
+
+# Or run grouped tasks
+poe pipeline-prep   # load-data + filter-change + filter-jaccard
+poe pipeline-null   # gen-permutation + gen-random
+poe pipeline-all    # full pipeline
 ```
 
-Pipeline notebooks:
+### Available tasks
 
-1. **1.1_data_loading.ipynb** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
-2. **1.2_percent_change_and_filtering.ipynb** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
+Run `poe --help` to see all available tasks:
+
+| Task | Description |
+|------|-------------|
+| `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
+| `filter-change` | Filter GO terms by percent change between 2016 and 2024 |
+| `filter-jaccard` | Filter GO terms by Jaccard similarity |
+| `gen-permutation` | Generate permutation null datasets |
+| `gen-random` | Generate random null datasets |
+| `pipeline-prep` | Run data loading and filtering steps |
+| `pipeline-null` | Run null dataset generation |
+| `pipeline-all` | Run full pipeline |
+| `convert-notebooks` | Convert notebooks to Python scripts |
+| `clean` | Remove generated data directories |
+
+### Pipeline scripts
+
+Located in `scripts/`:
+
+1. **1_1_data_loading.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
+2. **1_2_percent_change_and_filtering.py** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
+3. **1_3_jaccard_similarity_and_filtering.py** - Filters GO terms by Jaccard similarity
+4. **1_4_permutation_null_datasets.py** - Generates permutation-based null datasets
+5. **1_5_random_datasets.py** - Generates random null datasets
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

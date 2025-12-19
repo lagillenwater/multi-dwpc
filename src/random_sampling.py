@@ -244,14 +244,13 @@ def generate_random_gene_samples_v2(go_gene_df, all_genes,
 
 def permute_go_labels(go_gene_df, n_permutations=100,
                      go_id_col='go_id',
-                     gene_id_col='neo4j_target_id',
-                     source_id_col='neo4j_source_id',
+                     gene_id_col='entrez_gene_id',
                      random_state=42):
     """
     Generate permuted GO-gene associations for null distribution.
 
     This approach permutes gene assignments among GO terms while preserving:
-    - GO term metadata (neo4j_source_id, go_name, etc.) - CRITICAL for API
+    - GO term metadata (go_name, etc.)
     - Gene degree distribution (same genes, shuffled labels)
     - Number of genes per GO term
     - Total number of associations
@@ -259,23 +258,17 @@ def permute_go_labels(go_gene_df, n_permutations=100,
     This is the RECOMMENDED approach for mixed-effects models as it
     preserves biological structure while breaking GO-gene associations.
 
-    IMPORTANT: This function preserves the GO term -> neo4j_source_id mapping
-    so that permuted datasets can be used with the Hetionet API. Only gene
-    assignments are shuffled, not GO term identities.
-
     Parameters
     ----------
     go_gene_df : pd.DataFrame
         Real GO-gene associations
-        Required columns: go_id_col, gene_id_col, source_id_col
+        Required columns: go_id_col, gene_id_col
     n_permutations : int
         Number of permutations to generate (default 100)
     go_id_col : str
         Column name for GO IDs (default 'go_id')
     gene_id_col : str
-        Column name for gene IDs (default 'neo4j_target_id')
-    source_id_col : str
-        Column name for GO source IDs (default 'neo4j_source_id')
+        Column name for gene IDs (default 'entrez_gene_id')
     random_state : int
         Random seed for reproducibility (default 42)
 
@@ -288,19 +281,14 @@ def permute_go_labels(go_gene_df, n_permutations=100,
     Notes
     -----
     Algorithm:
-    1. Extract GO term metadata (go_id, neo4j_source_id, go_name, etc.)
+    1. Extract GO term metadata (go_id, go_name, etc.)
     2. For each permutation:
        a. Shuffle gene IDs among all GO terms
        b. Preserve GO term sizes
-       c. Merge with GO metadata to restore neo4j_source_id
+       c. Merge with GO metadata
 
     This preserves gene-level characteristics (degree, other annotations)
     while testing whether specific GO-gene associations matter.
-
-    BUG FIX (2025-12-02): Previous version shuffled go_id column but left
-    neo4j_source_id unchanged, creating invalid GO-gene pairs that couldn't
-    be used with Hetionet API. New version preserves GO term identities and
-    shuffles only gene assignments.
 
     Examples
     --------
@@ -319,8 +307,7 @@ def permute_go_labels(go_gene_df, n_permutations=100,
     go_term_sizes = go_gene_df.groupby(go_id_col).size().to_dict()
     unique_go_ids = list(go_term_sizes.keys())
 
-    # Extract GO term metadata to preserve neo4j_source_id and other columns
-    # Each GO term must keep its correct neo4j_source_id for API compatibility
+    # Extract GO term metadata to preserve other columns
     metadata_cols = [col for col in go_gene_df.columns if col != gene_id_col]
     go_metadata = go_gene_df[metadata_cols].drop_duplicates(subset=[go_id_col])
 
@@ -329,7 +316,7 @@ def permute_go_labels(go_gene_df, n_permutations=100,
         raise ValueError(
             f"GO term metadata is not unique: expected {len(unique_go_ids)} "
             f"GO terms but found {len(go_metadata)} unique metadata rows. "
-            f"Each GO term must have consistent neo4j_source_id and other metadata."
+            f"Each GO term must have consistent metadata."
         )
 
     # Extract all genes
@@ -363,7 +350,7 @@ def permute_go_labels(go_gene_df, n_permutations=100,
         # Create dataframe from gene assignments
         perm_df = pd.DataFrame(assignments)
 
-        # Merge with GO metadata to restore neo4j_source_id and other columns
+        # Merge with GO metadata to restore other columns
         perm_df = perm_df.merge(go_metadata, on=go_id_col, how='left')
 
         # Reorder columns to match original
@@ -375,7 +362,7 @@ def permute_go_labels(go_gene_df, n_permutations=100,
 
 
 def calculate_gene_promiscuity(go_gene_df, go_id_col='go_id',
-                               gene_id_col='neo4j_target_id'):
+                               gene_id_col='entrez_gene_id'):
     """
     Calculate gene promiscuity (number of GO terms per gene).
 
@@ -387,7 +374,7 @@ def calculate_gene_promiscuity(go_gene_df, go_id_col='go_id',
     go_id_col : str
         Column name for GO IDs (default 'go_id')
     gene_id_col : str
-        Column name for gene IDs (default 'neo4j_target_id')
+        Column name for gene IDs (default 'entrez_gene_id')
 
     Returns
     -------
@@ -462,8 +449,7 @@ def _sample_single_gene(go_id, real_gene, real_prom, candidate_pool,
 
 def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
                                             go_id_col='go_id',
-                                            gene_id_col='neo4j_target_id',
-                                            source_id_col='neo4j_source_id',
+                                            gene_id_col='entrez_gene_id',
                                             promiscuity_tolerance=2,
                                             random_state=42):
     """
@@ -476,16 +462,14 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
     ----------
     go_gene_df : pd.DataFrame
         Target GO-gene associations
-        Required columns: go_id_col, gene_id_col, source_id_col
+        Required columns: go_id_col, gene_id_col
     all_go_annotations : pd.DataFrame
         All GO-gene associations for promiscuity calculation
         Required columns: go_id_col, gene_id_col
     go_id_col : str
         Column name for GO IDs (default 'go_id')
     gene_id_col : str
-        Column name for gene IDs (default 'neo4j_target_id')
-    source_id_col : str
-        Column name for GO source IDs (default 'neo4j_source_id')
+        Column name for gene IDs (default 'entrez_gene_id')
     promiscuity_tolerance : int
         Allowed promiscuity difference (default 2)
     random_state : int
@@ -495,8 +479,8 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
     -------
     pd.DataFrame
         Random samples with columns:
-        - go_id_col, source_id_col
-        - 'neo4j_pseudo_target_id': Sampled gene
+        - go_id_col
+        - 'pseudo_gene_id': Sampled gene
         - 'real_promiscuity', 'sampled_promiscuity'
 
     Notes
@@ -526,8 +510,6 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
             ~promiscuity_df[gene_id_col].isin(genes_in_term)
         ].copy()
 
-        source_id = go_group[source_id_col].iloc[0]
-
         sampled = go_group.apply(
             lambda row: _sample_single_gene(
                 go_id, row[gene_id_col], row['promiscuity'],
@@ -539,8 +521,7 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
 
         go_results = pd.DataFrame({
             go_id_col: go_id,
-            source_id_col: source_id,
-            'neo4j_pseudo_target_id': sampled.apply(lambda x: x['gene_id']),
+            'pseudo_gene_id': sampled.apply(lambda x: x['gene_id']),
             'real_promiscuity': go_group['promiscuity'].values,
             'sampled_promiscuity': sampled.apply(lambda x: x['promiscuity'])
         })
@@ -553,7 +534,7 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
 def validate_random_samples(real_df, random_df, gene_degrees=None,
                             all_go_annotations=None,
                             go_id_col='go_id',
-                            gene_id_col='neo4j_target_id'):
+                            gene_id_col='entrez_gene_id'):
     """
     Validate random gene samples against expected properties.
 
@@ -576,7 +557,7 @@ def validate_random_samples(real_df, random_df, gene_degrees=None,
     go_id_col : str
         Column name for GO IDs (default 'go_id')
     gene_id_col : str
-        Column name for gene IDs (default 'neo4j_target_id')
+        Column name for gene IDs (default 'entrez_gene_id')
 
     Returns
     -------
@@ -624,7 +605,7 @@ def validate_random_samples(real_df, random_df, gene_degrees=None,
         real_genes_go = set(real_df[real_df[go_id_col] == go_id][
             gene_id_col])
         random_genes_go = set(random_df[random_df[go_id_col] == go_id][
-            'neo4j_pseudo_target_id'])
+            'pseudo_gene_id'])
         overlap = len(real_genes_go & random_genes_go)
         overlap_count += overlap
 
