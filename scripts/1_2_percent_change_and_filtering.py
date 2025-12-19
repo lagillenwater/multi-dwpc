@@ -131,7 +131,7 @@ top_added = classification_summary.nlargest(10, 'n_added')[
     ['go_id', 'n_genes_2024', 'n_stable', 'n_added', 'pct_added']
 ].merge(go_name_lookup, on='go_id', how='left')
 top_added = top_added[['go_id', 'go_name', 'n_genes_2024', 'n_stable', 'n_added', 'pct_added']]
-display(top_added)
+print(top_added)
 
 # %% papermill={"duration": 0.602779, "end_time": "2025-12-05T22:40:23.005138", "exception": false, "start_time": "2025-12-05T22:40:22.402359", "status": "completed"}
 fig, axes = plt.subplots(1, 2, figsize=(14, 5), dpi=150)
@@ -202,7 +202,7 @@ com_go_terms_hetio_upd_go_bp_2024 = com_go_terms_hetio_upd_go_bp_2024.merge(
 
 print("Added classification counts to common_go_terms dataframe")
 print(f"New columns: n_stable, n_added")
-display(com_go_terms_hetio_upd_go_bp_2024.head())
+print(com_go_terms_hetio_upd_go_bp_2024.head())
 
 # %% papermill={"duration": 0.016548, "end_time": "2025-12-05T22:40:23.386363", "exception": false, "start_time": "2025-12-05T22:40:23.369815", "status": "completed"}
 # Calculate percent change using src function
@@ -214,7 +214,7 @@ com_go_terms_hetio_upd_go_bp_2024 = calculate_percent_change(
 
 print(f"Mean change: "
       f"{com_go_terms_hetio_upd_go_bp_2024['pct_change_genes'].mean():.2f}%")
-display(com_go_terms_hetio_upd_go_bp_2024.head())
+print(com_go_terms_hetio_upd_go_bp_2024.head())
 
 # %% [markdown] papermill={"duration": 0.0099, "end_time": "2025-12-05T22:40:23.405591", "exception": false, "start_time": "2025-12-05T22:40:23.395691", "status": "completed"}
 # ### GO Hierarchy Analysis
@@ -256,7 +256,7 @@ else:
 
 print(f"\nColumns: {list(com_go_terms_w_hierarchy.columns)}")
 print(f"\nSample data:")
-display(com_go_terms_w_hierarchy[['go_id', 'pct_change_genes', 'normalized_depth_2016', 'normalized_depth_2024', 'norm_depth_change']].head(10))
+print(com_go_terms_w_hierarchy[['go_id', 'pct_change_genes', 'normalized_depth_2016', 'normalized_depth_2024', 'norm_depth_change']].head(10))
 
 # Summary statistics
 print(f"\nHierarchy Statistics:")
@@ -541,4 +541,4 @@ dataset2_parents.to_csv(
 
 print(f'Saved dataset1_all_growth: {len(dataset1_all_growth)} GO terms')
 print(f'Saved dataset2_parents: {len(dataset2_parents)} GO terms')
-print('\nNotebook 1.2 complete!')
+print('\n Percent change filtering complete!')

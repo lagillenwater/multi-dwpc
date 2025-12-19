@@ -194,7 +194,7 @@ print("\nAll tests PASSED")
 hetio_bp_g_freq_df = hetio_BPpG_df['go_id'].value_counts().reset_index()
 hetio_bp_g_freq_df.columns = ['go_id', 'no_of_genes_in_hetio_GO_2016']
 
-display(hetio_bp_g_freq_df)
+print(hetio_bp_g_freq_df)
 
 # %% [markdown] papermill={"duration": 0.003509, "end_time": "2025-12-05T20:29:41.862267", "exception": false, "start_time": "2025-12-05T20:29:41.858758", "status": "completed"}
 # ### Read updated Biological Process (BP) GO terms (2024)
@@ -347,4 +347,4 @@ print(f'Saved upd_go_bp_2024.csv: {len(upd_go_bp_2024_df)} rows')
 common_terms_df.to_csv(output_dir / 'common_go_terms.csv', index=False)
 print(f'Saved common_go_terms.csv: {len(common_terms_df)} GO terms')
 
-print('\nNotebook 1.1 complete!')
+print('\n Data loading complete!')
