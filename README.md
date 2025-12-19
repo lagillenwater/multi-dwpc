@@ -11,14 +11,14 @@ Several of the scripts build on previous work from the Greene Lab and [hetionet 
 
 # Getting Started
 
-### Clone the repository
+## Clone the repository
 
 ```bash
 git clone https://github.com/greenelab/multi-dwpc.git
 cd multi-dwpc
 ```
 
-### Create the environment
+## Create the environment
 
 ```bash
 conda env create -f env/environment.yml
@@ -26,7 +26,7 @@ conda activate multi_dwpc
 pip install -e ".[dev]"
 ```
 
-### Run the pipeline
+## Prepare the Data
 
 ```bash
 # Run individual steps
@@ -63,9 +63,48 @@ Located in `scripts/`:
 
 1. **1_1_data_loading.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
 2. **1_2_percent_change_and_filtering.py** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
-3. **1_3_jaccard_similarity_and_filtering.py** - Filters GO terms by Jaccard similarity
+3. **1_3_jaccard_similarity_and_filtering.py** - Calculates Jaccard similarity between GO terms, filters overlapping terms (>0.1 threshold), and generates Neo4j ID mappings from the Hetionet API
 4. **1_4_permutation_null_datasets.py** - Generates permutation-based null datasets
 5. **1_5_random_datasets.py** - Generates random null datasets
+
+## Run the DWPC computation
+
+Notebook 2 computes Degree-Weighted Path Counts (DWPC) via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
+
+**1. Start the Docker stack:**
+
+```bash
+cd connectivity-search-backend
+./run_stack.sh
+```
+
+This will:
+- Download the postgres database dump (~5 GB) on first run
+- Set up the `.env` file with required secrets
+- Start the postgres, neo4j, and API containers
+
+The initial database load takes approximately 30 minutes for postgres and 10 minutes for neo4j.
+
+**2. Verify the API is running:**
+
+Wait for the containers to become healthy, then test the API:
+
+```bash
+curl http://localhost:8015/v1/nodes/
+```
+
+**3. Run notebook 2:**
+
+```bash
+poe compute-dwpc
+```
+
+**4. Stop the Docker stack when finished:**
+
+```bash
+cd connectivity-search-backend
+docker compose down
+```
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
