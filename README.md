@@ -69,7 +69,39 @@ Located in `scripts/`:
 
 ## Run the DWPC computation
 
-Notebook 2 computes Degree-Weighted Path Counts (DWPC) via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
+There are two methods for computing Degree-Weighted Path Counts (DWPC):
+
+### Option A: Direct computation (recommended)
+
+Computes DWPC directly from the HetMat sparse matrices using hetmatpy. This method is significantly faster and does not require Docker.
+
+```bash
+poe compute-dwpc-direct
+```
+
+**First run:** Computes and caches all DWPC matrices 
+
+**Subsequent runs:** Loads cached matrices from disk
+
+**Testing accuracy:**
+
+Validate that direct computation matches the API gold-standard values:
+
+```bash
+poe test-dwpc-accuracy
+```
+
+**Benchmarking:**
+
+Compare direct computation vs API performance:
+
+```bash
+poe benchmark-dwpc
+```
+
+### Option B: API-based computation
+
+Computes DWPC via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
 
 **1. Start the Docker stack:**
 
@@ -93,10 +125,11 @@ Wait for the containers to become healthy, then test the API:
 curl http://localhost:8015/v1/nodes/
 ```
 
-**3. Run notebook 2:**
+**3. Run the API-based computation:**
 
 ```bash
-poe compute-dwpc
+# Uncomment compute-dwpc-api in pyproject.toml first
+poe compute-dwpc-api
 ```
 
 **4. Stop the Docker stack when finished:**
@@ -105,6 +138,15 @@ poe compute-dwpc
 cd connectivity-search-backend
 docker compose down
 ```
+
+### Performance comparison
+
+Direct computation is 1,000-6,000x faster than API lookups after matrices are cached:
+
+| Method | Time per pair | Notes |
+|--------|---------------|-------|
+| Direct (cached) | 0.002-0.01 ms | After initial matrix computation |
+| API | 12-15 ms | Network overhead per request |
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

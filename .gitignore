@@ -57,3 +57,4 @@ src_2/
 
 # Connectivity search backend data
 connectivity-search-backend/data/postgres/
+.DS_Store
