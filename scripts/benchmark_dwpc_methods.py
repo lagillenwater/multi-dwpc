@@ -29,7 +29,7 @@ METAPATHS_TO_TEST = ["GpBP", "GiGpBP", "GiGiGpBP"]
 
 def load_test_pairs(data_dir: Path, n_pairs: int, seed: int = 42) -> pd.DataFrame:
     """Load a sample of gene-BP pairs for benchmarking."""
-    pairs_path = repo_root / "output/intermediate/hetio_bppg_dataset2_filtered.csv"
+    pairs_path = repo_root / "output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv"
     if not pairs_path.exists():
         raise FileNotFoundError(f"Test pairs not found at {pairs_path}")
 

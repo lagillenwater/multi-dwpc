@@ -39,15 +39,16 @@ include = ["src*"]
 
 [tool.poe.tasks]
 # Individual pipeline steps
-load-data = "python scripts/1_1_data_loading.py"
-filter-change = "python scripts/1_2_percent_change_and_filtering.py"
-filter-jaccard = "python scripts/1_3_jaccard_similarity_and_filtering.py"
-gen-permutation = "python scripts/1_4_permutation_null_datasets.py"
-gen-random = "python scripts/1_5_random_datasets.py"
+load-data = "python scripts/load_data.py"
+filter-change = "python scripts/percent_change_and_filtering.py"
+go-hierarchy-analysis = "python scripts/go_hierarchy_analysis.py"
+filter-jaccard = "python scripts/jaccard_similarity_and_filtering.py"
+gen-permutation = "python scripts/permutation_null_datasets.py"
+gen-random = "python scripts/random_null_datasets.py"
 
 # DWPC computation
 # Option A: Direct matrix computation (no Docker required)
-compute-dwpc-direct = "python scripts/2_compute_dwpc_direct.py"
+compute-dwpc-direct = "python scripts/compute_dwpc_direct.py"
 # Option B: Via Docker API (requires connectivity-search-backend running)
 # compute-dwpc-api = "python scripts/2_compute_dwpc_via_api.py"
 
@@ -56,10 +57,9 @@ test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
 benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
 
 # Grouped tasks
-pipeline-prep = ["load-data", "filter-change", "filter-jaccard"]
+pipeline-production = "python scripts/pipeline_production.py"
+pipeline-publication = "python scripts/pipeline_publication.py"
 pipeline-null = ["gen-permutation", "gen-random"]
-pipeline-all = ["pipeline-prep", "pipeline-null"]
-pipeline-dwpc = ["pipeline-prep", "pipeline-null", "compute-dwpc-direct"]
 
 # Utility tasks
 convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to py:percent -o scripts/$(basename \"$nb\" .ipynb | tr '.' '_').py \"$nb\"; done" }

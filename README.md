@@ -29,15 +29,17 @@ pip install -e ".[dev]"
 ## Prepare the Data
 
 ```bash
+# Production pipeline (skips GO hierarchy analysis)
+poe pipeline-production
+
+# Publication pipeline (includes GO hierarchy evaluation)
+poe pipeline-publication
+
 # Run individual steps
 poe load-data
 poe filter-change
+poe go-hierarchy-analysis
 poe filter-jaccard
-
-# Or run grouped tasks
-poe pipeline-prep   # load-data + filter-change + filter-jaccard
-poe pipeline-null   # gen-permutation + gen-random
-poe pipeline-all    # full pipeline
 ```
 
 ### Available tasks
@@ -47,25 +49,42 @@ Run `poe --help` to see all available tasks:
 | Task | Description |
 |------|-------------|
 | `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
-| `filter-change` | Filter GO terms by percent change between 2016 and 2024 |
-| `filter-jaccard` | Filter GO terms by Jaccard similarity |
+| `filter-change` | Percent-change + IQR filtering (all_GO_positive_growth) |
+| `go-hierarchy-analysis` | GO hierarchy metrics + parents_GO_postive_growth |
+| `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
-| `pipeline-prep` | Run data loading and filtering steps |
+| `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
+| `test-dwpc-accuracy` | Validate direct DWPC computation against API |
+| `benchmark-dwpc` | Benchmark direct vs API computation |
+| `pipeline-production` | Run full production pipeline |
+| `pipeline-publication` | Run full publication pipeline |
 | `pipeline-null` | Run null dataset generation |
-| `pipeline-all` | Run full pipeline |
 | `convert-notebooks` | Convert notebooks to Python scripts |
 | `clean` | Remove generated data directories |
+
+Note: `filter-jaccard` includes parents_GO_postive_growth only when run with
+`python scripts/jaccard_similarity_and_filtering.py --include-parents` or via
+`poe pipeline-publication`.
 
 ### Pipeline scripts
 
 Located in `scripts/`:
 
-1. **1_1_data_loading.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
-2. **1_2_percent_change_and_filtering.py** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
-3. **1_3_jaccard_similarity_and_filtering.py** - Calculates Jaccard similarity between GO terms, filters overlapping terms (>0.1 threshold), and generates Neo4j ID mappings from the Hetionet API
-4. **1_4_permutation_null_datasets.py** - Generates permutation-based null datasets
-5. **1_5_random_datasets.py** - Generates random null datasets
+1. **load_data.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
+2. **percent_change_and_filtering.py** - Percent-change + IQR filtering for all_GO_positive_growth
+3. **go_hierarchy_analysis.py** - GO hierarchy metrics and parents_GO_postive_growth generation
+4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
+5. **permutation_null_datasets.py** - Generates permutation-based null datasets
+6. **random_null_datasets.py** - Generates random null datasets
+7. **compute_dwpc_direct.py** - Direct DWPC computation
+8. **pipeline_publication.py** - Full publication pipeline runner
+9. **pipeline_production.py** - Full production pipeline runner
+
+### Dataset naming
+
+- `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
+- `parents_GO_postive_growth`: parents of leaf terms within the same filtered set
 
 ## Run the DWPC computation
 

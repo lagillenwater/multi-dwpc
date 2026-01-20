@@ -132,7 +132,7 @@ def main():
     print("=" * 70)
 
     data_dir = repo_root / "data"
-    api_results_path = repo_root / "output/dwpc_com/dataset2/results/res_dataset2_2016_real.csv"
+    api_results_path = repo_root / "output/dwpc_com/parents_GO_postive_growth/results/res_parents_GO_postive_growth_2016_real.csv"
 
     if not api_results_path.exists():
         print(f"ERROR: API results not found at {api_results_path}")

@@ -13,17 +13,17 @@
 # ---
 
 # %% [markdown]
-# # 1.4 Generate Permuted GO-Label Datasets
+# # Generate Permuted GO-Label Datasets
 #
 # Generate permuted GO-gene associations for null distribution analysis.
 #
 # ## Inputs
-# - `output/intermediate/hetio_bppg_dataset2_filtered.csv` (2016)
-# - `output/intermediate/hetio_bppg_dataset2_2024_filtered.csv` (2024)
+# - `output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv` (2016)
+# - `output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv` (2024)
 #
 # ## Outputs
-# - `output/permutations/dataset2_2016/perm_001.csv` through `perm_005.csv`
-# - `output/permutations/dataset2_2024/perm_001.csv` through `perm_005.csv`
+# - `output/permutations/all_GO_positive_growth_2016/perm_001.csv` through `perm_005.csv`
+# - `output/permutations/all_GO_positive_growth_2024/perm_001.csv` through `perm_005.csv`
 #
 # ## Description
 # This notebook generates 5 permuted GO-gene datasets for each year by shuffling
@@ -53,18 +53,18 @@ sys.path.insert(0, str(repo_root))
 from src.random_sampling import permute_go_labels
 
 # Create output directories
-(repo_root / 'output/permutations/dataset2_2016').mkdir(parents=True, exist_ok=True)
-(repo_root / 'output/permutations/dataset2_2024').mkdir(parents=True, exist_ok=True)
+(repo_root / 'output/permutations/all_GO_positive_growth_2016').mkdir(parents=True, exist_ok=True)
+(repo_root / 'output/permutations/all_GO_positive_growth_2024').mkdir(parents=True, exist_ok=True)
 
 print(f'Repo root: {repo_root}')
 print('Environment setup complete')
 
 # %%
-# Load Dataset 2 filtered data (both years)
-real_2016 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_dataset2_filtered.csv')
-real_2024 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_dataset2_2024_filtered.csv')
+# Load All GO Positive Growth filtered data (both years)
+real_2016 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv')
+real_2024 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv')
 
-print('Dataset 2 - Real Data Loaded')
+print('All GO Positive Growth - Real Data Loaded')
 print('=' * 80)
 print(f'2016: {len(real_2016):,} GO-gene pairs')
 print(f'      {real_2016["go_id"].nunique()} unique GO terms')
@@ -103,7 +103,7 @@ permuted_2016 = permute_go_labels(
 )
 
 # Save each permutation
-perm_dir_2016 = repo_root / 'output/permutations/dataset2_2016'
+perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
 for i, perm_df in enumerate(permuted_2016, start=1):
     output_path = perm_dir_2016 / f'perm_{i:03d}.csv'
     perm_df.to_csv(output_path, index=False)
@@ -132,7 +132,7 @@ permuted_2024 = permute_go_labels(
 )
 
 # Save each permutation
-perm_dir_2024 = repo_root / 'output/permutations/dataset2_2024'
+perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 for i, perm_df in enumerate(permuted_2024, start=1):
     output_path = perm_dir_2024 / f'perm_{i:03d}.csv'
     perm_df.to_csv(output_path, index=False)
@@ -156,8 +156,8 @@ print('\n' + '=' * 80)
 print('VALIDATION: GO Term Sizes')
 print('=' * 80)
 
-perm_dir_2016 = repo_root / 'output/permutations/dataset2_2016'
-perm_dir_2024 = repo_root / 'output/permutations/dataset2_2024'
+perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
+perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print('\n2016 Permutations:')
 for i in range(1, 6):
@@ -189,8 +189,8 @@ print('\n' + '=' * 80)
 print('VALIDATION: Gene Sets')
 print('=' * 80)
 
-perm_dir_2016 = repo_root / 'output/permutations/dataset2_2016'
-perm_dir_2024 = repo_root / 'output/permutations/dataset2_2024'
+perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
+perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print('\n2016:')
 perm1_2016 = pd.read_csv(perm_dir_2016 / 'perm_001.csv')
@@ -228,8 +228,8 @@ print('\n' + '=' * 80)
 print('VALIDATION: Total Associations')
 print('=' * 80)
 
-perm_dir_2016 = repo_root / 'output/permutations/dataset2_2016'
-perm_dir_2024 = repo_root / 'output/permutations/dataset2_2024'
+perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
+perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print(f'\n2016 Real: {len(real_2016):,} associations')
 for i in range(1, 6):
@@ -259,8 +259,8 @@ print('  2024: 5 permutations')
 print('  Total: 10 permuted datasets + 2 real datasets = 12 datasets')
 
 print('\nOutput Files:')
-print('  output/permutations/dataset2_2016/perm_001.csv through perm_005.csv')
-print('  output/permutations/dataset2_2024/perm_001.csv through perm_005.csv')
+print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv through perm_005.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv through perm_005.csv')
 
 print('\nValidation Results:')
 print('  GO term sizes preserved')
@@ -268,6 +268,5 @@ print('  Gene sets unchanged (only labels shuffled)')
 print('  Total associations preserved')
 
 print('\nNext Steps:')
-print('  1. Run notebook 2 to compute DWPC for all 12 datasets')
-print('  2. Expected runtime: 7.5-8.5 hours (can run overnight)')
-print('  3. Each dataset takes 30-45 minutes for Dataset 2')
+print('  1. Run script 2 to compute DWPC for all datasets')
+print('  2. poe compute-dwpc-direct')

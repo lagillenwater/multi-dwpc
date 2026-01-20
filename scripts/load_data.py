@@ -13,7 +13,7 @@
 # ---
 
 # %% [markdown] papermill={"duration": 0.001869, "end_time": "2025-12-05T20:29:36.322002", "exception": false, "start_time": "2025-12-05T20:29:36.320133", "status": "completed"}
-# # 1.1 Data Loading
+# # Data Loading
 #
 # Download or Load 2016 Hetionet BP-Gene associations and 2024 GO annotations.
 #
@@ -43,8 +43,6 @@
 # - `output/intermediate/hetio_bppg_2016.csv`
 # - `output/intermediate/upd_go_bp_2024.csv`
 # - `output/intermediate/common_go_terms.csv`
-# - `gene_ontology/gene-ontology/download/go-basic.obo`
-# - `gene_ontology/gene-ontology/download/go-basic-2016-02-01.obo`
 
 # %% [markdown] papermill={"duration": 0.00381, "end_time": "2025-12-05T20:29:36.330528", "exception": false, "start_time": "2025-12-05T20:29:36.326718", "status": "completed"}
 # ### Read existing Biological Process (BP) GO terms in Hetionet (2016)
@@ -108,38 +106,6 @@ else:
     print("Graph loaded, creating hetmat matrices...")
     hetmat = hetmatpy.hetmat.hetmat_from_graph(graph, str(hetmat_path))
     print(f"Hetmat created and saved to {hetmat_path}")
-
-# %% papermill={"duration": 3.06498, "end_time": "2025-12-05T20:29:41.521111", "exception": false, "start_time": "2025-12-05T20:29:38.456131", "status": "completed"}
-# Download GO ontology OBO files for hierarchy analysis
-import urllib.request
-
-go_ontology_dir = repo_root / "gene_ontology/gene-ontology/download"
-go_ontology_dir.mkdir(parents=True, exist_ok=True)
-
-# URLs for GO OBO files
-GO_OBO_2024_URL = "http://purl.obolibrary.org/obo/go/go-basic.obo"
-GO_OBO_2016_URL = "http://release.geneontology.org/2016-02-01/ontology/go-basic.obo"
-
-obo_2024_path = go_ontology_dir / "go-basic.obo"
-obo_2016_path = go_ontology_dir / "go-basic-2016-02-01.obo"
-
-# Download 2024 OBO (current)
-if obo_2024_path.exists():
-    print(f"GO OBO 2024 already exists at {obo_2024_path}")
-else:
-    print(f"Downloading GO OBO 2024 from {GO_OBO_2024_URL}...")
-    urllib.request.urlretrieve(GO_OBO_2024_URL, obo_2024_path)
-    print(f"Saved to {obo_2024_path}")
-
-# Download 2016 OBO (archived)
-if obo_2016_path.exists():
-    print(f"GO OBO 2016 already exists at {obo_2016_path}")
-else:
-    print(f"Downloading GO OBO 2016 from {GO_OBO_2016_URL}...")
-    urllib.request.urlretrieve(GO_OBO_2016_URL, obo_2016_path)
-    print(f"Saved to {obo_2016_path}")
-
-print("\nGO ontology files ready for hierarchy analysis")
 
 # %% papermill={"duration": 0.112978, "end_time": "2025-12-05T20:29:41.640242", "exception": false, "start_time": "2025-12-05T20:29:41.527264", "status": "completed"}
 # Load sparse adjacency matrix directly

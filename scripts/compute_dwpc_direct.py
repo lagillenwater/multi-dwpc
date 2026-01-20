@@ -12,18 +12,18 @@
 # ---
 
 # %% [markdown]
-# # 2. Compute DWPC Directly via Matrix Multiplication
+# # Compute DWPC Directly via Matrix Multiplication
 #
 # This script computes Degree-Weighted Path Counts (DWPC) directly from
 # the HetMat sparse matrices, without requiring the Docker API.
 #
 # ## Inputs
 # - `data/` directory containing HetMat sparse matrices
-# - `output/intermediate/hetio_bppg_dataset*_filtered.csv` files
+# - `output/intermediate/hetio_bppg_all_GO_positive_growth*_filtered.csv` files
 # - `output/permutations/` and `output/random_samples/` directories
 #
 # ## Outputs
-# - `output/dwpc_direct/dataset2/` directory with DWPC results
+# - `output/dwpc_direct/all_GO_positive_growth/` directory with DWPC results
 #
 # ## Advantages over API approach
 # - No Docker dependency
@@ -66,7 +66,7 @@ print("DWPC direct computation module loaded")
 # %%
 # Configuration
 DATA_DIR = repo_root / "data"
-OUTPUT_DIR = repo_root / "output" / "dwpc_direct" / "dataset2"
+OUTPUT_DIR = repo_root / "output" / "dwpc_direct" / "all_GO_positive_growth"
 INTERMEDIATE_DIR = repo_root / "output" / "intermediate"
 
 # DWPC parameters (0.5 matches API, arcsinh transformation applied)
@@ -168,11 +168,12 @@ for f in sorted(cached_files):
 
 # %%
 # Define datasets to process
+# Using all_GO_positive_growth (Jaccard-filtered all GO positive growth terms)
 datasets_config = [
     # 2016 Real
     {
-        "name": "dataset2_2016_real",
-        "path": INTERMEDIATE_DIR / "hetio_bppg_dataset2_filtered.csv",
+        "name": "all_GO_positive_growth_2016_real",
+        "path": INTERMEDIATE_DIR / "hetio_bppg_all_GO_positive_growth_filtered.csv",
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
         "year": 2016,
@@ -180,8 +181,8 @@ datasets_config = [
     },
     # 2024 Real
     {
-        "name": "dataset2_2024_real",
-        "path": INTERMEDIATE_DIR / "hetio_bppg_dataset2_2024_filtered.csv",
+        "name": "all_GO_positive_growth_2024_real",
+        "path": INTERMEDIATE_DIR / "hetio_bppg_all_GO_positive_growth_2024_filtered.csv",
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
         "year": 2024,
@@ -190,13 +191,13 @@ datasets_config = [
 ]
 
 # Add permutation datasets if they exist
-perm_dir_2016 = repo_root / "output" / "permutations" / "dataset2_2016"
-perm_dir_2024 = repo_root / "output" / "permutations" / "dataset2_2024"
+perm_dir_2016 = repo_root / "output" / "permutations" / "all_GO_positive_growth_2016"
+perm_dir_2024 = repo_root / "output" / "permutations" / "all_GO_positive_growth_2024"
 
 for perm_file in sorted(perm_dir_2016.glob("perm_*.csv")) if perm_dir_2016.exists() else []:
     perm_num = perm_file.stem.split("_")[1]
     datasets_config.append({
-        "name": f"dataset2_2016_perm_{perm_num}",
+        "name": f"all_GO_positive_growth_2016_perm_{perm_num}",
         "path": perm_file,
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
@@ -207,7 +208,7 @@ for perm_file in sorted(perm_dir_2016.glob("perm_*.csv")) if perm_dir_2016.exist
 for perm_file in sorted(perm_dir_2024.glob("perm_*.csv")) if perm_dir_2024.exists() else []:
     perm_num = perm_file.stem.split("_")[1]
     datasets_config.append({
-        "name": f"dataset2_2024_perm_{perm_num}",
+        "name": f"all_GO_positive_growth_2024_perm_{perm_num}",
         "path": perm_file,
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
@@ -216,13 +217,13 @@ for perm_file in sorted(perm_dir_2024.glob("perm_*.csv")) if perm_dir_2024.exist
     })
 
 # Add random datasets if they exist
-random_dir_2016 = repo_root / "output" / "random_samples" / "dataset2_2016"
-random_dir_2024 = repo_root / "output" / "random_samples" / "dataset2_2024"
+random_dir_2016 = repo_root / "output" / "random_samples" / "all_GO_positive_growth_2016"
+random_dir_2024 = repo_root / "output" / "random_samples" / "all_GO_positive_growth_2024"
 
 for random_file in sorted(random_dir_2016.glob("random_*.csv")) if random_dir_2016.exists() else []:
     random_num = random_file.stem.split("_")[1]
     datasets_config.append({
-        "name": f"dataset2_2016_random_{random_num}",
+        "name": f"all_GO_positive_growth_2016_random_{random_num}",
         "path": random_file,
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
@@ -233,7 +234,7 @@ for random_file in sorted(random_dir_2016.glob("random_*.csv")) if random_dir_20
 for random_file in sorted(random_dir_2024.glob("random_*.csv")) if random_dir_2024.exists() else []:
     random_num = random_file.stem.split("_")[1]
     datasets_config.append({
-        "name": f"dataset2_2024_random_{random_num}",
+        "name": f"all_GO_positive_growth_2024_random_{random_num}",
         "path": random_file,
         "gene_col": "entrez_gene_id",
         "go_col": "go_id",
@@ -449,7 +450,7 @@ for f in sorted((OUTPUT_DIR / "results").glob("*.csv")):
 
 # %%
 # Sample output
-sample_file = OUTPUT_DIR / "results" / "dwpc_dataset2_2016_real.csv"
+sample_file = OUTPUT_DIR / "results" / "dwpc_all_GO_positive_growth_2016_real.csv"
 if sample_file.exists():
     sample_df = pd.read_csv(sample_file)
     print("\nSample output (first 10 rows):")

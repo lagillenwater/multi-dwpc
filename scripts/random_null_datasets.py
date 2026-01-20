@@ -13,19 +13,19 @@
 # ---
 
 # %% [markdown]
-# # 1.5 Promiscuity-Controlled Random Gene Sampling
+# # Promiscuity-Controlled Random Gene Sampling
 #
 # Generate random gene samples controlling for gene promiscuity (number of GO term annotations).
 #
 # ## Inputs
-# - `output/intermediate/hetio_bppg_dataset2_filtered.csv` (2016 filtered)
-# - `output/intermediate/hetio_bppg_dataset2_2024_filtered.csv` (2024 filtered)
+# - `output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv` (2016 filtered)
+# - `output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv` (2024 filtered)
 # - `output/intermediate/hetio_bppg_2016_stable.csv` (all 2016 stable genes for promiscuity)
 # - `output/intermediate/upd_go_bp_2024_added.csv` (all 2024 added genes for promiscuity)
 #
 # ## Outputs
-# - `output/random_samples/dataset2_2016/random_001.csv` through `random_005.csv`
-# - `output/random_samples/dataset2_2024/random_001.csv` through `random_005.csv`
+# - `output/random_samples/all_GO_positive_growth_2016/random_001.csv` through `random_005.csv`
+# - `output/random_samples/all_GO_positive_growth_2024/random_001.csv` through `random_005.csv`
 #
 # ## Description
 # This notebook generates 5 random gene samples per year that control for gene promiscuity.
@@ -59,10 +59,10 @@ from src.random_sampling import (
     calculate_gene_promiscuity
 )
 
-(repo_root / 'output/random_samples/dataset2_2016').mkdir(
+(repo_root / 'output/random_samples/all_GO_positive_growth_2016').mkdir(
     parents=True, exist_ok=True
 )
-(repo_root / 'output/random_samples/dataset2_2024').mkdir(
+(repo_root / 'output/random_samples/all_GO_positive_growth_2024').mkdir(
     parents=True, exist_ok=True
 )
 
@@ -77,10 +77,10 @@ print('Environment setup complete')
 # %%
 # Load filtered datasets from notebook 1.3
 real_2016 = pd.read_csv(
-    repo_root / 'output/intermediate/hetio_bppg_dataset2_filtered.csv'
+    repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv'
 )
 real_2024 = pd.read_csv(
-    repo_root / 'output/intermediate/hetio_bppg_dataset2_2024_filtered.csv'
+    repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv'
 )
 
 print('Filtered GO-Gene Associations Loaded')
@@ -330,8 +330,8 @@ for i, random_2024 in enumerate(random_samples_2024, start=1):
 # %%
 print('\nSaving random samples...')
 
-random_dir_2016 = repo_root / 'output/random_samples/dataset2_2016'
-random_dir_2024 = repo_root / 'output/random_samples/dataset2_2024'
+random_dir_2016 = repo_root / 'output/random_samples/all_GO_positive_growth_2016'
+random_dir_2024 = repo_root / 'output/random_samples/all_GO_positive_growth_2024'
 
 # Save 2016 samples
 for i, random_sample in enumerate(random_samples_2016, start=1):
@@ -355,13 +355,11 @@ print('  Random datasets (1.5): 5 random samples per year (promiscuity-controlle
 print('  Total: 20 control datasets + 2 real datasets = 22 datasets')
 
 print('\nOutput Files:')
-print('  output/permutations/dataset2_2016/perm_001.csv through perm_005.csv')
-print('  output/permutations/dataset2_2024/perm_001.csv through perm_005.csv')
-print('  output/random_samples/dataset2_2016/random_001.csv through random_005.csv')
-print('  output/random_samples/dataset2_2024/random_001.csv through random_005.csv')
-
-print('\nNote: Neo4j ID mapping will be done in notebook 2 when Docker stack is running.')
+print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv through perm_005.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv through perm_005.csv')
+print('  output/random_samples/all_GO_positive_growth_2016/random_001.csv through random_005.csv')
+print('  output/random_samples/all_GO_positive_growth_2024/random_001.csv through random_005.csv')
 
 print('\nNext Steps:')
-print('  Run notebook 2 to compute DWPC for all datasets')
-print('  Expected runtime: Variable (depends on API performance)')
+print('  Run script 2 to compute DWPC for all datasets')
+print('  poe compute-dwpc-direct')
