@@ -55,6 +55,8 @@ Run `poe --help` to see all available tasks:
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
 | `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
+| `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
+| `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
 | `benchmark-dwpc` | Benchmark direct vs API computation |
 | `pipeline-production` | Run full production pipeline |
@@ -78,8 +80,9 @@ Located in `scripts/`:
 5. **permutation_null_datasets.py** - Generates permutation-based null datasets
 6. **random_null_datasets.py** - Generates random null datasets
 7. **compute_dwpc_direct.py** - Direct DWPC computation
-8. **pipeline_publication.py** - Full publication pipeline runner
-9. **pipeline_production.py** - Full production pipeline runner
+8. **lookup_dwpc_api.py** - API-based DWPC lookup
+9. **pipeline_publication.py** - Full publication pipeline runner
+10. **pipeline_production.py** - Full production pipeline runner
 
 ### Dataset naming
 
@@ -90,7 +93,7 @@ Located in `scripts/`:
 
 There are two methods for computing Degree-Weighted Path Counts (DWPC):
 
-### Option A: Direct computation (recommended)
+### Option A: Direct computation 
 
 Computes DWPC directly from the HetMat sparse matrices using hetmatpy. This method is significantly faster and does not require Docker.
 
@@ -147,8 +150,13 @@ curl http://localhost:8015/v1/nodes/
 **3. Run the API-based computation:**
 
 ```bash
-# Uncomment compute-dwpc-api in pyproject.toml first
-poe compute-dwpc-api
+poe lookup-dwpc-api
+```
+
+If you want to start the Docker stack and wait for the API in one step:
+
+```bash
+poe lookup-dwpc-api-with-docker
 ```
 
 **4. Stop the Docker stack when finished:**

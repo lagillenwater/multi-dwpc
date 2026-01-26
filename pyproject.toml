@@ -50,7 +50,8 @@ gen-random = "python scripts/random_null_datasets.py"
 # Option A: Direct matrix computation (no Docker required)
 compute-dwpc-direct = "python scripts/compute_dwpc_direct.py"
 # Option B: Via Docker API (requires connectivity-search-backend running)
-# compute-dwpc-api = "python scripts/2_compute_dwpc_via_api.py"
+lookup-dwpc-api = "python scripts/lookup_dwpc_api.py"
+lookup-dwpc-api-with-docker = { shell = "COMPOSE_PROGRESS=plain open -a Docker && until docker info >/dev/null 2>&1; do echo 'Waiting for Docker daemon...'; sleep 5; done && cd connectivity-search-backend && COMPOSE_PROGRESS=plain ./run_stack.sh up --build -d && cd .. && python scripts/wait_for_api.py && poe lookup-dwpc-api && cd connectivity-search-backend && COMPOSE_PROGRESS=plain docker compose down" }
 
 # Testing
 test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"

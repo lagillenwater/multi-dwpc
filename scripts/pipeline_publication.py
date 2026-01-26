@@ -17,6 +17,7 @@ PIPELINE_STEPS = [
     ("scripts/jaccard_similarity_and_filtering.py", ["--include-parents"]),
     ("scripts/permutation_null_datasets.py", []),
     ("scripts/random_null_datasets.py", []),
+ ##   ("scripts/lookup_dwpc_api.py", []),
 ]
 
 

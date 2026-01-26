@@ -297,9 +297,12 @@ def check_periodic_progress(summaries: List[Dict[str, Any]],
         print(f"{'='*80}\n")
 
 
-def validate_parquet_files(group_dir: Path, expected_pairs: int,
-                           min_completion_rate: float = 0.2
-                           ) -> Tuple[int, int, float]:
+def validate_parquet_files(
+    group_dir: Path,
+    expected_pairs: int,
+    min_completion_rate: float = 0.2,
+    show_progress: bool = False,
+) -> Tuple[int, int, float]:
     """
     Validate parquet files before merging.
 
@@ -313,6 +316,8 @@ def validate_parquet_files(group_dir: Path, expected_pairs: int,
         Expected number of GO-gene pairs
     min_completion_rate : float
         Minimum acceptable completion rate (default 0.2 = 20%)
+    show_progress : bool
+        Show progress while scanning metadata files
 
     Returns
     -------
@@ -334,7 +339,11 @@ def validate_parquet_files(group_dir: Path, expected_pairs: int,
     n_valid = 0
     n_empty = 0
 
-    for meta_file in metadata_files:
+    iterator = metadata_files
+    if show_progress and metadata_files:
+        iterator = tqdm(metadata_files, desc="Validating parquet metadata", unit="file")
+
+    for meta_file in iterator:
         try:
             with open(meta_file, 'r') as f:
                 meta = json.load(f)
@@ -658,15 +667,12 @@ async def run_metapaths_for_df(
         if show_progress:
             summaries = []
             pbar_desc = f"Processing [{group}]"
-            with tqdm(total=len(coroutines), desc=pbar_desc, unit="task") as pbar:
-                chunk_size = max_concurrency
-                for i in range(0, len(coroutines), chunk_size):
-                    chunk = coroutines[i:i+chunk_size]
-                    chunk_results = await asyncio.gather(
-                        *chunk, return_exceptions=False
-                    )
-                    summaries.extend(chunk_results)
-                    pbar.update(len(chunk))
+            tasks = [asyncio.create_task(coro) for coro in coroutines]
+            with tqdm(total=len(tasks), desc=pbar_desc, unit="task") as pbar:
+                for fut in asyncio.as_completed(tasks):
+                    result = await fut
+                    summaries.append(result)
+                    pbar.update(1)
 
                     if enable_early_validation:
                         try:
