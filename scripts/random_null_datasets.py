@@ -336,13 +336,17 @@ random_dir_2024 = repo_root / 'output/random_samples/all_GO_positive_growth_2024
 # Save 2016 samples
 for i, random_sample in enumerate(random_samples_2016, start=1):
     output_path = random_dir_2016 / f'random_{i:03d}.csv'
-    random_sample.to_csv(output_path, index=False)
+    random_out = random_sample.copy()
+    random_out['entrez_gene_id'] = random_out['pseudo_gene_id']
+    random_out.to_csv(output_path, index=False)
     print(f'  Saved random_{i:03d}.csv: {len(random_sample):,} pairs')
 
 # Save 2024 samples
 for i, random_sample in enumerate(random_samples_2024, start=1):
     output_path = random_dir_2024 / f'random_{i:03d}.csv'
-    random_sample.to_csv(output_path, index=False)
+    random_out = random_sample.copy()
+    random_out['entrez_gene_id'] = random_out['pseudo_gene_id']
+    random_out.to_csv(output_path, index=False)
     print(f'  Saved random_{i:03d}.csv: {len(random_sample):,} pairs')
 
 print('\n' + '=' * 80)
@@ -352,7 +356,7 @@ print('=' * 80)
 print('\nGenerated Control Datasets:')
 print('  Permuted datasets (1.4): 1 permutation per year (shuffle GO labels)')
 print('  Random datasets (1.5): 1 random sample per year (promiscuity-controlled)')
-print('  Total: 20 control datasets + 2 real datasets = 22 datasets')
+print('  Total: 4 control datasets + 2 real datasets = 6 datasets')
 
 print('\nOutput Files:')
 print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv')
