@@ -24,11 +24,11 @@
 # - `output/intermediate/upd_go_bp_2024_added.csv` (all 2024 added genes for promiscuity)
 #
 # ## Outputs
-# - `output/random_samples/all_GO_positive_growth_2016/random_001.csv` through `random_005.csv`
-# - `output/random_samples/all_GO_positive_growth_2024/random_001.csv` through `random_005.csv`
+# - `output/random_samples/all_GO_positive_growth_2016/random_001.csv`
+# - `output/random_samples/all_GO_positive_growth_2024/random_001.csv`
 #
 # ## Description
-# This notebook generates 5 random gene samples per year that control for gene promiscuity.
+# This notebook generates 1 random gene sample per year that controls for gene promiscuity.
 # For each real gene in a GO term, we sample a random gene from OTHER GO terms
 # that has a similar number of GO annotations (promiscuity).
 #
@@ -162,16 +162,16 @@ for _, row in top_2024.iterrows():
 # %% [markdown]
 # ## Generate Random Samples for 2016
 #
-# Generate 5 independent random samples with different random seeds.
+# Generate 1 independent random sample with a fixed random seed.
 
 # %%
-print('Generating 5 promiscuity-controlled random samples for 2016...')
+print('Generating 1 promiscuity-controlled random sample for 2016...')
 print('=' * 80)
 
 random_samples_2016 = []
 
-for i in range(1, 6):
-    print(f'\nGenerating random sample {i}/5...')
+for i in range(1, 2):
+    print(f'\nGenerating random sample {i}/1...')
     
     random_sample = generate_promiscuity_controlled_samples(
         go_gene_df=real_2016,
@@ -190,21 +190,21 @@ for i in range(1, 6):
     print(f'  Real promiscuity: mean={random_sample["real_promiscuity"].mean():.2f}')
     print(f'  Random promiscuity: mean={random_sample["sampled_promiscuity"].mean():.2f}')
 
-print('\n2016 random samples complete')
+print('\n2016 random sample complete')
 
 # %% [markdown]
 # ## Generate Random Samples for 2024
 #
-# Generate 5 independent random samples for 2024 data.
+# Generate 1 independent random sample for 2024 data.
 
 # %%
-print('Generating 5 promiscuity-controlled random samples for 2024...')
+print('Generating 1 promiscuity-controlled random sample for 2024...')
 print('=' * 80)
 
 random_samples_2024 = []
 
-for i in range(1, 6):
-    print(f'\nGenerating random sample {i}/5...')
+for i in range(1, 2):
+    print(f'\nGenerating random sample {i}/1...')
     
     random_sample = generate_promiscuity_controlled_samples(
         go_gene_df=real_2024,
@@ -223,7 +223,7 @@ for i in range(1, 6):
     print(f'  Real promiscuity: mean={random_sample["real_promiscuity"].mean():.2f}')
     print(f'  Random promiscuity: mean={random_sample["sampled_promiscuity"].mean():.2f}')
 
-print('\n2024 random samples complete')
+print('\n2024 random sample complete')
 
 # %% [markdown]
 # ## Validation
@@ -350,15 +350,15 @@ print('NOTEBOOK 1.5 COMPLETE')
 print('=' * 80)
 
 print('\nGenerated Control Datasets:')
-print('  Permuted datasets (1.4): 5 permutations per year (shuffle GO labels)')
-print('  Random datasets (1.5): 5 random samples per year (promiscuity-controlled)')
+print('  Permuted datasets (1.4): 1 permutation per year (shuffle GO labels)')
+print('  Random datasets (1.5): 1 random sample per year (promiscuity-controlled)')
 print('  Total: 20 control datasets + 2 real datasets = 22 datasets')
 
 print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv through perm_005.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv through perm_005.csv')
-print('  output/random_samples/all_GO_positive_growth_2016/random_001.csv through random_005.csv')
-print('  output/random_samples/all_GO_positive_growth_2024/random_001.csv through random_005.csv')
+print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv')
+print('  output/random_samples/all_GO_positive_growth_2016/random_001.csv')
+print('  output/random_samples/all_GO_positive_growth_2024/random_001.csv')
 
 print('\nNext Steps:')
 print('  Run script 2 to compute DWPC for all datasets')

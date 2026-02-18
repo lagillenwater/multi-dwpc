@@ -22,11 +22,11 @@
 # - `output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv` (2024)
 #
 # ## Outputs
-# - `output/permutations/all_GO_positive_growth_2016/perm_001.csv` through `perm_005.csv`
-# - `output/permutations/all_GO_positive_growth_2024/perm_001.csv` through `perm_005.csv`
+# - `output/permutations/all_GO_positive_growth_2016/perm_001.csv`
+# - `output/permutations/all_GO_positive_growth_2024/perm_001.csv`
 #
 # ## Description
-# This notebook generates 5 permuted GO-gene datasets for each year by shuffling
+# This notebook generates 1 permuted GO-gene dataset for each year by shuffling
 # GO labels among genes while preserving:
 # - Gene degree distribution (same genes, different GO labels)
 # - Number of genes per GO term
@@ -87,16 +87,16 @@ print('\nData validation passed')
 # %% [markdown]
 # ## Generate Permutations for 2016
 #
-# Create 5 permuted datasets by shuffling GO labels among genes.
+# Create 1 permuted dataset by shuffling GO labels among genes.
 
 # %%
-# Generate 5 permutations for 2016
-print('\nGenerating 5 permutations for 2016...')
+# Generate 1 permutation for 2016
+print('\nGenerating 1 permutation for 2016...')
 print('=' * 80)
 
 permuted_2016 = permute_go_labels(
     go_gene_df=real_2016,
-    n_permutations=5,
+    n_permutations=1,
     go_id_col='go_id',
     gene_id_col='entrez_gene_id',
     random_state=42
@@ -116,16 +116,16 @@ print('\n2016 permutations complete')
 # %% [markdown]
 # ## Generate Permutations for 2024
 #
-# Create 5 permuted datasets for 2024 data.
+# Create 1 permuted dataset for 2024 data.
 
 # %%
-# Generate 5 permutations for 2024
-print('\nGenerating 5 permutations for 2024...')
+# Generate 1 permutation for 2024
+print('\nGenerating 1 permutation for 2024...')
 print('=' * 80)
 
 permuted_2024 = permute_go_labels(
     go_gene_df=real_2024,
-    n_permutations=5,
+    n_permutations=1,
     go_id_col='go_id',
     gene_id_col='entrez_gene_id',
     random_state=42
@@ -232,7 +232,7 @@ perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
 perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print(f'\n2016 Real: {len(real_2016):,} associations')
-for i in range(1, 6):
+for i in range(1, 2):
     perm = pd.read_csv(perm_dir_2016 / f'perm_{i:03d}.csv')
     if len(perm) == len(real_2016):
         print(f'  Permutation {i}: {len(perm):,} associations')
@@ -240,7 +240,7 @@ for i in range(1, 6):
         print(f'  Permutation {i}: {len(perm):,} associations (expected {len(real_2016):,})')
 
 print(f'\n2024 Real: {len(real_2024):,} associations')
-for i in range(1, 6):
+for i in range(1, 2):
     perm = pd.read_csv(perm_dir_2024 / f'perm_{i:03d}.csv')
     if len(perm) == len(real_2024):
         print(f'  Permutation {i}: {len(perm):,} associations')
@@ -254,13 +254,13 @@ print('NOTEBOOK 1.4 COMPLETE')
 print('=' * 80)
 
 print('\nGenerated Permuted Datasets:')
-print('  2016: 5 permutations')
-print('  2024: 5 permutations')
-print('  Total: 10 permuted datasets + 2 real datasets = 12 datasets')
+print('  2016: 1 permutation')
+print('  2024: 1 permutation')
+print('  Total: 2 permuted datasets + 2 real datasets = 4 datasets')
 
 print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv through perm_005.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv through perm_005.csv')
+print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv')
 
 print('\nValidation Results:')
 print('  GO term sizes preserved')
