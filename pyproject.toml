@@ -53,6 +53,10 @@ compute-dwpc-direct = "python scripts/compute_dwpc_direct.py"
 lookup-dwpc-api = "python scripts/lookup_dwpc_api.py"
 lookup-dwpc-api-with-docker = { shell = "COMPOSE_PROGRESS=plain open -a Docker && until docker info >/dev/null 2>&1; do echo 'Waiting for Docker daemon...'; sleep 5; done && cd connectivity-search-backend && COMPOSE_PROGRESS=plain ./run_stack.sh up --build -d && cd .. && python scripts/wait_for_api.py && poe lookup-dwpc-api && cd connectivity-search-backend && COMPOSE_PROGRESS=plain docker compose down" }
 
+# Post-DWPC analysis
+metapath-signature-analysis = "python scripts/metapath_signature_analysis.py"
+divergence-score-analysis = "python scripts/divergence_score_analysis.py"
+
 # Testing
 test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
 benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
@@ -61,7 +65,12 @@ benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
 pipeline-production = "python scripts/pipeline_production.py"
 pipeline-publication = "python scripts/pipeline_publication.py"
 pipeline-null = ["gen-permutation", "gen-random"]
+direct-dwpc-analyses = ["compute-dwpc-direct", "metapath-signature-analysis", "divergence-score-analysis"]
 
 # Utility tasks
 convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to py:percent -o scripts/$(basename \"$nb\" .ipynb | tr '.' '_').py \"$nb\"; done" }
 clean = { shell = "rm -rf data/ output/ gene_ontology/" }
+top-bp-paths = "python scripts/top_bps_by_metapath.py"
+plot-top-paths-network = "python scripts/plot_top_paths_networks.py"
+extract-top-paths-local = "python scripts/extract_top_paths_local.py"
+plot-path-instances-network = "python scripts/plot_path_instances_networks.py"

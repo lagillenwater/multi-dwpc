@@ -55,6 +55,7 @@ from dwpc_direct import (
     compute_dwpc_parallel,
     create_node_index_mapping,
     load_metagraph,
+    reverse_metapath_abbrev,
 )
 
 print(f"Repository root: {repo_root}")
@@ -114,21 +115,16 @@ print(bp_nodes.head())
 
 # %%
 # Define metapaths to compute
-# These are Gene -> Biological Process metapaths
+# Use all BP->G metapaths (length <= 3) from the metapath stats file,
+# excluding the direct BPpG path, then reverse to G->BP for direct computation.
+metapath_stats = pd.read_csv(DATA_DIR / "metapath-dwpc-stats.tsv", sep="\t")
+bp_to_g = metapath_stats[
+    metapath_stats["metapath"].str.startswith("BP")
+    & metapath_stats["metapath"].str.endswith("G")
+]
+bp_to_g = bp_to_g[bp_to_g["metapath"] != "BPpG"]
 METAPATHS = [
-    # Direct connection
-    "GpBP",
-    # Length 2: Gene-Gene-BP
-    "GiGpBP",   # Gene interacts Gene participates BP
-    "GcGpBP",   # Gene covaries Gene participates BP
-    # Length 3: Gene-intermediate-Gene-BP (via protein interactions)
-    "GiGiGpBP",
-    "GcGcGpBP",
-    "GiGcGpBP",
-    # Via other annotation types
-    "GpPWpGpBP",  # Gene-Pathway-Gene-BP
-    "GpMFpGpBP",  # Gene-MolecularFunction-Gene-BP
-    "GpCCpGpBP",  # Gene-CellularComponent-Gene-BP
+    reverse_metapath_abbrev(mp) for mp in sorted(bp_to_g["metapath"].unique())
 ]
 
 print(f"Computing {len(METAPATHS)} metapaths:")
