@@ -607,6 +607,59 @@ if has_pvalue:
     ]
 print(f"Statistics to analyze: {len(STATISTICS)}")
 
+# Export paired GO-term values (real vs perm/random)
+def build_paired_go_term_values(agg_df, year, control_label, stats):
+    real_label = f"{year}_real"
+    ctrl_label = f"{year}_{control_label}"
+    real = agg_df[agg_df['dataset'] == real_label].copy()
+    ctrl = agg_df[agg_df['dataset'] == ctrl_label].copy()
+
+    if real.empty or ctrl.empty:
+        return pd.DataFrame()
+
+    paired = real.merge(ctrl, on=['go_id', 'metapath'], suffixes=('_real', '_ctrl'))
+
+    for stat in stats:
+        paired[f'{stat}_diff'] = paired[f'{stat}_real'] - paired[f'{stat}_ctrl']
+
+    return paired
+
+
+bp_path = repo_root / "data" / "nodes" / "Biological Process.tsv"
+bp_map = None
+if bp_path.exists():
+    bp_df = pd.read_csv(bp_path, sep="\t")
+    bp_map = dict(zip(bp_df["identifier"], bp_df["name"]))
+
+for year, control in [("2016", "perm"), ("2016", "random"), ("2024", "perm"), ("2024", "random")]:
+    paired = build_paired_go_term_values(agg_df, year, control, STATISTICS)
+    if paired.empty:
+        print(f"Skipping paired GO-term export for {year} vs {control}: no data.")
+        continue
+
+    if bp_map is not None and "go_name" not in paired.columns:
+        paired.insert(1, "go_name", paired["go_id"].map(bp_map))
+
+    base_cols = ["go_id", "metapath"]
+    if "go_name" in paired.columns:
+        base_cols.insert(1, "go_name")
+
+    stat_cols = []
+    for stat in STATISTICS:
+        stat_cols.extend([f"{stat}_real", f"{stat}_ctrl", f"{stat}_diff"])
+
+    count_cols = []
+    for col in ["n_total", "n_nonzero"]:
+        real_col = f"{col}_real"
+        ctrl_col = f"{col}_ctrl"
+        if real_col in paired.columns and ctrl_col in paired.columns:
+            count_cols.extend([real_col, ctrl_col])
+
+    out_cols = base_cols + stat_cols + count_cols
+    out_path = output_dir / f"paired_go_terms_{year}_vs_{control}.csv"
+    paired[out_cols].to_csv(out_path, index=False)
+    print(f"Saved: {out_path}")
+
 
 # %% [markdown] papermill={"duration": 0.005895, "end_time": "2025-12-17T19:12:31.121739", "exception": false, "start_time": "2025-12-17T19:12:31.115844", "status": "completed"}
 # ## Effect Size and Significance Computation
