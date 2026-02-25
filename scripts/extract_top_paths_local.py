@@ -257,8 +257,13 @@ def main() -> None:
                     continue
             df = df[df["metapath"] == mp]
 
-        df = df.sort_values("dwpc", ascending=False)
-        df = df.groupby("metapath").head(args.top_pairs).copy()
+        if "rank" in df.columns:
+            # Use precomputed per-GO term ranks (from top_bps_by_metapath).
+            df = df[df["rank"] <= args.top_pairs].copy()
+        else:
+            # Fallback: compute top pairs per (metapath, GO term) by DWPC.
+            df = df.sort_values("dwpc", ascending=False)
+            df = df.groupby(["metapath", "go_id"]).head(args.top_pairs).copy()
 
         output_rows = []
         for _, row in df.iterrows():
