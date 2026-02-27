@@ -87,7 +87,7 @@ Located in `scripts/`:
 ### Dataset naming
 
 - `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
-- `parents_GO_postive_growth`: parents of leaf terms within the same filtered set
+- `parents_GO_positive_growth`: parents of leaf terms within the same filtered set
 
 ## Run the DWPC computation
 
