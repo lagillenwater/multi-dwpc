@@ -11,31 +11,169 @@ Several of the scripts build on previous work from the Greene Lab and [hetionet 
 
 # Getting Started
 
-### Clone the repository
+## Clone the repository
 
 ```bash
 git clone https://github.com/greenelab/multi-dwpc.git
 cd multi-dwpc
 ```
 
-### Create the environment
+## Create the environment
 
 ```bash
 conda env create -f env/environment.yml
 conda activate multi_dwpc
+pip install -e ".[dev]"
 ```
 
-### Run the pipeline
+## Prepare the Data
 
 ```bash
-papermill notebooks/1.1_data_loading.ipynb notebooks/1.1_data_loading.ipynb && \
-papermill notebooks/1.2_percent_change_and_filtering.ipynb notebooks/1.2_percent_change_and_filtering.ipynb
+# Production pipeline (skips GO hierarchy analysis)
+poe pipeline-production
+
+# Publication pipeline (includes GO hierarchy evaluation)
+poe pipeline-publication
+
+# Run individual steps
+poe load-data
+poe filter-change
+poe go-hierarchy-analysis
+poe filter-jaccard
 ```
 
-Pipeline notebooks:
+### Available tasks
 
-1. **1.1_data_loading.ipynb** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
-2. **1.2_percent_change_and_filtering.ipynb** - Filters GO ontology terms by positive change between 2024 and 2016, GO terms in the IQR of positive change, and GO terms that are the immediate parents of leaf terms
+Run `poe --help` to see all available tasks:
+
+| Task | Description |
+|------|-------------|
+| `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
+| `filter-change` | Percent-change + IQR filtering (all_GO_positive_growth) |
+| `go-hierarchy-analysis` | GO hierarchy metrics + parents_GO_postive_growth |
+| `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
+| `gen-permutation` | Generate permutation null datasets |
+| `gen-random` | Generate random null datasets |
+| `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
+| `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
+| `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
+| `test-dwpc-accuracy` | Validate direct DWPC computation against API |
+| `benchmark-dwpc` | Benchmark direct vs API computation |
+| `pipeline-production` | Run full production pipeline |
+| `pipeline-publication` | Run full publication pipeline |
+| `pipeline-null` | Run null dataset generation |
+| `convert-notebooks` | Convert notebooks to Python scripts |
+| `clean` | Remove generated data directories |
+
+Note: `filter-jaccard` includes parents_GO_postive_growth only when run with
+`python scripts/jaccard_similarity_and_filtering.py --include-parents` or via
+`poe pipeline-publication`.
+
+### Pipeline scripts
+
+Located in `scripts/`:
+
+1. **load_data.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
+2. **percent_change_and_filtering.py** - Percent-change + IQR filtering for all_GO_positive_growth
+3. **go_hierarchy_analysis.py** - GO hierarchy metrics and parents_GO_postive_growth generation
+4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
+5. **permutation_null_datasets.py** - Generates permutation-based null datasets
+6. **random_null_datasets.py** - Generates random null datasets
+7. **compute_dwpc_direct.py** - Direct DWPC computation
+8. **lookup_dwpc_api.py** - API-based DWPC lookup
+9. **pipeline_publication.py** - Full publication pipeline runner
+10. **pipeline_production.py** - Full production pipeline runner
+
+### Dataset naming
+
+- `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
+- `parents_GO_postive_growth`: parents of leaf terms within the same filtered set
+
+## Run the DWPC computation
+
+There are two methods for computing Degree-Weighted Path Counts (DWPC):
+
+### Option A: Direct computation 
+
+Computes DWPC directly from the HetMat sparse matrices using hetmatpy. This method is significantly faster and does not require Docker.
+
+```bash
+poe compute-dwpc-direct
+```
+
+**First run:** Computes and caches all DWPC matrices 
+
+**Subsequent runs:** Loads cached matrices from disk
+
+**Testing accuracy:**
+
+Validate that direct computation matches the API gold-standard values:
+
+```bash
+poe test-dwpc-accuracy
+```
+
+**Benchmarking:**
+
+Compare direct computation vs API performance:
+
+```bash
+poe benchmark-dwpc
+```
+
+### Option B: API-based computation
+
+Computes DWPC via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
+
+**1. Start the Docker stack:**
+
+```bash
+cd connectivity-search-backend
+./run_stack.sh
+```
+
+This will:
+- Download the postgres database dump (~5 GB) on first run
+- Set up the `.env` file with required secrets
+- Start the postgres, neo4j, and API containers
+
+The initial database load takes approximately 30 minutes for postgres and 10 minutes for neo4j.
+
+**2. Verify the API is running:**
+
+Wait for the containers to become healthy, then test the API:
+
+```bash
+curl http://localhost:8015/v1/nodes/
+```
+
+**3. Run the API-based computation:**
+
+```bash
+poe lookup-dwpc-api
+```
+
+If you want to start the Docker stack and wait for the API in one step:
+
+```bash
+poe lookup-dwpc-api-with-docker
+```
+
+**4. Stop the Docker stack when finished:**
+
+```bash
+cd connectivity-search-backend
+docker compose down
+```
+
+### Performance comparison
+
+Direct computation is 1,000-6,000x faster than API lookups after matrices are cached:
+
+| Method | Time per pair | Notes |
+|--------|---------------|-------|
+| Direct (cached) | 0.002-0.01 ms | After initial matrix computation |
+| API | 12-15 ms | Network overhead per request |
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

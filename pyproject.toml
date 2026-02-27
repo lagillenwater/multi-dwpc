@@ -1,0 +1,76 @@
+[project]
+name = "multi-dwpc"
+version = "0.1.0"
+description = "Scripts testing aggregate degree weighted path count (DWPC) statistics"
+readme = "README.md"
+license = "BSD-2-Clause-Patent"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas",
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "statsmodels",
+    "matplotlib",
+    "seaborn",
+    "jupyterlab",
+    "jupytext",
+    "tqdm",
+    "httpx",
+    "pyarrow",
+    "hetmatpy==0.1.0",
+    "hetnetpy @ git+https://github.com/hetio/hetio.git@0a81e9ea675e2c20f235f5d74598053c1332cb85",
+    "hetnet-analysis @ git+https://github.com/CU-DBMI/hetionet-analysis.git@f371064da1498ac984aa6ec6ed0ba2739c7b0259",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupytext",
+    "poethepoet",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.poe.tasks]
+# Individual pipeline steps
+load-data = "python scripts/load_data.py"
+filter-change = "python scripts/percent_change_and_filtering.py"
+go-hierarchy-analysis = "python scripts/go_hierarchy_analysis.py"
+filter-jaccard = "python scripts/jaccard_similarity_and_filtering.py"
+gen-permutation = "python scripts/permutation_null_datasets.py"
+gen-random = "python scripts/random_null_datasets.py"
+
+# DWPC computation
+# Option A: Direct matrix computation (no Docker required)
+compute-dwpc-direct = "python scripts/compute_dwpc_direct.py"
+# Option B: Via Docker API (requires connectivity-search-backend running)
+lookup-dwpc-api = "python scripts/lookup_dwpc_api.py"
+lookup-dwpc-api-with-docker = { shell = "COMPOSE_PROGRESS=plain open -a Docker && until docker info >/dev/null 2>&1; do echo 'Waiting for Docker daemon...'; sleep 5; done && cd connectivity-search-backend && COMPOSE_PROGRESS=plain ./run_stack.sh up --build -d && cd .. && python scripts/wait_for_api.py && poe lookup-dwpc-api && cd connectivity-search-backend && COMPOSE_PROGRESS=plain docker compose down" }
+
+# Post-DWPC analysis
+metapath-signature-analysis = "python scripts/metapath_signature_analysis.py"
+divergence-score-analysis = "python scripts/divergence_score_analysis.py"
+
+# Testing
+test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
+benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
+
+# Grouped tasks
+pipeline-production = "python scripts/pipeline_production.py"
+pipeline-publication = "python scripts/pipeline_publication.py"
+pipeline-null = ["gen-permutation", "gen-random"]
+direct-dwpc-analyses = ["compute-dwpc-direct", "metapath-signature-analysis", "divergence-score-analysis"]
+
+# Utility tasks
+convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to py:percent -o scripts/$(basename \"$nb\" .ipynb | tr '.' '_').py \"$nb\"; done" }
+clean = { shell = "rm -rf data/ output/ gene_ontology/" }
+top-bp-paths = "python scripts/top_bps_by_metapath.py"
+plot-top-paths-network = "python scripts/plot_top_paths_networks.py"
+extract-top-paths-local = "python scripts/extract_top_paths_local.py"
+plot-path-instances-network = "python scripts/plot_path_instances_networks.py"
