@@ -52,13 +52,10 @@
 
 # %% papermill={"duration": 2.108204, "end_time": "2025-12-05T20:29:38.442376", "exception": false, "start_time": "2025-12-05T20:29:36.334172", "status": "completed"}
 import pandas as pd
-import numpy as np
 import scipy.sparse
 from pathlib import Path
-from tqdm import tqdm
 import hetnetpy.readwrite
 import hetmatpy.hetmat
-import urllib.request
 
 # Constants
 HETIONET_GENE_MIN = 2
