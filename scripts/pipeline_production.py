@@ -41,7 +41,11 @@ def run_step(repo_root: Path, script_path: str, log_dir: Path, step_index: int) 
     with log_file.open("w", encoding="utf-8") as log_handle:
         log_handle.write(f"$ {' '.join(cmd)}\n\n")
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=repo_root,
         )
         assert proc.stdout is not None
         for line in proc.stdout:

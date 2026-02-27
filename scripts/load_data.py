@@ -157,7 +157,8 @@ print("\nAll tests PASSED")
 hetio_bp_g_freq_df = hetio_BPpG_df['go_id'].value_counts().reset_index()
 hetio_bp_g_freq_df.columns = ['go_id', 'no_of_genes_in_hetio_GO_2016']
 
-print(hetio_bp_g_freq_df)
+print(f"hetio_bp_g_freq_df shape: {hetio_bp_g_freq_df.shape}")
+print(hetio_bp_g_freq_df.head())
 
 # %% [markdown] papermill={"duration": 0.003509, "end_time": "2025-12-05T20:29:41.862267", "exception": false, "start_time": "2025-12-05T20:29:41.858758", "status": "completed"}
 # ### Read updated Biological Process (BP) GO terms (2024)
