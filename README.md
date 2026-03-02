@@ -26,7 +26,14 @@ conda activate multi_dwpc
 pip install -e ".[dev]"
 ```
 
-## Prepare the Data
+## Run Pipeline
+
+This stage covers:
+- loading and harmonizing 2016/2024 GO-gene data,
+- percent-change and IQR filtering,
+- optional GO hierarchy analysis for publication mode,
+- Jaccard-based redundancy filtering,
+- permutation and random null dataset generation.
 
 ```bash
 # Production pipeline (skips GO hierarchy analysis)
@@ -40,6 +47,8 @@ poe load-data
 poe filter-change
 poe go-hierarchy-analysis
 poe filter-jaccard
+poe gen-permutation
+poe gen-random
 ```
 
 ### Available tasks
@@ -54,16 +63,9 @@ Run `poe --help` to see all available tasks:
 | `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
-| `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
-| `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
-| `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
-| `test-dwpc-accuracy` | Validate direct DWPC computation against API |
-| `benchmark-dwpc` | Benchmark direct vs API computation |
 | `pipeline-production` | Run full production pipeline |
 | `pipeline-publication` | Run full publication pipeline |
 | `pipeline-null` | Run null dataset generation |
-| `convert-notebooks` | Convert notebooks to Python scripts |
-| `clean` | Remove generated data directories |
 
 Note: `filter-jaccard` includes parents_GO_postive_growth only when run with
 `python scripts/jaccard_similarity_and_filtering.py --include-parents` or via
@@ -79,101 +81,13 @@ Located in `scripts/`:
 4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
 5. **permutation_null_datasets.py** - Generates permutation-based null datasets
 6. **random_null_datasets.py** - Generates random null datasets
-7. **compute_dwpc_direct.py** - Direct DWPC computation
-8. **lookup_dwpc_api.py** - API-based DWPC lookup
-9. **pipeline_publication.py** - Full publication pipeline runner
-10. **pipeline_production.py** - Full production pipeline runner
+7. **pipeline_publication.py** - Full publication pipeline runner
+8. **pipeline_production.py** - Full production pipeline runner
 
 ### Dataset naming
 
 - `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
 - `parents_GO_positive_growth`: parents of leaf terms within the same filtered set
-
-## Run the DWPC computation
-
-There are two methods for computing Degree-Weighted Path Counts (DWPC):
-
-### Option A: Direct computation 
-
-Computes DWPC directly from the HetMat sparse matrices using hetmatpy. This method is significantly faster and does not require Docker.
-
-```bash
-poe compute-dwpc-direct
-```
-
-**First run:** Computes and caches all DWPC matrices 
-
-**Subsequent runs:** Loads cached matrices from disk
-
-**Testing accuracy:**
-
-Validate that direct computation matches the API gold-standard values:
-
-```bash
-poe test-dwpc-accuracy
-```
-
-**Benchmarking:**
-
-Compare direct computation vs API performance:
-
-```bash
-poe benchmark-dwpc
-```
-
-### Option B: API-based computation
-
-Computes DWPC via the Hetionet API. This requires running the connectivity-search-backend Docker stack.
-
-**1. Start the Docker stack:**
-
-```bash
-cd connectivity-search-backend
-./run_stack.sh
-```
-
-This will:
-- Download the postgres database dump (~5 GB) on first run
-- Set up the `.env` file with required secrets
-- Start the postgres, neo4j, and API containers
-
-The initial database load takes approximately 30 minutes for postgres and 10 minutes for neo4j.
-
-**2. Verify the API is running:**
-
-Wait for the containers to become healthy, then test the API:
-
-```bash
-curl http://localhost:8015/v1/nodes/
-```
-
-**3. Run the API-based computation:**
-
-```bash
-poe lookup-dwpc-api
-```
-
-If you want to start the Docker stack and wait for the API in one step:
-
-```bash
-poe lookup-dwpc-api-with-docker
-```
-
-**4. Stop the Docker stack when finished:**
-
-```bash
-cd connectivity-search-backend
-docker compose down
-```
-
-### Performance comparison
-
-Direct computation is 1,000-6,000x faster than API lookups after matrices are cached:
-
-| Method | Time per pair | Notes |
-|--------|---------------|-------|
-| Direct (cached) | 0.002-0.01 ms | After initial matrix computation |
-| API | 12-15 ms | Network overhead per request |
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
