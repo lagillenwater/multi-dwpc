@@ -45,7 +45,6 @@ poe pipeline-publication
 # Run individual steps
 poe load-data
 poe filter-change
-poe go-hierarchy-analysis
 poe filter-jaccard
 poe gen-permutation
 poe gen-random
@@ -59,7 +58,6 @@ Run `poe --help` to see all available tasks:
 |------|-------------|
 | `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
 | `filter-change` | Percent-change + IQR filtering (all_GO_positive_growth) |
-| `go-hierarchy-analysis` | GO hierarchy metrics + parents_GO_postive_growth |
 | `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
