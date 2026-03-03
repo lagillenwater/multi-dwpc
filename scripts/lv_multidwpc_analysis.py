@@ -22,6 +22,7 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.lv_inputs import extract_top_lv_genes  # noqa: E402
+from src.lv_targets import build_target_sets  # noqa: E402
 
 
 DEFAULT_LVS = ("LV603", "LV246", "LV57")
@@ -115,13 +116,45 @@ def run_top_genes_stage(args: argparse.Namespace) -> None:
     print(summary_df.to_string(index=False))
 
 
+def run_target_sets_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    nodes_dir = REPO_ROOT / "data" / "nodes"
+    target_sets_path = output_dir / "target_sets.csv"
+    target_summary_path = output_dir / "target_sets_summary.csv"
+    lv_target_map_path = output_dir / "lv_target_map.csv"
+
+    targets_df, summary_df, lv_map_df = build_target_sets(
+        nodes_dir=nodes_dir,
+        output_target_sets_path=target_sets_path,
+        output_summary_path=target_summary_path,
+        output_lv_map_path=lv_target_map_path,
+        lv_ids=_parse_lvs(args.lvs),
+        include_brown_adipose=args.include_brown_adipose,
+    )
+
+    print("\nTarget-set construction complete.")
+    print(f"  Target rows: {len(targets_df):,}")
+    print(f"  Output: {target_sets_path}")
+    print(f"  Summary: {target_summary_path}")
+    print(f"  LV map: {lv_target_map_path}")
+    print("\nTarget-set summary:")
+    print(summary_df.to_string(index=False))
+    print("\nLV-to-target map:")
+    print(lv_map_df.to_string(index=False))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="LV multi-DWPC analysis pipeline.")
     parser.add_argument(
         "--stage",
         default="top-genes",
-        choices=["top-genes", "pipeline"],
-        help="Pipeline stage to run. 'pipeline' currently maps to top-genes only.",
+        choices=["top-genes", "target-sets", "pipeline"],
+        help=(
+            "Pipeline stage to run. "
+            "'pipeline' currently runs top-genes then target-sets."
+        ),
     )
     parser.add_argument(
         "--lv-loadings",
@@ -159,12 +192,25 @@ def main() -> None:
         action="store_true",
         help="Generate synthetic LV inputs for quick pipeline testing.",
     )
+    parser.add_argument(
+        "--include-brown-adipose",
+        action="store_true",
+        help="Include UBERON:0001348 in adipose target set.",
+    )
     args = parser.parse_args()
 
-    if args.stage in {"top-genes", "pipeline"}:
-        if args.stage == "pipeline":
-            print("[note] Full pipeline not yet implemented; running top-genes stage.")
+    if args.stage == "top-genes":
         run_top_genes_stage(args)
+        return
+
+    if args.stage == "target-sets":
+        run_target_sets_stage(args)
+        return
+
+    if args.stage == "pipeline":
+        print("[note] Running currently implemented pipeline stages.")
+        run_top_genes_stage(args)
+        run_target_sets_stage(args)
         return
 
     raise ValueError(f"Unsupported stage: {args.stage}")

@@ -77,5 +77,6 @@ plot-path-instances-network = "python scripts/plot_path_instances_networks.py"
 
 # LV multi-DWPC milestones
 lv-top-genes = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --lv-loadings ${LV_LOADINGS_PATH} --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-target-sets = "python3 scripts/lv_multidwpc_analysis.py --stage target-sets --output-dir output/lv_multidwpc"
 lv-pipeline-smoke = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline --smoke --output-dir output/lv_multidwpc_smoke"
 lv-m1-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --smoke --output-dir output/lv_multidwpc_m1_smoke && test -f output/lv_multidwpc_m1_smoke/lv_top_genes.csv && test -f output/lv_multidwpc_m1_smoke/lv_top_genes_summary.csv" }
