@@ -74,3 +74,8 @@ top-bp-paths = "python scripts/top_bps_by_metapath.py"
 plot-top-paths-network = "python scripts/plot_top_paths_networks.py"
 extract-top-paths-local = "python scripts/extract_top_paths_local.py"
 plot-path-instances-network = "python scripts/plot_path_instances_networks.py"
+
+# LV multi-DWPC milestones
+lv-top-genes = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --lv-loadings ${LV_LOADINGS_PATH} --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-pipeline-smoke = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline --smoke --output-dir output/lv_multidwpc_smoke"
+lv-m1-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --smoke --output-dir output/lv_multidwpc_m1_smoke && test -f output/lv_multidwpc_m1_smoke/lv_top_genes.csv && test -f output/lv_multidwpc_m1_smoke/lv_top_genes_summary.csv" }

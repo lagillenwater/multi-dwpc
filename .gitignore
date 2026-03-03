@@ -55,6 +55,10 @@ htmlcov/
 docs/
 src_2/
 
+# Planning docs
+planning/
+*_PLAN.md
+
 # Connectivity search backend data
 connectivity-search-backend/data/postgres/
 .DS_Store
