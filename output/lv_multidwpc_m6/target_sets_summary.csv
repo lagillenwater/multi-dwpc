@@ -1,0 +1,4 @@
+target_set_id,target_set_label,node_type,n_targets
+adipose_tissue,Adipose tissue anatomy terms,Anatomy,1
+hypothyroidism,Hypothyroidism disease term,Disease,1
+neutrophil_bp,Neutrophil biological process terms,Biological Process,35

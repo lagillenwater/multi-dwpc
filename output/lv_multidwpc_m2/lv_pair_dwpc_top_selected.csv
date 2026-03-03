@@ -1,0 +1,889 @@
+lv_id,target_set_id,target_set_label,node_type,target_id,target_name,target_position,gene_identifier,gene_symbol,loading,gene_rank,source_idx,target_idx,metapath,dwpc
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,552,AVPR1A,3.3612001611561704,2.0,381,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,119,ADD2,3.0524750392734226,3.0,80,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,813,CALU,2.9933676800021054,4.0,565,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,196,AHR,2.9532207718034686,5.0,135,58,GaDlA,3.636953200558444
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,213,ALB,2.7894070969236693,6.0,147,58,GaDlA,4.176374482962494
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,797,CALCB,2.7369754263926636,7.0,557,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,529,ATP6V1E1,2.736213733864723,8.0,367,58,GaDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GiGdA,4.472296868134303
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,552,AVPR1A,3.3612001611561704,2.0,381,58,GiGdA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,119,ADD2,3.0524750392734226,3.0,80,58,GiGdA,3.191078310512516
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,813,CALU,2.9933676800021054,4.0,565,58,GiGdA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,196,AHR,2.9532207718034686,5.0,135,58,GiGdA,3.1613907372461667
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,213,ALB,2.7894070969236693,6.0,147,58,GiGdA,5.438005314774052
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,797,CALCB,2.7369754263926636,7.0,557,58,GiGdA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,529,ATP6V1E1,2.736213733864723,8.0,367,58,GiGdA,2.200165532338139
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,552,AVPR1A,3.3612001611561704,2.0,381,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,119,ADD2,3.0524750392734226,3.0,80,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,813,CALU,2.9933676800021054,4.0,565,58,GuDlA,3.702395353074795
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,196,AHR,2.9532207718034686,5.0,135,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,213,ALB,2.7894070969236693,6.0,147,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,797,CALCB,2.7369754263926636,7.0,557,58,GuDlA,0.0
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,529,ATP6V1E1,2.736213733864723,8.0,367,58,GuDlA,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GdAlD,2.8034078248370737
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,407,ARR3,3.4218385369545183,2.0,295,56,GdAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,133,ADM,3.202122127348306,3.0,91,56,GdAlD,2.9450429882308145
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,970,CD70,2.922222155200057,4.0,689,56,GdAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,910,CD1B,2.8041128452118675,5.0,637,56,GdAlD,2.8587138255352817
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,771,CA12,2.762224626907292,6.0,536,56,GdAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,421,ARVCF,2.729678159686854,7.0,307,56,GdAlD,2.272467608211888
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,813,CALU,2.6944209425962455,8.0,565,56,GdAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GeAlD,1.8916610682660164
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,407,ARR3,3.4218385369545183,2.0,295,56,GeAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,133,ADM,3.202122127348306,3.0,91,56,GeAlD,2.1307029608555963
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,970,CD70,2.922222155200057,4.0,689,56,GeAlD,1.0099942439790637
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,910,CD1B,2.8041128452118675,5.0,637,56,GeAlD,0.7413976151963616
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,771,CA12,2.762224626907292,6.0,536,56,GeAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,421,ARVCF,2.729678159686854,7.0,307,56,GeAlD,1.8217617718022685
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,813,CALU,2.6944209425962455,8.0,565,56,GeAlD,1.82035259326333
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GuAlD,1.5788682645877916
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,407,ARR3,3.4218385369545183,2.0,295,56,GuAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,133,ADM,3.202122127348306,3.0,91,56,GuAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,970,CD70,2.922222155200057,4.0,689,56,GuAlD,2.529687947962417
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,910,CD1B,2.8041128452118675,5.0,637,56,GuAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,771,CA12,2.762224626907292,6.0,536,56,GuAlD,0.0
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,421,ARVCF,2.729678159686854,7.0,307,56,GuAlD,2.730310711161236
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,813,CALU,2.6944209425962455,8.0,565,56,GuAlD,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,675,BRCA2,4.1650101550124745,1.0,469,253,GdAdGpBP,0.5473878688254044
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,675,BRCA2,4.1650101550124745,1.0,469,254,GdAdGpBP,0.6606635060071775
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,675,BRCA2,4.1650101550124745,1.0,469,478,GdAdGpBP,0.4222644744958926
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,675,BRCA2,4.1650101550124745,1.0,469,549,GdAdGpBP,0.978860220113725
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,675,BRCA2,4.1650101550124745,1.0,469,3510,GdAdGpBP,0.47187215919657416
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,675,BRCA2,4.1650101550124745,1.0,469,3596,GdAdGpBP,1.2584543207061367
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,675,BRCA2,4.1650101550124745,1.0,469,4317,GdAdGpBP,0.5154558014785262
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,675,BRCA2,4.1650101550124745,1.0,469,4318,GdAdGpBP,0.1712553174888921
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,675,BRCA2,4.1650101550124745,1.0,469,4319,GdAdGpBP,0.5598717451056447
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,675,BRCA2,4.1650101550124745,1.0,469,5213,GdAdGpBP,0.8026112412229328
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,675,BRCA2,4.1650101550124745,1.0,469,5590,GdAdGpBP,0.41260857860234507
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,675,BRCA2,4.1650101550124745,1.0,469,5591,GdAdGpBP,0.05796791417335496
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,675,BRCA2,4.1650101550124745,1.0,469,5592,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,675,BRCA2,4.1650101550124745,1.0,469,6132,GdAdGpBP,0.3017763228368352
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,675,BRCA2,4.1650101550124745,1.0,469,6133,GdAdGpBP,0.3669441044499193
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,675,BRCA2,4.1650101550124745,1.0,469,8442,GdAdGpBP,0.29910491450352283
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,675,BRCA2,4.1650101550124745,1.0,469,8552,GdAdGpBP,0.6334350148857515
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,675,BRCA2,4.1650101550124745,1.0,469,8553,GdAdGpBP,0.6334350148857515
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,675,BRCA2,4.1650101550124745,1.0,469,8554,GdAdGpBP,0.611359872445424
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,675,BRCA2,4.1650101550124745,1.0,469,8555,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,675,BRCA2,4.1650101550124745,1.0,469,8556,GdAdGpBP,0.901031768579901
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,675,BRCA2,4.1650101550124745,1.0,469,8557,GdAdGpBP,0.8315343722940991
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,675,BRCA2,4.1650101550124745,1.0,469,9176,GdAdGpBP,0.6898934835017132
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,675,BRCA2,4.1650101550124745,1.0,469,9265,GdAdGpBP,0.9401132928405299
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,675,BRCA2,4.1650101550124745,1.0,469,9266,GdAdGpBP,0.9102965523947906
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,675,BRCA2,4.1650101550124745,1.0,469,9267,GdAdGpBP,0.35504283992505353
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,675,BRCA2,4.1650101550124745,1.0,469,9589,GdAdGpBP,0.128153677497547
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,675,BRCA2,4.1650101550124745,1.0,469,10232,GdAdGpBP,0.16682016389539142
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,675,BRCA2,4.1650101550124745,1.0,469,10233,GdAdGpBP,0.16143480785945483
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,675,BRCA2,4.1650101550124745,1.0,469,10259,GdAdGpBP,0.9122568279810773
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,675,BRCA2,4.1650101550124745,1.0,469,10260,GdAdGpBP,0.35504283992505353
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,675,BRCA2,4.1650101550124745,1.0,469,10261,GdAdGpBP,0.8771628348065632
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,675,BRCA2,4.1650101550124745,1.0,469,10837,GdAdGpBP,1.3183983481688
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,675,BRCA2,4.1650101550124745,1.0,469,11039,GdAdGpBP,0.07318867434757842
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,675,BRCA2,4.1650101550124745,1.0,469,11040,GdAdGpBP,0.07318867434757842
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,842,CASP9,3.0863457620566757,2.0,594,253,GdAdGpBP,0.5147281834178874
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,842,CASP9,3.0863457620566757,2.0,594,254,GdAdGpBP,0.13214284475472945
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,842,CASP9,3.0863457620566757,2.0,594,478,GdAdGpBP,0.7639553923728291
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,842,CASP9,3.0863457620566757,2.0,594,549,GdAdGpBP,0.8432730631921969
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,842,CASP9,3.0863457620566757,2.0,594,3510,GdAdGpBP,0.34032087699298524
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,842,CASP9,3.0863457620566757,2.0,594,3596,GdAdGpBP,0.6891562246582097
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,842,CASP9,3.0863457620566757,2.0,594,4317,GdAdGpBP,0.2563778860993241
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,842,CASP9,3.0863457620566757,2.0,594,4318,GdAdGpBP,0.20285139229125834
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,842,CASP9,3.0863457620566757,2.0,594,4319,GdAdGpBP,0.16160830777970125
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,842,CASP9,3.0863457620566757,2.0,594,5213,GdAdGpBP,0.854380713806629
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,842,CASP9,3.0863457620566757,2.0,594,5590,GdAdGpBP,0.6727333409414236
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,842,CASP9,3.0863457620566757,2.0,594,5591,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,842,CASP9,3.0863457620566757,2.0,594,5592,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,842,CASP9,3.0863457620566757,2.0,594,6132,GdAdGpBP,0.37249999593151795
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,842,CASP9,3.0863457620566757,2.0,594,6133,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,842,CASP9,3.0863457620566757,2.0,594,8442,GdAdGpBP,0.056148427835166145
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,842,CASP9,3.0863457620566757,2.0,594,8552,GdAdGpBP,0.3717569267375935
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,842,CASP9,3.0863457620566757,2.0,594,8553,GdAdGpBP,0.3717569267375935
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,842,CASP9,3.0863457620566757,2.0,594,8554,GdAdGpBP,0.318411459983888
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,842,CASP9,3.0863457620566757,2.0,594,8555,GdAdGpBP,0.3122017813535643
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,842,CASP9,3.0863457620566757,2.0,594,8556,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,842,CASP9,3.0863457620566757,2.0,594,8557,GdAdGpBP,0.14631058018234244
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,842,CASP9,3.0863457620566757,2.0,594,9176,GdAdGpBP,0.2980271702931961
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,842,CASP9,3.0863457620566757,2.0,594,9265,GdAdGpBP,0.7550142029042858
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,842,CASP9,3.0863457620566757,2.0,594,9266,GdAdGpBP,0.6764800322450584
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,842,CASP9,3.0863457620566757,2.0,594,9267,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,842,CASP9,3.0863457620566757,2.0,594,9589,GdAdGpBP,0.048220044677957666
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,842,CASP9,3.0863457620566757,2.0,594,10232,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,842,CASP9,3.0863457620566757,2.0,594,10233,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,842,CASP9,3.0863457620566757,2.0,594,10259,GdAdGpBP,0.7369479373995856
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,842,CASP9,3.0863457620566757,2.0,594,10260,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,842,CASP9,3.0863457620566757,2.0,594,10261,GdAdGpBP,0.65781071893733
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,842,CASP9,3.0863457620566757,2.0,594,10837,GdAdGpBP,0.7187774342592561
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,842,CASP9,3.0863457620566757,2.0,594,11039,GdAdGpBP,0.0784862701277017
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,842,CASP9,3.0863457620566757,2.0,594,11040,GdAdGpBP,0.0784862701277017
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,222,ALDH3B2,3.071139507657893,3.0,156,253,GdAdGpBP,0.5249982629798597
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,222,ALDH3B2,3.071139507657893,3.0,156,254,GdAdGpBP,0.10799839330503283
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,222,ALDH3B2,3.071139507657893,3.0,156,478,GdAdGpBP,0.6229404158625564
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,222,ALDH3B2,3.071139507657893,3.0,156,549,GdAdGpBP,1.1610365535981069
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,222,ALDH3B2,3.071139507657893,3.0,156,3510,GdAdGpBP,0.22776078012129386
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,222,ALDH3B2,3.071139507657893,3.0,156,3596,GdAdGpBP,1.0420879517587047
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,222,ALDH3B2,3.071139507657893,3.0,156,4317,GdAdGpBP,0.5197369051460783
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,222,ALDH3B2,3.071139507657893,3.0,156,4318,GdAdGpBP,0.5104136617847246
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,222,ALDH3B2,3.071139507657893,3.0,156,4319,GdAdGpBP,0.23356428714526636
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,222,ALDH3B2,3.071139507657893,3.0,156,5213,GdAdGpBP,0.9912782242500162
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,222,ALDH3B2,3.071139507657893,3.0,156,5590,GdAdGpBP,0.6172952510421911
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,222,ALDH3B2,3.071139507657893,3.0,156,5591,GdAdGpBP,0.476257751084478
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,222,ALDH3B2,3.071139507657893,3.0,156,5592,GdAdGpBP,0.10884940556759252
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,222,ALDH3B2,3.071139507657893,3.0,156,6132,GdAdGpBP,0.20152085283889296
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,222,ALDH3B2,3.071139507657893,3.0,156,6133,GdAdGpBP,0.24599697434160583
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,222,ALDH3B2,3.071139507657893,3.0,156,8442,GdAdGpBP,0.5953281949690494
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,222,ALDH3B2,3.071139507657893,3.0,156,8552,GdAdGpBP,0.9773205385112328
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,222,ALDH3B2,3.071139507657893,3.0,156,8553,GdAdGpBP,0.9773205385112328
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,222,ALDH3B2,3.071139507657893,3.0,156,8554,GdAdGpBP,0.8961289499213255
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,222,ALDH3B2,3.071139507657893,3.0,156,8555,GdAdGpBP,0.7032920498880059
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,222,ALDH3B2,3.071139507657893,3.0,156,8556,GdAdGpBP,0.512883792131266
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,222,ALDH3B2,3.071139507657893,3.0,156,8557,GdAdGpBP,0.3536849048911837
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,222,ALDH3B2,3.071139507657893,3.0,156,9176,GdAdGpBP,0.8417855570154507
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,222,ALDH3B2,3.071139507657893,3.0,156,9265,GdAdGpBP,0.6915532108475052
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,222,ALDH3B2,3.071139507657893,3.0,156,9266,GdAdGpBP,0.7062773568096052
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,222,ALDH3B2,3.071139507657893,3.0,156,9267,GdAdGpBP,0.18604097653997917
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,222,ALDH3B2,3.071139507657893,3.0,156,9589,GdAdGpBP,0.2594637474202394
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,222,ALDH3B2,3.071139507657893,3.0,156,10232,GdAdGpBP,0.48600556493574165
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,222,ALDH3B2,3.071139507657893,3.0,156,10233,GdAdGpBP,0.16464586377978288
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,222,ALDH3B2,3.071139507657893,3.0,156,10259,GdAdGpBP,0.7933526586024641
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,222,ALDH3B2,3.071139507657893,3.0,156,10260,GdAdGpBP,0.18604097653997917
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,222,ALDH3B2,3.071139507657893,3.0,156,10261,GdAdGpBP,0.8110058505087946
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,222,ALDH3B2,3.071139507657893,3.0,156,10837,GdAdGpBP,1.16825818209269
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,222,ALDH3B2,3.071139507657893,3.0,156,11039,GdAdGpBP,0.4944840928807561
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,222,ALDH3B2,3.071139507657893,3.0,156,11040,GdAdGpBP,0.4944840928807561
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,728,C5AR1,2.96183998514846,4.0,505,253,GdAdGpBP,1.0189924369197525
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,728,C5AR1,2.96183998514846,4.0,505,254,GdAdGpBP,0.7177421485428376
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,728,C5AR1,2.96183998514846,4.0,505,478,GdAdGpBP,1.417083138321066
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,728,C5AR1,2.96183998514846,4.0,505,549,GdAdGpBP,1.4374861865013189
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,728,C5AR1,2.96183998514846,4.0,505,3510,GdAdGpBP,0.6711972061180751
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,728,C5AR1,2.96183998514846,4.0,505,3596,GdAdGpBP,1.9881124250711666
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,728,C5AR1,2.96183998514846,4.0,505,4317,GdAdGpBP,1.1673638067841465
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,728,C5AR1,2.96183998514846,4.0,505,4318,GdAdGpBP,1.0333624959521441
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,728,C5AR1,2.96183998514846,4.0,505,4319,GdAdGpBP,0.7519994225624178
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,728,C5AR1,2.96183998514846,4.0,505,5213,GdAdGpBP,1.7300926665650807
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,728,C5AR1,2.96183998514846,4.0,505,5590,GdAdGpBP,1.029873544411111
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,728,C5AR1,2.96183998514846,4.0,505,5591,GdAdGpBP,0.9994078024516115
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,728,C5AR1,2.96183998514846,4.0,505,5592,GdAdGpBP,0.6026994165034112
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,728,C5AR1,2.96183998514846,4.0,505,6132,GdAdGpBP,1.0242944572522772
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,728,C5AR1,2.96183998514846,4.0,505,6133,GdAdGpBP,1.186784939286721
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,728,C5AR1,2.96183998514846,4.0,505,8442,GdAdGpBP,0.9810185187472799
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,728,C5AR1,2.96183998514846,4.0,505,8552,GdAdGpBP,0.8299732222484149
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,728,C5AR1,2.96183998514846,4.0,505,8553,GdAdGpBP,0.8299732222484149
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,728,C5AR1,2.96183998514846,4.0,505,8554,GdAdGpBP,0.7697677240582839
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,728,C5AR1,2.96183998514846,4.0,505,8555,GdAdGpBP,0.563596404638605
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,728,C5AR1,2.96183998514846,4.0,505,8556,GdAdGpBP,0.6143547755311121
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,728,C5AR1,2.96183998514846,4.0,505,8557,GdAdGpBP,0.5076194957780457
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,728,C5AR1,2.96183998514846,4.0,505,9176,GdAdGpBP,0.9325256629176014
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,728,C5AR1,2.96183998514846,4.0,505,9265,GdAdGpBP,1.8017452272938737
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,728,C5AR1,2.96183998514846,4.0,505,9266,GdAdGpBP,1.72218522197641
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,728,C5AR1,2.96183998514846,4.0,505,9267,GdAdGpBP,0.3450374704636464
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,728,C5AR1,2.96183998514846,4.0,505,9589,GdAdGpBP,0.38684685472277003
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,728,C5AR1,2.96183998514846,4.0,505,10232,GdAdGpBP,1.2082586078002895
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,728,C5AR1,2.96183998514846,4.0,505,10233,GdAdGpBP,0.9916534921856712
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,728,C5AR1,2.96183998514846,4.0,505,10259,GdAdGpBP,1.7995281882250402
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,728,C5AR1,2.96183998514846,4.0,505,10260,GdAdGpBP,0.3450374704636464
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,728,C5AR1,2.96183998514846,4.0,505,10261,GdAdGpBP,1.7195469532091452
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,728,C5AR1,2.96183998514846,4.0,505,10837,GdAdGpBP,2.0323925387428927
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,728,C5AR1,2.96183998514846,4.0,505,11039,GdAdGpBP,0.4823065514824337
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,728,C5AR1,2.96183998514846,4.0,505,11040,GdAdGpBP,0.4823065514824337
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,732,C8B,2.9492971060959277,5.0,509,253,GdAdGpBP,0.5651559798608499
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,732,C8B,2.9492971060959277,5.0,509,254,GdAdGpBP,0.18675953433534154
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,732,C8B,2.9492971060959277,5.0,509,478,GdAdGpBP,0.9381119703866925
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,732,C8B,2.9492971060959277,5.0,509,549,GdAdGpBP,1.1627584094029686
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,732,C8B,2.9492971060959277,5.0,509,3510,GdAdGpBP,0.31355868516406865
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,732,C8B,2.9492971060959277,5.0,509,3596,GdAdGpBP,1.4113288414950012
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,732,C8B,2.9492971060959277,5.0,509,4317,GdAdGpBP,0.5578121415030456
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,732,C8B,2.9492971060959277,5.0,509,4318,GdAdGpBP,0.43550564227783506
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,732,C8B,2.9492971060959277,5.0,509,4319,GdAdGpBP,0.3723491926848339
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,732,C8B,2.9492971060959277,5.0,509,5213,GdAdGpBP,1.2909749642024002
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,732,C8B,2.9492971060959277,5.0,509,5590,GdAdGpBP,0.7471689316415486
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,732,C8B,2.9492971060959277,5.0,509,5591,GdAdGpBP,0.4133856621277723
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,732,C8B,2.9492971060959277,5.0,509,5592,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,732,C8B,2.9492971060959277,5.0,509,6132,GdAdGpBP,0.660512957123
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,732,C8B,2.9492971060959277,5.0,509,6133,GdAdGpBP,0.5650259952089027
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,732,C8B,2.9492971060959277,5.0,509,8442,GdAdGpBP,0.28179174853020883
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,732,C8B,2.9492971060959277,5.0,509,8552,GdAdGpBP,0.736158536623547
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,732,C8B,2.9492971060959277,5.0,509,8553,GdAdGpBP,0.736158536623547
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,732,C8B,2.9492971060959277,5.0,509,8554,GdAdGpBP,0.6760113950664685
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,732,C8B,2.9492971060959277,5.0,509,8555,GdAdGpBP,0.6101530180582481
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,732,C8B,2.9492971060959277,5.0,509,8556,GdAdGpBP,0.32886513646131177
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,732,C8B,2.9492971060959277,5.0,509,8557,GdAdGpBP,0.23895147978837844
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,732,C8B,2.9492971060959277,5.0,509,9176,GdAdGpBP,0.6957442419090261
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,732,C8B,2.9492971060959277,5.0,509,9265,GdAdGpBP,1.0145766534222018
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,732,C8B,2.9492971060959277,5.0,509,9266,GdAdGpBP,0.9710850915905321
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,732,C8B,2.9492971060959277,5.0,509,9267,GdAdGpBP,0.5498325460276425
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,732,C8B,2.9492971060959277,5.0,509,9589,GdAdGpBP,0.2840373725053407
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,732,C8B,2.9492971060959277,5.0,509,10232,GdAdGpBP,0.4772186669925801
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,732,C8B,2.9492971060959277,5.0,509,10233,GdAdGpBP,0.15121289989214273
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,732,C8B,2.9492971060959277,5.0,509,10259,GdAdGpBP,1.0902212730273027
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,732,C8B,2.9492971060959277,5.0,509,10260,GdAdGpBP,0.5498325460276425
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,732,C8B,2.9492971060959277,5.0,509,10261,GdAdGpBP,1.0541287481137704
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,732,C8B,2.9492971060959277,5.0,509,10837,GdAdGpBP,1.5334926590977664
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,732,C8B,2.9492971060959277,5.0,509,11039,GdAdGpBP,0.5397134872178921
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,732,C8B,2.9492971060959277,5.0,509,11040,GdAdGpBP,0.5397134872178921
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,262,AMD1,2.7628529070721184,6.0,178,253,GdAdGpBP,0.4659516423538026
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,262,AMD1,2.7628529070721184,6.0,178,254,GdAdGpBP,0.10799839330503283
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,262,AMD1,2.7628529070721184,6.0,178,478,GdAdGpBP,1.1555449584194732
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,262,AMD1,2.7628529070721184,6.0,178,549,GdAdGpBP,0.9685574662801884
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,262,AMD1,2.7628529070721184,6.0,178,3510,GdAdGpBP,0.6045402712428164
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,262,AMD1,2.7628529070721184,6.0,178,3596,GdAdGpBP,1.212533175301282
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,262,AMD1,2.7628529070721184,6.0,178,4317,GdAdGpBP,0.583354256474931
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,262,AMD1,2.7628529070721184,6.0,178,4318,GdAdGpBP,0.6851707551322864
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,262,AMD1,2.7628529070721184,6.0,178,4319,GdAdGpBP,0.13214284475472948
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,262,AMD1,2.7628529070721184,6.0,178,5213,GdAdGpBP,1.1515557254312545
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,262,AMD1,2.7628529070721184,6.0,178,5590,GdAdGpBP,0.8738124621010782
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,262,AMD1,2.7628529070721184,6.0,178,5591,GdAdGpBP,0.5371569872841784
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,262,AMD1,2.7628529070721184,6.0,178,5592,GdAdGpBP,0.630064213783102
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,262,AMD1,2.7628529070721184,6.0,178,6132,GdAdGpBP,0.7352378520696692
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,262,AMD1,2.7628529070721184,6.0,178,6133,GdAdGpBP,0.5711001921793603
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,262,AMD1,2.7628529070721184,6.0,178,8442,GdAdGpBP,0.6405449620321796
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,262,AMD1,2.7628529070721184,6.0,178,8552,GdAdGpBP,0.2972764386408502
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,262,AMD1,2.7628529070721184,6.0,178,8553,GdAdGpBP,0.2972764386408502
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,262,AMD1,2.7628529070721184,6.0,178,8554,GdAdGpBP,0.22748986555040135
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,262,AMD1,2.7628529070721184,6.0,178,8555,GdAdGpBP,0.09048897775484577
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,262,AMD1,2.7628529070721184,6.0,178,8556,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,262,AMD1,2.7628529070721184,6.0,178,8557,GdAdGpBP,0.15904049078727167
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,262,AMD1,2.7628529070721184,6.0,178,9176,GdAdGpBP,0.17378497374740784
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,262,AMD1,2.7628529070721184,6.0,178,9265,GdAdGpBP,1.0300840026814295
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,262,AMD1,2.7628529070721184,6.0,178,9266,GdAdGpBP,0.8987166436505151
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,262,AMD1,2.7628529070721184,6.0,178,9267,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,262,AMD1,2.7628529070721184,6.0,178,9589,GdAdGpBP,0.11029683933125103
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,262,AMD1,2.7628529070721184,6.0,178,10232,GdAdGpBP,0.5971758777137488
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,262,AMD1,2.7628529070721184,6.0,178,10233,GdAdGpBP,0.6669427347826572
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,262,AMD1,2.7628529070721184,6.0,178,10259,GdAdGpBP,1.0039654806428806
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,262,AMD1,2.7628529070721184,6.0,178,10260,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,262,AMD1,2.7628529070721184,6.0,178,10261,GdAdGpBP,0.8724753487137492
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,262,AMD1,2.7628529070721184,6.0,178,10837,GdAdGpBP,1.2413686346672488
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,262,AMD1,2.7628529070721184,6.0,178,11039,GdAdGpBP,0.0969570658855707
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,262,AMD1,2.7628529070721184,6.0,178,11040,GdAdGpBP,0.0969570658855707
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,187,APLNR,2.740132165299634,7.0,131,253,GdAdGpBP,1.0160980725548174
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,187,APLNR,2.740132165299634,7.0,131,254,GdAdGpBP,0.3936429207894061
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,187,APLNR,2.740132165299634,7.0,131,478,GdAdGpBP,1.4636611991811765
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,187,APLNR,2.740132165299634,7.0,131,549,GdAdGpBP,1.3970938608816321
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,187,APLNR,2.740132165299634,7.0,131,3510,GdAdGpBP,0.5583226219195081
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,187,APLNR,2.740132165299634,7.0,131,3596,GdAdGpBP,1.8859746382821656
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,187,APLNR,2.740132165299634,7.0,131,4317,GdAdGpBP,0.8282797215382078
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,187,APLNR,2.740132165299634,7.0,131,4318,GdAdGpBP,0.8850236961064222
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,187,APLNR,2.740132165299634,7.0,131,4319,GdAdGpBP,0.30026852187657144
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,187,APLNR,2.740132165299634,7.0,131,5213,GdAdGpBP,1.658868590714774
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,187,APLNR,2.740132165299634,7.0,131,5590,GdAdGpBP,0.9821789939012578
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,187,APLNR,2.740132165299634,7.0,131,5591,GdAdGpBP,1.4779015904764614
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,187,APLNR,2.740132165299634,7.0,131,5592,GdAdGpBP,0.7722946905853882
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,187,APLNR,2.740132165299634,7.0,131,6132,GdAdGpBP,0.7258799203079355
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,187,APLNR,2.740132165299634,7.0,131,6133,GdAdGpBP,0.8594055427061779
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,187,APLNR,2.740132165299634,7.0,131,8442,GdAdGpBP,1.0988817821261718
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,187,APLNR,2.740132165299634,7.0,131,8552,GdAdGpBP,0.9345595814827653
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,187,APLNR,2.740132165299634,7.0,131,8553,GdAdGpBP,0.9345595814827653
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,187,APLNR,2.740132165299634,7.0,131,8554,GdAdGpBP,0.8492613715597053
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,187,APLNR,2.740132165299634,7.0,131,8555,GdAdGpBP,0.6037714562140425
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,187,APLNR,2.740132165299634,7.0,131,8556,GdAdGpBP,0.3340475137775435
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,187,APLNR,2.740132165299634,7.0,131,8557,GdAdGpBP,0.34765861291860256
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,187,APLNR,2.740132165299634,7.0,131,9176,GdAdGpBP,0.7415032522092688
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,187,APLNR,2.740132165299634,7.0,131,9265,GdAdGpBP,1.7025634567647365
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,187,APLNR,2.740132165299634,7.0,131,9266,GdAdGpBP,1.5887621961975256
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,187,APLNR,2.740132165299634,7.0,131,9267,GdAdGpBP,0.47872323360909463
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,187,APLNR,2.740132165299634,7.0,131,9589,GdAdGpBP,0.22311964783977473
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,187,APLNR,2.740132165299634,7.0,131,10232,GdAdGpBP,1.5721543770424158
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,187,APLNR,2.740132165299634,7.0,131,10233,GdAdGpBP,1.0613022383441026
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,187,APLNR,2.740132165299634,7.0,131,10259,GdAdGpBP,1.7013691446021364
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,187,APLNR,2.740132165299634,7.0,131,10260,GdAdGpBP,0.47872323360909463
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,187,APLNR,2.740132165299634,7.0,131,10261,GdAdGpBP,1.589837455800015
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,187,APLNR,2.740132165299634,7.0,131,10837,GdAdGpBP,1.8843583901290235
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,187,APLNR,2.740132165299634,7.0,131,11039,GdAdGpBP,0.4445451489399403
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,187,APLNR,2.740132165299634,7.0,131,11040,GdAdGpBP,0.4445451489399403
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,225,ABCD2,2.661082373702184,8.0,159,253,GdAdGpBP,0.35453087151617846
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,225,ABCD2,2.661082373702184,8.0,159,254,GdAdGpBP,0.08804403609619307
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,225,ABCD2,2.661082373702184,8.0,159,478,GdAdGpBP,0.06345839797309023
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,225,ABCD2,2.661082373702184,8.0,159,549,GdAdGpBP,0.3039519579582649
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,225,ABCD2,2.661082373702184,8.0,159,3510,GdAdGpBP,0.32150528237889187
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,225,ABCD2,2.661082373702184,8.0,159,3596,GdAdGpBP,0.4144052789741676
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,225,ABCD2,2.661082373702184,8.0,159,4317,GdAdGpBP,0.060667885930807096
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,225,ABCD2,2.661082373702184,8.0,159,4318,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,225,ABCD2,2.661082373702184,8.0,159,4319,GdAdGpBP,0.08574488028648154
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,225,ABCD2,2.661082373702184,8.0,159,5213,GdAdGpBP,0.045942484143568385
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,225,ABCD2,2.661082373702184,8.0,159,5590,GdAdGpBP,0.07951888343322731
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,225,ABCD2,2.661082373702184,8.0,159,5591,GdAdGpBP,0.09688807031722665
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,225,ABCD2,2.661082373702184,8.0,159,5592,GdAdGpBP,0.15283755594755655
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,225,ABCD2,2.661082373702184,8.0,159,6132,GdAdGpBP,0.11772075546554739
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,225,ABCD2,2.661082373702184,8.0,159,6133,GdAdGpBP,0.14401281608654404
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,225,ABCD2,2.661082373702184,8.0,159,8442,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,225,ABCD2,2.661082373702184,8.0,159,8552,GdAdGpBP,0.0929253742264255
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,225,ABCD2,2.661082373702184,8.0,159,8553,GdAdGpBP,0.0929253742264255
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,225,ABCD2,2.661082373702184,8.0,159,8554,GdAdGpBP,0.10176547035360002
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,225,ABCD2,2.661082373702184,8.0,159,8555,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,225,ABCD2,2.661082373702184,8.0,159,8556,GdAdGpBP,0.16049332028497842
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,225,ABCD2,2.661082373702184,8.0,159,8557,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,225,ABCD2,2.661082373702184,8.0,159,9176,GdAdGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,225,ABCD2,2.661082373702184,8.0,159,9265,GdAdGpBP,0.5126444852729051
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,225,ABCD2,2.661082373702184,8.0,159,9266,GdAdGpBP,0.4808326131028204
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,225,ABCD2,2.661082373702184,8.0,159,9267,GdAdGpBP,0.10458270084972275
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,225,ABCD2,2.661082373702184,8.0,159,9589,GdAdGpBP,0.17647841185368313
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,225,ABCD2,2.661082373702184,8.0,159,10232,GdAdGpBP,0.08846929571840881
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,225,ABCD2,2.661082373702184,8.0,159,10233,GdAdGpBP,0.12495234713550527
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,225,ABCD2,2.661082373702184,8.0,159,10259,GdAdGpBP,0.4987644194703665
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,225,ABCD2,2.661082373702184,8.0,159,10260,GdAdGpBP,0.10458270084972275
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,225,ABCD2,2.661082373702184,8.0,159,10261,GdAdGpBP,0.4650725817353362
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,225,ABCD2,2.661082373702184,8.0,159,10837,GdAdGpBP,0.4568875420242857
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,225,ABCD2,2.661082373702184,8.0,159,11039,GdAdGpBP,0.04891920395394103
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,225,ABCD2,2.661082373702184,8.0,159,11040,GdAdGpBP,0.04891920395394103
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,675,BRCA2,4.1650101550124745,1.0,469,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,675,BRCA2,4.1650101550124745,1.0,469,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,675,BRCA2,4.1650101550124745,1.0,469,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,675,BRCA2,4.1650101550124745,1.0,469,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,675,BRCA2,4.1650101550124745,1.0,469,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,675,BRCA2,4.1650101550124745,1.0,469,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,675,BRCA2,4.1650101550124745,1.0,469,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,675,BRCA2,4.1650101550124745,1.0,469,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,675,BRCA2,4.1650101550124745,1.0,469,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,675,BRCA2,4.1650101550124745,1.0,469,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,675,BRCA2,4.1650101550124745,1.0,469,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,675,BRCA2,4.1650101550124745,1.0,469,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,675,BRCA2,4.1650101550124745,1.0,469,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,675,BRCA2,4.1650101550124745,1.0,469,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,675,BRCA2,4.1650101550124745,1.0,469,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,675,BRCA2,4.1650101550124745,1.0,469,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,675,BRCA2,4.1650101550124745,1.0,469,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,675,BRCA2,4.1650101550124745,1.0,469,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,675,BRCA2,4.1650101550124745,1.0,469,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,675,BRCA2,4.1650101550124745,1.0,469,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,675,BRCA2,4.1650101550124745,1.0,469,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,675,BRCA2,4.1650101550124745,1.0,469,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,675,BRCA2,4.1650101550124745,1.0,469,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,675,BRCA2,4.1650101550124745,1.0,469,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,675,BRCA2,4.1650101550124745,1.0,469,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,675,BRCA2,4.1650101550124745,1.0,469,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,675,BRCA2,4.1650101550124745,1.0,469,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,675,BRCA2,4.1650101550124745,1.0,469,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,675,BRCA2,4.1650101550124745,1.0,469,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,675,BRCA2,4.1650101550124745,1.0,469,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,675,BRCA2,4.1650101550124745,1.0,469,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,675,BRCA2,4.1650101550124745,1.0,469,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,675,BRCA2,4.1650101550124745,1.0,469,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,675,BRCA2,4.1650101550124745,1.0,469,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,675,BRCA2,4.1650101550124745,1.0,469,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,842,CASP9,3.0863457620566757,2.0,594,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,842,CASP9,3.0863457620566757,2.0,594,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,842,CASP9,3.0863457620566757,2.0,594,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,842,CASP9,3.0863457620566757,2.0,594,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,842,CASP9,3.0863457620566757,2.0,594,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,842,CASP9,3.0863457620566757,2.0,594,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,842,CASP9,3.0863457620566757,2.0,594,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,842,CASP9,3.0863457620566757,2.0,594,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,842,CASP9,3.0863457620566757,2.0,594,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,842,CASP9,3.0863457620566757,2.0,594,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,842,CASP9,3.0863457620566757,2.0,594,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,842,CASP9,3.0863457620566757,2.0,594,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,842,CASP9,3.0863457620566757,2.0,594,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,842,CASP9,3.0863457620566757,2.0,594,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,842,CASP9,3.0863457620566757,2.0,594,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,842,CASP9,3.0863457620566757,2.0,594,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,842,CASP9,3.0863457620566757,2.0,594,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,842,CASP9,3.0863457620566757,2.0,594,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,842,CASP9,3.0863457620566757,2.0,594,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,842,CASP9,3.0863457620566757,2.0,594,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,842,CASP9,3.0863457620566757,2.0,594,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,842,CASP9,3.0863457620566757,2.0,594,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,842,CASP9,3.0863457620566757,2.0,594,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,842,CASP9,3.0863457620566757,2.0,594,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,842,CASP9,3.0863457620566757,2.0,594,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,842,CASP9,3.0863457620566757,2.0,594,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,842,CASP9,3.0863457620566757,2.0,594,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,842,CASP9,3.0863457620566757,2.0,594,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,842,CASP9,3.0863457620566757,2.0,594,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,842,CASP9,3.0863457620566757,2.0,594,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,842,CASP9,3.0863457620566757,2.0,594,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,842,CASP9,3.0863457620566757,2.0,594,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,842,CASP9,3.0863457620566757,2.0,594,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,842,CASP9,3.0863457620566757,2.0,594,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,842,CASP9,3.0863457620566757,2.0,594,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,222,ALDH3B2,3.071139507657893,3.0,156,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,222,ALDH3B2,3.071139507657893,3.0,156,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,222,ALDH3B2,3.071139507657893,3.0,156,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,222,ALDH3B2,3.071139507657893,3.0,156,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,222,ALDH3B2,3.071139507657893,3.0,156,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,222,ALDH3B2,3.071139507657893,3.0,156,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,222,ALDH3B2,3.071139507657893,3.0,156,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,222,ALDH3B2,3.071139507657893,3.0,156,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,222,ALDH3B2,3.071139507657893,3.0,156,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,222,ALDH3B2,3.071139507657893,3.0,156,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,222,ALDH3B2,3.071139507657893,3.0,156,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,222,ALDH3B2,3.071139507657893,3.0,156,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,222,ALDH3B2,3.071139507657893,3.0,156,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,222,ALDH3B2,3.071139507657893,3.0,156,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,222,ALDH3B2,3.071139507657893,3.0,156,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,222,ALDH3B2,3.071139507657893,3.0,156,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,222,ALDH3B2,3.071139507657893,3.0,156,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,222,ALDH3B2,3.071139507657893,3.0,156,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,222,ALDH3B2,3.071139507657893,3.0,156,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,222,ALDH3B2,3.071139507657893,3.0,156,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,222,ALDH3B2,3.071139507657893,3.0,156,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,222,ALDH3B2,3.071139507657893,3.0,156,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,222,ALDH3B2,3.071139507657893,3.0,156,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,222,ALDH3B2,3.071139507657893,3.0,156,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,222,ALDH3B2,3.071139507657893,3.0,156,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,222,ALDH3B2,3.071139507657893,3.0,156,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,222,ALDH3B2,3.071139507657893,3.0,156,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,222,ALDH3B2,3.071139507657893,3.0,156,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,222,ALDH3B2,3.071139507657893,3.0,156,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,222,ALDH3B2,3.071139507657893,3.0,156,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,222,ALDH3B2,3.071139507657893,3.0,156,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,222,ALDH3B2,3.071139507657893,3.0,156,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,222,ALDH3B2,3.071139507657893,3.0,156,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,222,ALDH3B2,3.071139507657893,3.0,156,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,222,ALDH3B2,3.071139507657893,3.0,156,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,728,C5AR1,2.96183998514846,4.0,505,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,728,C5AR1,2.96183998514846,4.0,505,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,728,C5AR1,2.96183998514846,4.0,505,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,728,C5AR1,2.96183998514846,4.0,505,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,728,C5AR1,2.96183998514846,4.0,505,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,728,C5AR1,2.96183998514846,4.0,505,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,728,C5AR1,2.96183998514846,4.0,505,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,728,C5AR1,2.96183998514846,4.0,505,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,728,C5AR1,2.96183998514846,4.0,505,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,728,C5AR1,2.96183998514846,4.0,505,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,728,C5AR1,2.96183998514846,4.0,505,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,728,C5AR1,2.96183998514846,4.0,505,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,728,C5AR1,2.96183998514846,4.0,505,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,728,C5AR1,2.96183998514846,4.0,505,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,728,C5AR1,2.96183998514846,4.0,505,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,728,C5AR1,2.96183998514846,4.0,505,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,728,C5AR1,2.96183998514846,4.0,505,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,728,C5AR1,2.96183998514846,4.0,505,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,728,C5AR1,2.96183998514846,4.0,505,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,728,C5AR1,2.96183998514846,4.0,505,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,728,C5AR1,2.96183998514846,4.0,505,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,728,C5AR1,2.96183998514846,4.0,505,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,728,C5AR1,2.96183998514846,4.0,505,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,728,C5AR1,2.96183998514846,4.0,505,9265,GiGpBP,6.095709438330468
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,728,C5AR1,2.96183998514846,4.0,505,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,728,C5AR1,2.96183998514846,4.0,505,9267,GiGpBP,7.449729803317541
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,728,C5AR1,2.96183998514846,4.0,505,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,728,C5AR1,2.96183998514846,4.0,505,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,728,C5AR1,2.96183998514846,4.0,505,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,728,C5AR1,2.96183998514846,4.0,505,10259,GiGpBP,6.033128543357121
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,728,C5AR1,2.96183998514846,4.0,505,10260,GiGpBP,7.449729803317541
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,728,C5AR1,2.96183998514846,4.0,505,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,728,C5AR1,2.96183998514846,4.0,505,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,728,C5AR1,2.96183998514846,4.0,505,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,728,C5AR1,2.96183998514846,4.0,505,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,732,C8B,2.9492971060959277,5.0,509,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,732,C8B,2.9492971060959277,5.0,509,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,732,C8B,2.9492971060959277,5.0,509,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,732,C8B,2.9492971060959277,5.0,509,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,732,C8B,2.9492971060959277,5.0,509,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,732,C8B,2.9492971060959277,5.0,509,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,732,C8B,2.9492971060959277,5.0,509,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,732,C8B,2.9492971060959277,5.0,509,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,732,C8B,2.9492971060959277,5.0,509,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,732,C8B,2.9492971060959277,5.0,509,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,732,C8B,2.9492971060959277,5.0,509,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,732,C8B,2.9492971060959277,5.0,509,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,732,C8B,2.9492971060959277,5.0,509,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,732,C8B,2.9492971060959277,5.0,509,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,732,C8B,2.9492971060959277,5.0,509,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,732,C8B,2.9492971060959277,5.0,509,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,732,C8B,2.9492971060959277,5.0,509,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,732,C8B,2.9492971060959277,5.0,509,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,732,C8B,2.9492971060959277,5.0,509,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,732,C8B,2.9492971060959277,5.0,509,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,732,C8B,2.9492971060959277,5.0,509,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,732,C8B,2.9492971060959277,5.0,509,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,732,C8B,2.9492971060959277,5.0,509,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,732,C8B,2.9492971060959277,5.0,509,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,732,C8B,2.9492971060959277,5.0,509,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,732,C8B,2.9492971060959277,5.0,509,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,732,C8B,2.9492971060959277,5.0,509,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,732,C8B,2.9492971060959277,5.0,509,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,732,C8B,2.9492971060959277,5.0,509,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,732,C8B,2.9492971060959277,5.0,509,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,732,C8B,2.9492971060959277,5.0,509,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,732,C8B,2.9492971060959277,5.0,509,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,732,C8B,2.9492971060959277,5.0,509,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,732,C8B,2.9492971060959277,5.0,509,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,732,C8B,2.9492971060959277,5.0,509,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,262,AMD1,2.7628529070721184,6.0,178,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,262,AMD1,2.7628529070721184,6.0,178,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,262,AMD1,2.7628529070721184,6.0,178,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,262,AMD1,2.7628529070721184,6.0,178,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,262,AMD1,2.7628529070721184,6.0,178,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,262,AMD1,2.7628529070721184,6.0,178,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,262,AMD1,2.7628529070721184,6.0,178,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,262,AMD1,2.7628529070721184,6.0,178,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,262,AMD1,2.7628529070721184,6.0,178,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,262,AMD1,2.7628529070721184,6.0,178,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,262,AMD1,2.7628529070721184,6.0,178,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,262,AMD1,2.7628529070721184,6.0,178,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,262,AMD1,2.7628529070721184,6.0,178,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,262,AMD1,2.7628529070721184,6.0,178,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,262,AMD1,2.7628529070721184,6.0,178,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,262,AMD1,2.7628529070721184,6.0,178,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,262,AMD1,2.7628529070721184,6.0,178,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,262,AMD1,2.7628529070721184,6.0,178,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,262,AMD1,2.7628529070721184,6.0,178,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,262,AMD1,2.7628529070721184,6.0,178,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,262,AMD1,2.7628529070721184,6.0,178,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,262,AMD1,2.7628529070721184,6.0,178,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,262,AMD1,2.7628529070721184,6.0,178,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,262,AMD1,2.7628529070721184,6.0,178,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,262,AMD1,2.7628529070721184,6.0,178,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,262,AMD1,2.7628529070721184,6.0,178,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,262,AMD1,2.7628529070721184,6.0,178,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,262,AMD1,2.7628529070721184,6.0,178,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,262,AMD1,2.7628529070721184,6.0,178,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,262,AMD1,2.7628529070721184,6.0,178,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,262,AMD1,2.7628529070721184,6.0,178,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,262,AMD1,2.7628529070721184,6.0,178,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,262,AMD1,2.7628529070721184,6.0,178,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,262,AMD1,2.7628529070721184,6.0,178,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,262,AMD1,2.7628529070721184,6.0,178,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,187,APLNR,2.740132165299634,7.0,131,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,187,APLNR,2.740132165299634,7.0,131,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,187,APLNR,2.740132165299634,7.0,131,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,187,APLNR,2.740132165299634,7.0,131,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,187,APLNR,2.740132165299634,7.0,131,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,187,APLNR,2.740132165299634,7.0,131,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,187,APLNR,2.740132165299634,7.0,131,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,187,APLNR,2.740132165299634,7.0,131,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,187,APLNR,2.740132165299634,7.0,131,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,187,APLNR,2.740132165299634,7.0,131,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,187,APLNR,2.740132165299634,7.0,131,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,187,APLNR,2.740132165299634,7.0,131,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,187,APLNR,2.740132165299634,7.0,131,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,187,APLNR,2.740132165299634,7.0,131,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,187,APLNR,2.740132165299634,7.0,131,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,187,APLNR,2.740132165299634,7.0,131,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,187,APLNR,2.740132165299634,7.0,131,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,187,APLNR,2.740132165299634,7.0,131,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,187,APLNR,2.740132165299634,7.0,131,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,187,APLNR,2.740132165299634,7.0,131,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,187,APLNR,2.740132165299634,7.0,131,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,187,APLNR,2.740132165299634,7.0,131,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,187,APLNR,2.740132165299634,7.0,131,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,187,APLNR,2.740132165299634,7.0,131,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,187,APLNR,2.740132165299634,7.0,131,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,187,APLNR,2.740132165299634,7.0,131,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,187,APLNR,2.740132165299634,7.0,131,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,187,APLNR,2.740132165299634,7.0,131,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,187,APLNR,2.740132165299634,7.0,131,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,187,APLNR,2.740132165299634,7.0,131,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,187,APLNR,2.740132165299634,7.0,131,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,187,APLNR,2.740132165299634,7.0,131,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,187,APLNR,2.740132165299634,7.0,131,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,187,APLNR,2.740132165299634,7.0,131,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,187,APLNR,2.740132165299634,7.0,131,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,225,ABCD2,2.661082373702184,8.0,159,253,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,225,ABCD2,2.661082373702184,8.0,159,254,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,225,ABCD2,2.661082373702184,8.0,159,478,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,225,ABCD2,2.661082373702184,8.0,159,549,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,225,ABCD2,2.661082373702184,8.0,159,3510,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,225,ABCD2,2.661082373702184,8.0,159,3596,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,225,ABCD2,2.661082373702184,8.0,159,4317,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,225,ABCD2,2.661082373702184,8.0,159,4318,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,225,ABCD2,2.661082373702184,8.0,159,4319,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,225,ABCD2,2.661082373702184,8.0,159,5213,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,225,ABCD2,2.661082373702184,8.0,159,5590,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,225,ABCD2,2.661082373702184,8.0,159,5591,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,225,ABCD2,2.661082373702184,8.0,159,5592,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,225,ABCD2,2.661082373702184,8.0,159,6132,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,225,ABCD2,2.661082373702184,8.0,159,6133,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,225,ABCD2,2.661082373702184,8.0,159,8442,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,225,ABCD2,2.661082373702184,8.0,159,8552,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,225,ABCD2,2.661082373702184,8.0,159,8553,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,225,ABCD2,2.661082373702184,8.0,159,8554,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,225,ABCD2,2.661082373702184,8.0,159,8555,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,225,ABCD2,2.661082373702184,8.0,159,8556,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,225,ABCD2,2.661082373702184,8.0,159,8557,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,225,ABCD2,2.661082373702184,8.0,159,9176,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,225,ABCD2,2.661082373702184,8.0,159,9265,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,225,ABCD2,2.661082373702184,8.0,159,9266,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,225,ABCD2,2.661082373702184,8.0,159,9267,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,225,ABCD2,2.661082373702184,8.0,159,9589,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,225,ABCD2,2.661082373702184,8.0,159,10232,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,225,ABCD2,2.661082373702184,8.0,159,10233,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,225,ABCD2,2.661082373702184,8.0,159,10259,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,225,ABCD2,2.661082373702184,8.0,159,10260,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,225,ABCD2,2.661082373702184,8.0,159,10261,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,225,ABCD2,2.661082373702184,8.0,159,10837,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,225,ABCD2,2.661082373702184,8.0,159,11039,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,225,ABCD2,2.661082373702184,8.0,159,11040,GiGpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,675,BRCA2,4.1650101550124745,1.0,469,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,675,BRCA2,4.1650101550124745,1.0,469,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,675,BRCA2,4.1650101550124745,1.0,469,478,Gr>GpBP,6.165459859769638
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,675,BRCA2,4.1650101550124745,1.0,469,549,Gr>GpBP,5.796665202503888
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,675,BRCA2,4.1650101550124745,1.0,469,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,675,BRCA2,4.1650101550124745,1.0,469,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,675,BRCA2,4.1650101550124745,1.0,469,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,675,BRCA2,4.1650101550124745,1.0,469,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,675,BRCA2,4.1650101550124745,1.0,469,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,675,BRCA2,4.1650101550124745,1.0,469,5213,Gr>GpBP,5.842150289228307
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,675,BRCA2,4.1650101550124745,1.0,469,5590,Gr>GpBP,6.391450816859169
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,675,BRCA2,4.1650101550124745,1.0,469,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,675,BRCA2,4.1650101550124745,1.0,469,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,675,BRCA2,4.1650101550124745,1.0,469,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,675,BRCA2,4.1650101550124745,1.0,469,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,675,BRCA2,4.1650101550124745,1.0,469,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,675,BRCA2,4.1650101550124745,1.0,469,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,675,BRCA2,4.1650101550124745,1.0,469,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,675,BRCA2,4.1650101550124745,1.0,469,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,675,BRCA2,4.1650101550124745,1.0,469,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,675,BRCA2,4.1650101550124745,1.0,469,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,675,BRCA2,4.1650101550124745,1.0,469,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,675,BRCA2,4.1650101550124745,1.0,469,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,675,BRCA2,4.1650101550124745,1.0,469,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,675,BRCA2,4.1650101550124745,1.0,469,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,675,BRCA2,4.1650101550124745,1.0,469,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,675,BRCA2,4.1650101550124745,1.0,469,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,675,BRCA2,4.1650101550124745,1.0,469,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,675,BRCA2,4.1650101550124745,1.0,469,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,675,BRCA2,4.1650101550124745,1.0,469,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,675,BRCA2,4.1650101550124745,1.0,469,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,675,BRCA2,4.1650101550124745,1.0,469,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,675,BRCA2,4.1650101550124745,1.0,469,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,675,BRCA2,4.1650101550124745,1.0,469,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,675,BRCA2,4.1650101550124745,1.0,469,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,842,CASP9,3.0863457620566757,2.0,594,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,842,CASP9,3.0863457620566757,2.0,594,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,842,CASP9,3.0863457620566757,2.0,594,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,842,CASP9,3.0863457620566757,2.0,594,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,842,CASP9,3.0863457620566757,2.0,594,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,842,CASP9,3.0863457620566757,2.0,594,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,842,CASP9,3.0863457620566757,2.0,594,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,842,CASP9,3.0863457620566757,2.0,594,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,842,CASP9,3.0863457620566757,2.0,594,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,842,CASP9,3.0863457620566757,2.0,594,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,842,CASP9,3.0863457620566757,2.0,594,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,842,CASP9,3.0863457620566757,2.0,594,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,842,CASP9,3.0863457620566757,2.0,594,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,842,CASP9,3.0863457620566757,2.0,594,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,842,CASP9,3.0863457620566757,2.0,594,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,842,CASP9,3.0863457620566757,2.0,594,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,842,CASP9,3.0863457620566757,2.0,594,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,842,CASP9,3.0863457620566757,2.0,594,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,842,CASP9,3.0863457620566757,2.0,594,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,842,CASP9,3.0863457620566757,2.0,594,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,842,CASP9,3.0863457620566757,2.0,594,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,842,CASP9,3.0863457620566757,2.0,594,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,842,CASP9,3.0863457620566757,2.0,594,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,842,CASP9,3.0863457620566757,2.0,594,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,842,CASP9,3.0863457620566757,2.0,594,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,842,CASP9,3.0863457620566757,2.0,594,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,842,CASP9,3.0863457620566757,2.0,594,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,842,CASP9,3.0863457620566757,2.0,594,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,842,CASP9,3.0863457620566757,2.0,594,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,842,CASP9,3.0863457620566757,2.0,594,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,842,CASP9,3.0863457620566757,2.0,594,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,842,CASP9,3.0863457620566757,2.0,594,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,842,CASP9,3.0863457620566757,2.0,594,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,842,CASP9,3.0863457620566757,2.0,594,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,842,CASP9,3.0863457620566757,2.0,594,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,222,ALDH3B2,3.071139507657893,3.0,156,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,222,ALDH3B2,3.071139507657893,3.0,156,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,222,ALDH3B2,3.071139507657893,3.0,156,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,222,ALDH3B2,3.071139507657893,3.0,156,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,222,ALDH3B2,3.071139507657893,3.0,156,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,222,ALDH3B2,3.071139507657893,3.0,156,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,222,ALDH3B2,3.071139507657893,3.0,156,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,222,ALDH3B2,3.071139507657893,3.0,156,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,222,ALDH3B2,3.071139507657893,3.0,156,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,222,ALDH3B2,3.071139507657893,3.0,156,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,222,ALDH3B2,3.071139507657893,3.0,156,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,222,ALDH3B2,3.071139507657893,3.0,156,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,222,ALDH3B2,3.071139507657893,3.0,156,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,222,ALDH3B2,3.071139507657893,3.0,156,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,222,ALDH3B2,3.071139507657893,3.0,156,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,222,ALDH3B2,3.071139507657893,3.0,156,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,222,ALDH3B2,3.071139507657893,3.0,156,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,222,ALDH3B2,3.071139507657893,3.0,156,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,222,ALDH3B2,3.071139507657893,3.0,156,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,222,ALDH3B2,3.071139507657893,3.0,156,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,222,ALDH3B2,3.071139507657893,3.0,156,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,222,ALDH3B2,3.071139507657893,3.0,156,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,222,ALDH3B2,3.071139507657893,3.0,156,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,222,ALDH3B2,3.071139507657893,3.0,156,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,222,ALDH3B2,3.071139507657893,3.0,156,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,222,ALDH3B2,3.071139507657893,3.0,156,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,222,ALDH3B2,3.071139507657893,3.0,156,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,222,ALDH3B2,3.071139507657893,3.0,156,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,222,ALDH3B2,3.071139507657893,3.0,156,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,222,ALDH3B2,3.071139507657893,3.0,156,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,222,ALDH3B2,3.071139507657893,3.0,156,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,222,ALDH3B2,3.071139507657893,3.0,156,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,222,ALDH3B2,3.071139507657893,3.0,156,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,222,ALDH3B2,3.071139507657893,3.0,156,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,222,ALDH3B2,3.071139507657893,3.0,156,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,728,C5AR1,2.96183998514846,4.0,505,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,728,C5AR1,2.96183998514846,4.0,505,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,728,C5AR1,2.96183998514846,4.0,505,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,728,C5AR1,2.96183998514846,4.0,505,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,728,C5AR1,2.96183998514846,4.0,505,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,728,C5AR1,2.96183998514846,4.0,505,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,728,C5AR1,2.96183998514846,4.0,505,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,728,C5AR1,2.96183998514846,4.0,505,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,728,C5AR1,2.96183998514846,4.0,505,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,728,C5AR1,2.96183998514846,4.0,505,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,728,C5AR1,2.96183998514846,4.0,505,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,728,C5AR1,2.96183998514846,4.0,505,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,728,C5AR1,2.96183998514846,4.0,505,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,728,C5AR1,2.96183998514846,4.0,505,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,728,C5AR1,2.96183998514846,4.0,505,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,728,C5AR1,2.96183998514846,4.0,505,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,728,C5AR1,2.96183998514846,4.0,505,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,728,C5AR1,2.96183998514846,4.0,505,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,728,C5AR1,2.96183998514846,4.0,505,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,728,C5AR1,2.96183998514846,4.0,505,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,728,C5AR1,2.96183998514846,4.0,505,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,728,C5AR1,2.96183998514846,4.0,505,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,728,C5AR1,2.96183998514846,4.0,505,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,728,C5AR1,2.96183998514846,4.0,505,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,728,C5AR1,2.96183998514846,4.0,505,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,728,C5AR1,2.96183998514846,4.0,505,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,728,C5AR1,2.96183998514846,4.0,505,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,728,C5AR1,2.96183998514846,4.0,505,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,728,C5AR1,2.96183998514846,4.0,505,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,728,C5AR1,2.96183998514846,4.0,505,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,728,C5AR1,2.96183998514846,4.0,505,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,728,C5AR1,2.96183998514846,4.0,505,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,728,C5AR1,2.96183998514846,4.0,505,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,728,C5AR1,2.96183998514846,4.0,505,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,728,C5AR1,2.96183998514846,4.0,505,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,732,C8B,2.9492971060959277,5.0,509,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,732,C8B,2.9492971060959277,5.0,509,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,732,C8B,2.9492971060959277,5.0,509,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,732,C8B,2.9492971060959277,5.0,509,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,732,C8B,2.9492971060959277,5.0,509,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,732,C8B,2.9492971060959277,5.0,509,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,732,C8B,2.9492971060959277,5.0,509,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,732,C8B,2.9492971060959277,5.0,509,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,732,C8B,2.9492971060959277,5.0,509,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,732,C8B,2.9492971060959277,5.0,509,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,732,C8B,2.9492971060959277,5.0,509,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,732,C8B,2.9492971060959277,5.0,509,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,732,C8B,2.9492971060959277,5.0,509,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,732,C8B,2.9492971060959277,5.0,509,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,732,C8B,2.9492971060959277,5.0,509,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,732,C8B,2.9492971060959277,5.0,509,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,732,C8B,2.9492971060959277,5.0,509,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,732,C8B,2.9492971060959277,5.0,509,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,732,C8B,2.9492971060959277,5.0,509,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,732,C8B,2.9492971060959277,5.0,509,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,732,C8B,2.9492971060959277,5.0,509,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,732,C8B,2.9492971060959277,5.0,509,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,732,C8B,2.9492971060959277,5.0,509,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,732,C8B,2.9492971060959277,5.0,509,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,732,C8B,2.9492971060959277,5.0,509,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,732,C8B,2.9492971060959277,5.0,509,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,732,C8B,2.9492971060959277,5.0,509,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,732,C8B,2.9492971060959277,5.0,509,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,732,C8B,2.9492971060959277,5.0,509,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,732,C8B,2.9492971060959277,5.0,509,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,732,C8B,2.9492971060959277,5.0,509,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,732,C8B,2.9492971060959277,5.0,509,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,732,C8B,2.9492971060959277,5.0,509,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,732,C8B,2.9492971060959277,5.0,509,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,732,C8B,2.9492971060959277,5.0,509,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,262,AMD1,2.7628529070721184,6.0,178,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,262,AMD1,2.7628529070721184,6.0,178,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,262,AMD1,2.7628529070721184,6.0,178,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,262,AMD1,2.7628529070721184,6.0,178,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,262,AMD1,2.7628529070721184,6.0,178,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,262,AMD1,2.7628529070721184,6.0,178,3596,Gr>GpBP,3.3575923675803327
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,262,AMD1,2.7628529070721184,6.0,178,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,262,AMD1,2.7628529070721184,6.0,178,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,262,AMD1,2.7628529070721184,6.0,178,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,262,AMD1,2.7628529070721184,6.0,178,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,262,AMD1,2.7628529070721184,6.0,178,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,262,AMD1,2.7628529070721184,6.0,178,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,262,AMD1,2.7628529070721184,6.0,178,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,262,AMD1,2.7628529070721184,6.0,178,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,262,AMD1,2.7628529070721184,6.0,178,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,262,AMD1,2.7628529070721184,6.0,178,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,262,AMD1,2.7628529070721184,6.0,178,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,262,AMD1,2.7628529070721184,6.0,178,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,262,AMD1,2.7628529070721184,6.0,178,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,262,AMD1,2.7628529070721184,6.0,178,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,262,AMD1,2.7628529070721184,6.0,178,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,262,AMD1,2.7628529070721184,6.0,178,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,262,AMD1,2.7628529070721184,6.0,178,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,262,AMD1,2.7628529070721184,6.0,178,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,262,AMD1,2.7628529070721184,6.0,178,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,262,AMD1,2.7628529070721184,6.0,178,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,262,AMD1,2.7628529070721184,6.0,178,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,262,AMD1,2.7628529070721184,6.0,178,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,262,AMD1,2.7628529070721184,6.0,178,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,262,AMD1,2.7628529070721184,6.0,178,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,262,AMD1,2.7628529070721184,6.0,178,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,262,AMD1,2.7628529070721184,6.0,178,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,262,AMD1,2.7628529070721184,6.0,178,10837,Gr>GpBP,3.3350880326739776
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,262,AMD1,2.7628529070721184,6.0,178,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,262,AMD1,2.7628529070721184,6.0,178,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,187,APLNR,2.740132165299634,7.0,131,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,187,APLNR,2.740132165299634,7.0,131,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,187,APLNR,2.740132165299634,7.0,131,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,187,APLNR,2.740132165299634,7.0,131,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,187,APLNR,2.740132165299634,7.0,131,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,187,APLNR,2.740132165299634,7.0,131,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,187,APLNR,2.740132165299634,7.0,131,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,187,APLNR,2.740132165299634,7.0,131,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,187,APLNR,2.740132165299634,7.0,131,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,187,APLNR,2.740132165299634,7.0,131,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,187,APLNR,2.740132165299634,7.0,131,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,187,APLNR,2.740132165299634,7.0,131,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,187,APLNR,2.740132165299634,7.0,131,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,187,APLNR,2.740132165299634,7.0,131,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,187,APLNR,2.740132165299634,7.0,131,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,187,APLNR,2.740132165299634,7.0,131,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,187,APLNR,2.740132165299634,7.0,131,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,187,APLNR,2.740132165299634,7.0,131,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,187,APLNR,2.740132165299634,7.0,131,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,187,APLNR,2.740132165299634,7.0,131,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,187,APLNR,2.740132165299634,7.0,131,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,187,APLNR,2.740132165299634,7.0,131,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,187,APLNR,2.740132165299634,7.0,131,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,187,APLNR,2.740132165299634,7.0,131,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,187,APLNR,2.740132165299634,7.0,131,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,187,APLNR,2.740132165299634,7.0,131,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,187,APLNR,2.740132165299634,7.0,131,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,187,APLNR,2.740132165299634,7.0,131,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,187,APLNR,2.740132165299634,7.0,131,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,187,APLNR,2.740132165299634,7.0,131,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,187,APLNR,2.740132165299634,7.0,131,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,187,APLNR,2.740132165299634,7.0,131,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,187,APLNR,2.740132165299634,7.0,131,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,187,APLNR,2.740132165299634,7.0,131,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,187,APLNR,2.740132165299634,7.0,131,11040,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001780,neutrophil homeostasis,253,225,ABCD2,2.661082373702184,8.0,159,253,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0001781,neutrophil apoptotic process,254,225,ABCD2,2.661082373702184,8.0,159,254,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,225,ABCD2,2.661082373702184,8.0,159,478,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002446,neutrophil mediated immunity,549,225,ABCD2,2.661082373702184,8.0,159,549,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030223,neutrophil differentiation,3510,225,ABCD2,2.661082373702184,8.0,159,3510,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,225,ABCD2,2.661082373702184,8.0,159,3596,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033029,regulation of neutrophil apoptotic process,4317,225,ABCD2,2.661082373702184,8.0,159,4317,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033030,negative regulation of neutrophil apoptotic process,4318,225,ABCD2,2.661082373702184,8.0,159,4318,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0033031,positive regulation of neutrophil apoptotic process,4319,225,ABCD2,2.661082373702184,8.0,159,4319,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,225,ABCD2,2.661082373702184,8.0,159,5213,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,225,ABCD2,2.661082373702184,8.0,159,5590,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043313,regulation of neutrophil degranulation,5591,225,ABCD2,2.661082373702184,8.0,159,5591,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043314,negative regulation of neutrophil degranulation,5592,225,ABCD2,2.661082373702184,8.0,159,5592,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045658,regulation of neutrophil differentiation,6132,225,ABCD2,2.661082373702184,8.0,159,6132,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0045659,negative regulation of neutrophil differentiation,6133,225,ABCD2,2.661082373702184,8.0,159,6133,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070488,neutrophil aggregation,8442,225,ABCD2,2.661082373702184,8.0,159,8442,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070942,neutrophil mediated cytotoxicity,8552,225,ABCD2,2.661082373702184,8.0,159,8552,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070943,neutrophil mediated killing of symbiont cell,8553,225,ABCD2,2.661082373702184,8.0,159,8553,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070944,neutrophil mediated killing of bacterium,8554,225,ABCD2,2.661082373702184,8.0,159,8554,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070945,neutrophil mediated killing of gram-negative bacterium,8555,225,ABCD2,2.661082373702184,8.0,159,8555,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070946,neutrophil mediated killing of gram-positive bacterium,8556,225,ABCD2,2.661082373702184,8.0,159,8556,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0070947,neutrophil mediated killing of fungus,8557,225,ABCD2,2.661082373702184,8.0,159,8557,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0072672,neutrophil extravasation,9176,225,ABCD2,2.661082373702184,8.0,159,9176,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,225,ABCD2,2.661082373702184,8.0,159,9265,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090023,positive regulation of neutrophil chemotaxis,9266,225,ABCD2,2.661082373702184,8.0,159,9266,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,225,ABCD2,2.661082373702184,8.0,159,9267,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0097350,neutrophil clearance,9589,225,ABCD2,2.661082373702184,8.0,159,9589,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902563,regulation of neutrophil activation,10232,225,ABCD2,2.661082373702184,8.0,159,10232,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902564,negative regulation of neutrophil activation,10233,225,ABCD2,2.661082373702184,8.0,159,10233,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902622,regulation of neutrophil migration,10259,225,ABCD2,2.661082373702184,8.0,159,10259,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,225,ABCD2,2.661082373702184,8.0,159,10260,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902624,positive regulation of neutrophil migration,10261,225,ABCD2,2.661082373702184,8.0,159,10261,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,225,ABCD2,2.661082373702184,8.0,159,10837,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000389,regulation of neutrophil extravasation,11039,225,ABCD2,2.661082373702184,8.0,159,11039,Gr>GpBP,0.0
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:2000391,positive regulation of neutrophil extravasation,11040,225,ABCD2,2.661082373702184,8.0,159,11040,Gr>GpBP,0.0

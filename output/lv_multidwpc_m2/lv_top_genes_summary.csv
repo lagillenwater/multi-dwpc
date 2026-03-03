@@ -1,0 +1,4 @@
+lv_id,n_rows_input,n_unique_genes_mapped,n_unique_genes_selected,loading_threshold,top_fraction
+LV246,800,800,8,2.736213733864723,0.01
+LV57,800,800,8,2.6944209425962455,0.01
+LV603,800,800,8,2.661082373702184,0.01

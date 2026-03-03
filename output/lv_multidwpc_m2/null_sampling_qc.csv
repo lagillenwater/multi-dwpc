@@ -1,0 +1,7 @@
+lv_id,null_type,mean_b_eff,min_b_eff,max_b_eff,mean_overlap_with_real,n_degree_bins_requested,n_degree_bins_effective
+LV246,permuted,7.333333333333333,0,30,0.4625,10,10
+LV246,random,8.666666666666666,0,50,0.0,10,10
+LV57,permuted,6.666666666666667,0,20,0.3625,10,10
+LV57,random,6.666666666666667,0,20,0.0,10,10
+LV603,permuted,6.666666666666667,0,20,0.4125,10,10
+LV603,random,8.666666666666666,0,50,0.0,10,10

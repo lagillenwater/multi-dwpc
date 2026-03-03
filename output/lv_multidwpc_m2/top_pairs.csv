@@ -1,0 +1,28 @@
+lv_id,target_set_id,target_set_label,node_type,target_id,target_name,target_position,gene_identifier,gene_symbol,loading,gene_rank,source_idx,target_idx,metapath,dwpc,pair_rank
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,213,ALB,2.7894070969236693,6.0,147,58,GaDlA,4.176374482962494,1
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,196,AHR,2.9532207718034686,5.0,135,58,GaDlA,3.636953200558444,2
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GaDlA,0.0,3
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,213,ALB,2.7894070969236693,6.0,147,58,GiGdA,5.438005314774052,1
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GiGdA,4.472296868134303,2
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,119,ADD2,3.0524750392734226,3.0,80,58,GiGdA,3.191078310512516,3
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,813,CALU,2.9933676800021054,4.0,565,58,GuDlA,3.702395353074795,1
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,705,BYSL,3.643346969278473,1.0,487,58,GuDlA,0.0,2
+LV246,adipose_tissue,Adipose tissue anatomy terms,Anatomy,UBERON:0001013,adipose tissue,58,552,AVPR1A,3.3612001611561704,2.0,381,58,GuDlA,0.0,3
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,133,ADM,3.202122127348306,3.0,91,56,GdAlD,2.9450429882308145,1
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,910,CD1B,2.8041128452118675,5.0,637,56,GdAlD,2.8587138255352817,2
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GdAlD,2.8034078248370737,3
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,133,ADM,3.202122127348306,3.0,91,56,GeAlD,2.1307029608555963,1
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GeAlD,1.8916610682660164,2
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,421,ARVCF,2.729678159686854,7.0,307,56,GeAlD,1.8217617718022685,3
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,421,ARVCF,2.729678159686854,7.0,307,56,GuAlD,2.730310711161236,1
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,970,CD70,2.922222155200057,4.0,689,56,GuAlD,2.529687947962417,2
+LV57,hypothyroidism,Hypothyroidism disease term,Disease,DOID:1459,hypothyroidism,56,267,AMFR,4.048894768378313,1.0,181,56,GuAlD,1.5788682645877916,3
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1990266,neutrophil migration,10837,728,C5AR1,2.96183998514846,4.0,505,10837,GdAdGpBP,2.0323925387428927,1
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,728,C5AR1,2.96183998514846,4.0,505,3596,GdAdGpBP,1.9881124250711666,2
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0030593,neutrophil chemotaxis,3596,187,APLNR,2.740132165299634,7.0,131,3596,GdAdGpBP,1.8859746382821656,3
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090024,negative regulation of neutrophil chemotaxis,9267,728,C5AR1,2.96183998514846,4.0,505,9267,GiGpBP,7.449729803317541,1
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:1902623,negative regulation of neutrophil migration,10260,728,C5AR1,2.96183998514846,4.0,505,10260,GiGpBP,7.449729803317541,2
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0090022,regulation of neutrophil chemotaxis,9265,728,C5AR1,2.96183998514846,4.0,505,9265,GiGpBP,6.095709438330468,3
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0043312,neutrophil degranulation,5590,675,BRCA2,4.1650101550124745,1.0,469,5590,Gr>GpBP,6.391450816859169,1
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0002283,neutrophil activation involved in immune response,478,675,BRCA2,4.1650101550124745,1.0,469,478,Gr>GpBP,6.165459859769638,2
+LV603,neutrophil_bp,Neutrophil biological process terms,Biological Process,GO:0042119,neutrophil activation,5213,675,BRCA2,4.1650101550124745,1.0,469,5213,Gr>GpBP,5.842150289228307,3

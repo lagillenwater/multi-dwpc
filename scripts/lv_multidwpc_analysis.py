@@ -39,6 +39,10 @@ def _parse_lvs(lv_arg: str) -> list[str]:
     return [token for token in tokens if token]
 
 
+def _all_exist(paths: list[Path]) -> bool:
+    return all(path.exists() for path in paths)
+
+
 def _build_smoke_loadings(
     output_path: Path,
     gene_reference_path: Path,
@@ -77,6 +81,20 @@ def run_top_genes_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    top_genes_path = output_dir / "lv_top_genes.csv"
+    summary_path = output_dir / "lv_top_genes_summary.csv"
+    cached_files = [top_genes_path, summary_path]
+    if args.resume and _all_exist(cached_files) and not args.force:
+        selected_df = pd.read_csv(top_genes_path)
+        summary_df = pd.read_csv(summary_path)
+        print("\nTop-gene extraction skipped (resume cache hit).")
+        print(f"  Output: {top_genes_path}")
+        print(f"  Summary: {summary_path}")
+        print(f"  Selected rows: {len(selected_df):,}")
+        print("\nPer-LV summary:")
+        print(summary_df.to_string(index=False))
+        return
+
     gene_reference_path = Path(args.gene_reference)
     if not gene_reference_path.is_absolute():
         gene_reference_path = (REPO_ROOT / gene_reference_path).resolve()
@@ -97,9 +115,6 @@ def run_top_genes_stage(args: argparse.Namespace) -> None:
         lv_loadings_path = Path(args.lv_loadings)
         if not lv_loadings_path.is_absolute():
             lv_loadings_path = (REPO_ROOT / lv_loadings_path).resolve()
-
-    top_genes_path = output_dir / "lv_top_genes.csv"
-    summary_path = output_dir / "lv_top_genes_summary.csv"
 
     selected_df, summary_df = extract_top_lv_genes(
         lv_loadings_path=lv_loadings_path,
@@ -130,6 +145,21 @@ def run_target_sets_stage(args: argparse.Namespace) -> None:
     target_sets_path = output_dir / "target_sets.csv"
     target_summary_path = output_dir / "target_sets_summary.csv"
     lv_target_map_path = output_dir / "lv_target_map.csv"
+    cached_files = [target_sets_path, target_summary_path, lv_target_map_path]
+    if args.resume and _all_exist(cached_files) and not args.force:
+        targets_df = pd.read_csv(target_sets_path)
+        summary_df = pd.read_csv(target_summary_path)
+        lv_map_df = pd.read_csv(lv_target_map_path)
+        print("\nTarget-set construction skipped (resume cache hit).")
+        print(f"  Target rows: {len(targets_df):,}")
+        print(f"  Output: {target_sets_path}")
+        print(f"  Summary: {target_summary_path}")
+        print(f"  LV map: {lv_target_map_path}")
+        print("\nTarget-set summary:")
+        print(summary_df.to_string(index=False))
+        print("\nLV-to-target map:")
+        print(lv_map_df.to_string(index=False))
+        return
 
     targets_df, summary_df, lv_map_df = build_target_sets(
         nodes_dir=nodes_dir,
@@ -220,6 +250,24 @@ def run_precompute_scores_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    precompute_cache = [
+        output_dir / "gene_feature_scores.npy",
+        output_dir / "gene_ids.npy",
+        output_dir / "feature_manifest.csv",
+        output_dir / "lv_real_gene_indices.csv",
+        output_dir / "real_feature_scores.csv",
+    ]
+    if args.resume and _all_exist(precompute_cache) and not args.force:
+        feature_manifest = pd.read_csv(output_dir / "feature_manifest.csv")
+        lv_real_indices = pd.read_csv(output_dir / "lv_real_gene_indices.csv")
+        real_feature_scores = pd.read_csv(output_dir / "real_feature_scores.csv")
+        print("\nPrecompute scores skipped (resume cache hit).")
+        print(f"  Features: {len(feature_manifest):,}")
+        print(f"  LV real index rows: {len(lv_real_indices):,}")
+        print(f"  Real feature score rows: {len(real_feature_scores):,}")
+        print(f"  Output dir: {output_dir}")
+        return
+
     metapath_limit = args.metapath_limit_per_target
     if args.smoke and metapath_limit is None:
         metapath_limit = 5
@@ -250,6 +298,20 @@ def run_nulls_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    null_cache = [
+        output_dir / "null_streaming_summary.csv",
+        output_dir / "null_sampling_qc.csv",
+    ]
+    if args.resume and _all_exist(null_cache) and not args.force:
+        summary_df = pd.read_csv(output_dir / "null_streaming_summary.csv")
+        qc_df = pd.read_csv(output_dir / "null_sampling_qc.csv")
+        print("\nNull sampling skipped (resume cache hit).")
+        print(f"  Null summary rows: {len(summary_df):,}")
+        print(f"  QC rows: {len(qc_df):,}")
+        print(f"  Output: {output_dir / 'null_streaming_summary.csv'}")
+        print(f"  QC: {output_dir / 'null_sampling_qc.csv'}")
+        return
+
     summary_df, qc_df = run_vectorized_nulls(
         output_dir=output_dir,
         data_dir=REPO_ROOT / "data",
@@ -273,6 +335,15 @@ def run_stats_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    stats_path = output_dir / "lv_metapath_results.csv"
+    if args.resume and stats_path.exists() and not args.force:
+        results = pd.read_csv(stats_path)
+        print("\nStats assembly skipped (resume cache hit).")
+        print(f"  Result rows: {len(results):,}")
+        print(f"  Supported rows: {int(results['supported'].sum()):,}")
+        print(f"  Output: {stats_path}")
+        return
+
     results = build_final_stats(output_dir=output_dir)
     print("\nStats assembly complete.")
     print(f"  Result rows: {len(results):,}")
@@ -283,6 +354,18 @@ def run_stats_stage(args: argparse.Namespace) -> None:
 def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    top_pair_path = output_dir / "top_pairs.csv"
+    top_path_path = output_dir / "top_paths.csv"
+    if args.resume and top_pair_path.exists() and top_path_path.exists() and not args.force:
+        top_pairs_df = pd.read_csv(top_pair_path)
+        top_paths_df = pd.read_csv(top_path_path)
+        print("\nTop-subgraph extraction skipped (resume cache hit).")
+        print(f"  Top pair rows: {len(top_pairs_df):,}")
+        print(f"  Top path rows: {len(top_paths_df):,}")
+        print(f"  Output: {top_pair_path}")
+        print(f"  Output: {top_path_path}")
+        return
 
     top_pairs_df, top_paths_df = extract_top_subgraphs(
         repo_root=REPO_ROOT,
@@ -303,6 +386,14 @@ def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
 def run_plot_subgraphs_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir = output_dir / "plots"
+    if args.resume and plots_dir.exists() and any(plots_dir.glob("*.png")) and not args.force:
+        n_existing = len(list(plots_dir.glob("*.png")))
+        print("\nTop-subgraph plotting skipped (resume cache hit).")
+        print(f"  Plots present: {n_existing:,}")
+        print(f"  Output dir: {plots_dir}")
+        return
+
     n_written = plot_top_subgraphs(output_dir=output_dir)
     print("\nTop-subgraph plotting complete.")
     print(f"  Plots written: {n_written:,}")
@@ -367,6 +458,16 @@ def main() -> None:
         "--smoke",
         action="store_true",
         help="Generate synthetic LV inputs for quick pipeline testing.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reuse stage outputs when expected artifacts already exist.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Recompute stage outputs even if cached artifacts exist.",
     )
     parser.add_argument(
         "--include-brown-adipose",
