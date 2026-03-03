@@ -22,7 +22,13 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.lv_inputs import extract_top_lv_genes  # noqa: E402
+from src.lv_nulls import run_vectorized_nulls  # noqa: E402
+from src.lv_pairs import build_lv_target_pairs  # noqa: E402
+from src.lv_precompute import precompute_gene_feature_scores  # noqa: E402
+from src.lv_stats import build_final_stats  # noqa: E402
+from src.lv_subgraphs import extract_top_subgraphs, plot_top_subgraphs  # noqa: E402
 from src.lv_targets import build_target_sets  # noqa: E402
+from src.lv_dwpc import compute_real_pair_dwpc  # noqa: E402
 
 
 DEFAULT_LVS = ("LV603", "LV246", "LV57")
@@ -145,15 +151,185 @@ def run_target_sets_stage(args: argparse.Namespace) -> None:
     print(lv_map_df.to_string(index=False))
 
 
+def run_real_dwpc_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    top_genes_path = output_dir / "lv_top_genes.csv"
+    target_sets_path = output_dir / "target_sets.csv"
+    lv_map_path = output_dir / "lv_target_map.csv"
+    pairs_path = output_dir / "lv_gene_target_pairs.csv"
+    dwpc_path = output_dir / "lv_pair_dwpc_real.csv"
+    manifest_path = output_dir / "lv_metapaths_manifest.csv"
+
+    if not top_genes_path.exists():
+        raise FileNotFoundError(
+            f"Missing {top_genes_path}. Run stage 'top-genes' first."
+        )
+    if not target_sets_path.exists() or not lv_map_path.exists():
+        raise FileNotFoundError(
+            "Missing target-set inputs. Run stage 'target-sets' first."
+        )
+
+    pairs_df = build_lv_target_pairs(
+        top_genes_path=top_genes_path,
+        target_sets_path=target_sets_path,
+        lv_target_map_path=lv_map_path,
+        output_pairs_path=pairs_path,
+    )
+    print("\nPair table complete.")
+    print(f"  Pair rows: {len(pairs_df):,}")
+    print(f"  Output: {pairs_path}")
+
+    metapath_limit = args.metapath_limit_per_target
+    if args.smoke and metapath_limit is None:
+        metapath_limit = 5
+        print(
+            "[smoke] Using metapath limit per target type = 5 "
+            "for faster validation."
+        )
+
+    dwpc_df, manifest_df = compute_real_pair_dwpc(
+        pairs_path=pairs_path,
+        data_dir=REPO_ROOT / "data",
+        metapath_stats_path=REPO_ROOT / "data" / "metapath-dwpc-stats.tsv",
+        output_dwpc_path=dwpc_path,
+        output_metapath_manifest_path=manifest_path,
+        damping=args.damping,
+        max_length=args.max_metapath_length,
+        exclude_direct=not args.include_direct_metapaths,
+        metapath_limit_per_target=metapath_limit,
+        use_disk_cache=True,
+    )
+
+    print("\nReal DWPC computation complete.")
+    print(f"  DWPC rows: {len(dwpc_df):,}")
+    print(f"  Unique metapaths: {dwpc_df['metapath'].nunique()}")
+    print(f"  Output: {dwpc_path}")
+    print(f"  Metapath manifest: {manifest_path}")
+    print("\nMetapaths by node type:")
+    print(
+        manifest_df.groupby("node_type", as_index=False)["metapath"]
+        .nunique()
+        .rename(columns={"metapath": "n_metapaths"})
+        .to_string(index=False)
+    )
+
+
+def run_precompute_scores_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    metapath_limit = args.metapath_limit_per_target
+    if args.smoke and metapath_limit is None:
+        metapath_limit = 5
+        print(
+            "[smoke] Using metapath limit per target type = 5 "
+            "for faster precompute validation."
+        )
+
+    feature_manifest, lv_real_indices, real_feature_scores = precompute_gene_feature_scores(
+        output_dir=output_dir,
+        data_dir=REPO_ROOT / "data",
+        metapath_stats_path=REPO_ROOT / "data" / "metapath-dwpc-stats.tsv",
+        damping=args.damping,
+        max_metapath_length=args.max_metapath_length,
+        metapath_limit_per_target=metapath_limit,
+        n_workers_precompute=args.n_workers_precompute,
+        include_direct_metapaths=args.include_direct_metapaths,
+    )
+
+    print("\nPrecompute scores complete.")
+    print(f"  Features: {len(feature_manifest):,}")
+    print(f"  LV real index rows: {len(lv_real_indices):,}")
+    print(f"  Real feature score rows: {len(real_feature_scores):,}")
+    print(f"  Output dir: {output_dir}")
+
+
+def run_nulls_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_df, qc_df = run_vectorized_nulls(
+        output_dir=output_dir,
+        data_dir=REPO_ROOT / "data",
+        n_degree_bins=args.n_degree_bins,
+        b_min=args.b_min,
+        b_max=args.b_max,
+        b_batch=args.b_batch,
+        adaptive_p_low=args.adaptive_p_low,
+        adaptive_p_high=args.adaptive_p_high,
+        random_seed=args.random_seed,
+    )
+
+    print("\nNull sampling complete.")
+    print(f"  Null summary rows: {len(summary_df):,}")
+    print(f"  QC rows: {len(qc_df):,}")
+    print(f"  Output: {output_dir / 'null_streaming_summary.csv'}")
+    print(f"  QC: {output_dir / 'null_sampling_qc.csv'}")
+
+
+def run_stats_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    results = build_final_stats(output_dir=output_dir)
+    print("\nStats assembly complete.")
+    print(f"  Result rows: {len(results):,}")
+    print(f"  Supported rows: {int(results['supported'].sum()):,}")
+    print(f"  Output: {output_dir / 'lv_metapath_results.csv'}")
+
+
+def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    top_pairs_df, top_paths_df = extract_top_subgraphs(
+        repo_root=REPO_ROOT,
+        output_dir=output_dir,
+        top_metapaths=args.top_metapaths,
+        top_pairs=args.top_pairs,
+        top_paths=args.top_paths,
+        damping=args.damping,
+        degree_d=args.degree_d,
+    )
+    print("\nTop-subgraph extraction complete.")
+    print(f"  Top pair rows: {len(top_pairs_df):,}")
+    print(f"  Top path rows: {len(top_paths_df):,}")
+    print(f"  Output: {output_dir / 'top_pairs.csv'}")
+    print(f"  Output: {output_dir / 'top_paths.csv'}")
+
+
+def run_plot_subgraphs_stage(args: argparse.Namespace) -> None:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    n_written = plot_top_subgraphs(output_dir=output_dir)
+    print("\nTop-subgraph plotting complete.")
+    print(f"  Plots written: {n_written:,}")
+    print(f"  Output dir: {output_dir / 'plots'}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="LV multi-DWPC analysis pipeline.")
     parser.add_argument(
         "--stage",
         default="top-genes",
-        choices=["top-genes", "target-sets", "pipeline"],
+        choices=[
+            "top-genes",
+            "target-sets",
+            "real-dwpc",
+            "precompute-scores",
+            "nulls",
+            "stats",
+            "top-subgraphs",
+            "plot-subgraphs",
+            "pipeline-fast",
+            "pipeline-subgraphs",
+            "pipeline",
+        ],
         help=(
             "Pipeline stage to run. "
-            "'pipeline' currently runs top-genes then target-sets."
+            "'pipeline-fast' runs optimized stages through stats."
         ),
     )
     parser.add_argument(
@@ -197,6 +373,86 @@ def main() -> None:
         action="store_true",
         help="Include UBERON:0001348 in adipose target set.",
     )
+    parser.add_argument(
+        "--include-direct-metapaths",
+        action="store_true",
+        help="Include direct 1-edge gene->target metapaths.",
+    )
+    parser.add_argument(
+        "--max-metapath-length",
+        type=int,
+        default=3,
+        help="Maximum metapath length to include from metapath stats.",
+    )
+    parser.add_argument(
+        "--damping",
+        type=float,
+        default=0.5,
+        help="DWPC damping exponent (0.5 matches API).",
+    )
+    parser.add_argument(
+        "--metapath-limit-per-target",
+        type=int,
+        default=None,
+        help="Optional cap on number of metapaths per target node type.",
+    )
+    parser.add_argument(
+        "--n-workers-precompute",
+        type=int,
+        default=4,
+        help="Workers for precompute matrix warmup.",
+    )
+    parser.add_argument(
+        "--n-degree-bins",
+        type=int,
+        default=10,
+        help="Degree quantile bins for null sampling.",
+    )
+    parser.add_argument("--b-min", type=int, default=200, help="Adaptive B minimum.")
+    parser.add_argument("--b-max", type=int, default=1000, help="Adaptive B maximum.")
+    parser.add_argument("--b-batch", type=int, default=100, help="Adaptive B batch size.")
+    parser.add_argument(
+        "--adaptive-p-low",
+        type=float,
+        default=0.005,
+        help="Lower threshold for adaptive stopping.",
+    )
+    parser.add_argument(
+        "--adaptive-p-high",
+        type=float,
+        default=0.20,
+        help="Upper threshold for adaptive stopping.",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=42,
+        help="Seed for null sampling.",
+    )
+    parser.add_argument(
+        "--top-metapaths",
+        type=int,
+        default=10,
+        help="Top supported metapaths per LV-target for subgraph stage.",
+    )
+    parser.add_argument(
+        "--top-pairs",
+        type=int,
+        default=10,
+        help="Top gene-target pairs per selected metapath.",
+    )
+    parser.add_argument(
+        "--top-paths",
+        type=int,
+        default=5,
+        help="Top path instances per selected pair.",
+    )
+    parser.add_argument(
+        "--degree-d",
+        type=float,
+        default=0.5,
+        help="Degree damping for path instance extraction.",
+    )
     args = parser.parse_args()
 
     if args.stage == "top-genes":
@@ -207,10 +463,50 @@ def main() -> None:
         run_target_sets_stage(args)
         return
 
-    if args.stage == "pipeline":
-        print("[note] Running currently implemented pipeline stages.")
+    if args.stage == "real-dwpc":
+        run_real_dwpc_stage(args)
+        return
+
+    if args.stage == "precompute-scores":
+        run_precompute_scores_stage(args)
+        return
+
+    if args.stage == "nulls":
+        run_nulls_stage(args)
+        return
+
+    if args.stage == "stats":
+        run_stats_stage(args)
+        return
+
+    if args.stage == "top-subgraphs":
+        run_top_subgraphs_stage(args)
+        return
+
+    if args.stage == "plot-subgraphs":
+        run_plot_subgraphs_stage(args)
+        return
+
+    if args.stage == "pipeline-fast":
+        print("[note] Running optimized fast pipeline stages.")
         run_top_genes_stage(args)
         run_target_sets_stage(args)
+        run_precompute_scores_stage(args)
+        run_nulls_stage(args)
+        run_stats_stage(args)
+        return
+
+    if args.stage == "pipeline-subgraphs":
+        print("[note] Running subgraph extraction + plotting stages.")
+        run_top_subgraphs_stage(args)
+        run_plot_subgraphs_stage(args)
+        return
+
+    if args.stage == "pipeline":
+        print("[note] Running legacy baseline pipeline stages.")
+        run_top_genes_stage(args)
+        run_target_sets_stage(args)
+        run_real_dwpc_stage(args)
         return
 
     raise ValueError(f"Unsupported stage: {args.stage}")

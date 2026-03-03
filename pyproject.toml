@@ -77,6 +77,22 @@ plot-path-instances-network = "python scripts/plot_path_instances_networks.py"
 
 # LV multi-DWPC milestones
 lv-top-genes = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --lv-loadings ${LV_LOADINGS_PATH} --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
-lv-target-sets = "python3 scripts/lv_multidwpc_analysis.py --stage target-sets --output-dir output/lv_multidwpc"
+lv-target-sets = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage target-sets --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-real-dwpc = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage real-dwpc --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-precompute-scores = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage precompute-scores --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc} --n-workers-precompute ${LV_N_WORKERS_PRECOMP:-4} --max-metapath-length ${LV_MAX_METAPATH_LENGTH:-3}" }
+lv-nulls = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage nulls --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc} --n-degree-bins ${LV_N_DEGREE_BINS:-10} --b-min ${LV_B_MIN:-200} --b-max ${LV_B_MAX:-1000} --b-batch ${LV_B_BATCH:-100} --adaptive-p-low ${LV_ADAPTIVE_P_LOW:-0.005} --adaptive-p-high ${LV_ADAPTIVE_P_HIGH:-0.20}" }
+lv-stats = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage stats --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-top-subgraphs = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-subgraphs --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc} --top-metapaths ${LV_TOP_METAPATHS:-10} --top-pairs ${LV_TOP_PAIRS:-10} --top-paths ${LV_TOP_PATHS:-5}" }
+lv-plot-subgraphs = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage plot-subgraphs --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+
+lv-pipeline-fast = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-fast --lv-loadings ${LV_LOADINGS_PATH} --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-pipeline-fast-smoke = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-fast --smoke --output-dir output/lv_multidwpc_smoke_opt --metapath-limit-per-target 5 --b-min 20 --b-max 50 --b-batch 10" }
+lv-pipeline-subgraphs = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-subgraphs --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+
 lv-pipeline-smoke = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline --smoke --output-dir output/lv_multidwpc_smoke"
 lv-m1-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --smoke --output-dir output/lv_multidwpc_m1_smoke && test -f output/lv_multidwpc_m1_smoke/lv_top_genes.csv && test -f output/lv_multidwpc_m1_smoke/lv_top_genes_summary.csv" }
+lv-m2-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-genes --smoke --output-dir output/lv_multidwpc_m2 && python3 scripts/lv_multidwpc_analysis.py --stage target-sets --output-dir output/lv_multidwpc_m2 && python3 scripts/lv_multidwpc_analysis.py --stage precompute-scores --output-dir output/lv_multidwpc_m2 --metapath-limit-per-target 5 --n-workers-precompute 2 && test -f output/lv_multidwpc_m2/gene_feature_scores.npy && test -f output/lv_multidwpc_m2/feature_manifest.csv && test -f output/lv_multidwpc_m2/gene_ids.npy" }
+lv-m3-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage nulls --output-dir output/lv_multidwpc_m2 --n-degree-bins 10 --b-min 20 --b-max 50 --b-batch 10 --adaptive-p-low 0.01 --adaptive-p-high 0.25 && test -f output/lv_multidwpc_m2/null_streaming_summary.csv && test -f output/lv_multidwpc_m2/null_sampling_qc.csv" }
+lv-m4-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage stats --output-dir output/lv_multidwpc_m2 && test -f output/lv_multidwpc_m2/lv_metapath_results.csv && python3 -c \"import pandas as pd; df=pd.read_csv('output/lv_multidwpc_m2/lv_metapath_results.csv'); req={'p_perm','p_rand','p_perm_fdr','p_rand_fdr','d_perm','d_rand','min_d','diff_perm','diff_rand','min_diff'}; miss=req-set(df.columns); assert not miss, miss\" " }
+lv-m5-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-subgraphs --output-dir output/lv_multidwpc_m2 --top-metapaths 3 --top-pairs 3 --top-paths 3 && python3 scripts/lv_multidwpc_analysis.py --stage plot-subgraphs --output-dir output/lv_multidwpc_m2 && test -f output/lv_multidwpc_m2/top_pairs.csv && test -f output/lv_multidwpc_m2/top_paths.csv && test -d output/lv_multidwpc_m2/plots" }
+lv-m6-test = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-fast --smoke --output-dir output/lv_multidwpc_m6 --metapath-limit-per-target 5 --b-min 20 --b-max 50 --b-batch 10 && test -f output/lv_multidwpc_m6/lv_metapath_results.csv" }
