@@ -23,6 +23,26 @@ BROWN_ADIPOSE_ID = "UBERON:0001348"
 HYPOTHYROIDISM_ID = "DOID:1459"
 
 
+def _normalize_lv_id(value: object) -> str:
+    """Normalize LV IDs to canonical form (e.g., lv603 -> LV603)."""
+    text = str(value).strip()
+    if not text:
+        return text
+    upper_text = text.upper()
+    if upper_text.startswith("LV"):
+        suffix = upper_text[2:]
+        if suffix.isdigit():
+            return f"LV{int(suffix)}"
+        return upper_text
+    if text.isdigit():
+        return f"LV{int(text)}"
+    if text.endswith(".0"):
+        stem = text[:-2]
+        if stem.isdigit():
+            return f"LV{int(stem)}"
+    return upper_text
+
+
 def _load_nodes_table(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, sep="\t")
     required_cols = {"position", "identifier", "name"}
@@ -140,10 +160,22 @@ def _build_lv_target_map_rows(lv_ids: Iterable[str]) -> pd.DataFrame:
         "LV246": ADIPOSE_TARGET_SET,
         "LV57": HYPOTHYROIDISM_TARGET_SET,
     }
-    rows = []
+
+    requested_lvs = []
+    seen = set()
     for lv_id in lv_ids:
+        normalized = _normalize_lv_id(lv_id)
+        if not normalized or normalized in seen:
+            continue
+        requested_lvs.append(normalized)
+        seen.add(normalized)
+
+    rows = []
+    unmapped = []
+    for lv_id in requested_lvs:
         mapped_target = lv_to_target.get(lv_id)
         if mapped_target is None:
+            unmapped.append(lv_id)
             continue
         rows.append(
             {
@@ -151,6 +183,14 @@ def _build_lv_target_map_rows(lv_ids: Iterable[str]) -> pd.DataFrame:
                 "target_set_id": mapped_target,
             }
         )
+
+    if unmapped:
+        supported = sorted(lv_to_target.keys())
+        raise ValueError(
+            "No target mapping configured for LV IDs: "
+            f"{sorted(unmapped)}. Supported LV IDs: {supported}"
+        )
+
     return pd.DataFrame(rows)
 
 

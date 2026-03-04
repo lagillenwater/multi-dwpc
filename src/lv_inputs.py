@@ -26,6 +26,14 @@ GENE_COLUMN_CANDIDATES = (
 LOADING_COLUMN_CANDIDATES = ("loading", "weight", "score", "value")
 
 
+def _is_git_lfs_pointer(path: Path) -> bool:
+    try:
+        header = path.read_bytes()[:120]
+    except OSError:
+        return False
+    return header.startswith(b"version https://git-lfs.github.com/spec/v1")
+
+
 def _normalize_lv_id(value: object) -> str:
     text = str(value).strip()
     if not text:
@@ -59,11 +67,23 @@ def _normalize_gene_token(value: object) -> str:
 
 
 def _read_lv_loadings(path: Path) -> pd.DataFrame:
-    suffix = path.suffix.lower()
-    if suffix in {".tsv", ".txt"}:
+    filename = path.name.lower()
+    if not path.exists():
+        raise FileNotFoundError(f"LV loadings file not found: {path}")
+
+    if _is_git_lfs_pointer(path):
+        raise ValueError(
+            "LV loadings file appears to be a Git LFS pointer, not real data. "
+            "Re-download the file (for example: `poe download-lv-loadings`) and "
+            "ensure the downloaded file is the actual gzip content."
+        )
+
+    if filename.endswith((".tsv", ".tsv.gz", ".txt", ".txt.gz")):
         return pd.read_csv(path, sep="\t")
-    if suffix == ".parquet":
+    if filename.endswith(".parquet"):
         return pd.read_parquet(path)
+    if filename.endswith((".csv", ".csv.gz")):
+        return pd.read_csv(path)
     return pd.read_csv(path)
 
 
@@ -87,6 +107,70 @@ def _resolve_column(
         f"Unable to resolve required column from candidates {tuple(candidates)}. "
         f"Available: {sorted(df.columns.tolist())}"
     )
+
+
+def _coerce_wide_z_to_long(
+    df: pd.DataFrame,
+    requested_lvs: Optional[Iterable[str]],
+    explicit_gene_column: Optional[str],
+) -> Optional[pd.DataFrame]:
+    """
+    Convert wide MultiPLIER Z matrix format to long format.
+
+    Expected wide shape:
+    - one gene column (often "Unnamed: 0")
+    - many LV columns (e.g., LV1, LV2, ..., LV987)
+    """
+    if df.empty:
+        return None
+
+    if explicit_gene_column:
+        if explicit_gene_column not in df.columns:
+            raise ValueError(
+                f"Provided gene column '{explicit_gene_column}' is missing. "
+                f"Available: {sorted(df.columns.tolist())}"
+            )
+        gene_col = explicit_gene_column
+    else:
+        lower_to_original = {col.strip().lower(): col for col in df.columns}
+        gene_col = None
+        for name in GENE_COLUMN_CANDIDATES:
+            if name in lower_to_original:
+                gene_col = lower_to_original[name]
+                break
+        if gene_col is None and "unnamed: 0" in lower_to_original:
+            gene_col = lower_to_original["unnamed: 0"]
+        if gene_col is None:
+            gene_col = df.columns[0]
+
+    normalized_requested = None
+    if requested_lvs:
+        normalized_requested = {_normalize_lv_id(item) for item in requested_lvs}
+
+    lv_col_map: dict[str, str] = {}
+    for col in df.columns:
+        if col == gene_col:
+            continue
+        normalized = _normalize_lv_id(col)
+        if not (normalized.startswith("LV") and normalized[2:].isdigit()):
+            continue
+        if normalized_requested and normalized not in normalized_requested:
+            continue
+        lv_col_map[col] = normalized
+
+    if not lv_col_map:
+        return None
+
+    wide_subset = df[[gene_col, *lv_col_map.keys()]].copy()
+    wide_subset = wide_subset.rename(columns={gene_col: "gene_raw"})
+    long_df = wide_subset.melt(
+        id_vars=["gene_raw"],
+        value_vars=list(lv_col_map.keys()),
+        var_name="lv_col",
+        value_name="loading_raw",
+    )
+    long_df["lv_raw"] = long_df["lv_col"].map(lv_col_map)
+    return long_df[["lv_raw", "gene_raw", "loading_raw"]]
 
 
 def _load_gene_reference(gene_tsv_path: Path) -> pd.DataFrame:
@@ -152,22 +236,39 @@ def extract_top_lv_genes(
     if top_fraction <= 0 or top_fraction > 1:
         raise ValueError("top_fraction must be in (0, 1].")
 
-    raw_df = _read_lv_loadings(Path(lv_loadings_path))
-    resolved_lv_col = _resolve_column(raw_df, LV_COLUMN_CANDIDATES, lv_column)
-    resolved_gene_col = _resolve_column(raw_df, GENE_COLUMN_CANDIDATES, gene_column)
-    resolved_loading_col = _resolve_column(
-        raw_df, LOADING_COLUMN_CANDIDATES, loading_column
+    normalized_requested = (
+        {_normalize_lv_id(item) for item in requested_lvs}
+        if requested_lvs
+        else None
     )
 
-    working = raw_df[[resolved_lv_col, resolved_gene_col, resolved_loading_col]].copy()
-    working.columns = ["lv_raw", "gene_raw", "loading_raw"]
+    raw_df = _read_lv_loadings(Path(lv_loadings_path))
+    try:
+        resolved_lv_col = _resolve_column(raw_df, LV_COLUMN_CANDIDATES, lv_column)
+        resolved_gene_col = _resolve_column(raw_df, GENE_COLUMN_CANDIDATES, gene_column)
+        resolved_loading_col = _resolve_column(
+            raw_df, LOADING_COLUMN_CANDIDATES, loading_column
+        )
+        working = raw_df[[resolved_lv_col, resolved_gene_col, resolved_loading_col]].copy()
+        working.columns = ["lv_raw", "gene_raw", "loading_raw"]
+    except ValueError:
+        if lv_column or loading_column:
+            raise
+        coerced = _coerce_wide_z_to_long(
+            raw_df,
+            requested_lvs=normalized_requested,
+            explicit_gene_column=gene_column,
+        )
+        if coerced is None:
+            raise
+        working = coerced.copy()
+
     working["lv_id"] = working["lv_raw"].map(_normalize_lv_id)
     working["gene_token"] = working["gene_raw"].map(_normalize_gene_token)
     working["loading"] = pd.to_numeric(working["loading_raw"], errors="coerce")
     working = working.dropna(subset=["lv_id", "gene_token", "loading"]).copy()
 
-    if requested_lvs:
-        normalized_requested = {_normalize_lv_id(item) for item in requested_lvs}
+    if normalized_requested:
         working = working[working["lv_id"].isin(normalized_requested)].copy()
 
     if working.empty:

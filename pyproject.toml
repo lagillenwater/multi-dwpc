@@ -70,6 +70,7 @@ direct-dwpc-analyses = ["compute-dwpc-direct", "metapath-signature-analysis", "d
 # Utility tasks
 convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to py:percent -o scripts/$(basename \"$nb\" .ipynb | tr '.' '_').py \"$nb\"; done" }
 clean = { shell = "rm -rf data/ output/ gene_ontology/" }
+download-lv-loadings = { shell = "python3 scripts/download_lv_loadings.py --owner greenelab --repo phenoplier --ref main --source-path data/input/multiplier --exact-file multiplier_model_z.tsv.gz --output-dir ${LV_LOADINGS_DIR:-data/lv_loadings}" }
 top-bp-paths = "python scripts/top_bps_by_metapath.py"
 plot-top-paths-network = "python scripts/plot_top_paths_networks.py"
 extract-top-paths-local = "python scripts/extract_top_paths_local.py"

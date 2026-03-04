@@ -418,13 +418,18 @@ def run_vectorized_nulls(
                     feature_manifest=feature_manifest,
                 )
             )
+            scored_feature_idx = allowed_features_by_lv[lv_id]
+            scored_n_eff = state.n_eff[scored_feature_idx]
             qc_rows.append(
                 {
                     "lv_id": lv_id,
                     "null_type": null_type,
-                    "mean_b_eff": float(np.nanmean(state.n_eff)),
-                    "min_b_eff": int(np.nanmin(state.n_eff)),
-                    "max_b_eff": int(np.nanmax(state.n_eff)),
+                    # QC B-eff metrics should only summarize features that were
+                    # actually scored for this LV's mapped target set.
+                    "mean_b_eff": float(np.nanmean(scored_n_eff)),
+                    "min_b_eff": int(np.nanmin(scored_n_eff)),
+                    "max_b_eff": int(np.nanmax(scored_n_eff)),
+                    "n_features_scored": int(len(scored_feature_idx)),
                     "mean_overlap_with_real": (
                         float(state.overlap_sum / state.overlap_count)
                         if state.overlap_count > 0

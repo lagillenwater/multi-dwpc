@@ -89,6 +89,26 @@ Located in `scripts/`:
 - `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
 - `parents_GO_postive_growth`: parents of leaf terms within the same filtered set
 
+### LV loadings input
+
+The LV pipeline expects an external loadings file. Use the curated MultiPLIER
+Z matrix from:
+
+- `greenelab/phenoplier`
+- `data/input/multiplier/multiplier_model_z.tsv.gz`
+
+Download this file into `data/lv_loadings/`:
+
+```bash
+poe download-lv-loadings
+```
+
+Then set `LV_LOADINGS_PATH` when running LV pipeline tasks:
+
+```bash
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+```
+
 ## Run the DWPC computation
 
 There are two methods for computing Degree-Weighted Path Counts (DWPC):
