@@ -9,7 +9,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.dwpc_direct import HetMat, create_node_index_mapping, reverse_metapath_abbrev
+from src.dwpc_direct import (
+    HetMat,
+    create_node_index_mapping,
+    load_metapath_stats,
+    reverse_metapath_abbrev,
+)
 
 
 NODE_TYPE_TO_ABBREV = {
@@ -22,7 +27,16 @@ DIRECT_GENE_TO_TARGET_METAPATHS = {"GpBP", "GdA", "GeA", "GuA", "GaD", "GdD", "G
 
 
 def _load_metapath_stats(stats_path: Path) -> pd.DataFrame:
-    df = pd.read_csv(stats_path, sep="\t")
+    if stats_path.exists():
+        df = pd.read_csv(stats_path, sep="\t")
+    else:
+        # Keep LV stages robust by bootstrapping stats the same way HetMat does.
+        try:
+            df = load_metapath_stats(stats_path.parent)
+        except Exception as exc:
+            raise FileNotFoundError(
+                f"Metapath stats file not found and auto-download failed: {stats_path}"
+            ) from exc
     required_cols = {"metapath", "length"}
     missing = required_cols - set(df.columns)
     if missing:

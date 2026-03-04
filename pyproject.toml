@@ -85,6 +85,7 @@ lv-nulls = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage nulls --o
 lv-stats = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage stats --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
 lv-top-subgraphs = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage top-subgraphs --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc} --top-metapaths ${LV_TOP_METAPATHS:-10} --top-pairs ${LV_TOP_PAIRS:-10} --top-paths ${LV_TOP_PATHS:-5}" }
 lv-plot-subgraphs = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage plot-subgraphs --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
+lv-performance-plots = { shell = "python3 scripts/lv_performance_analysis.py --results ${LV_OUTPUT_DIR:-output/lv_multidwpc}/lv_metapath_results.csv --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}/performance_plots" }
 
 lv-pipeline-fast = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-fast --resume --lv-loadings ${LV_LOADINGS_PATH} --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
 lv-pipeline-fast-smoke = { shell = "python3 scripts/lv_multidwpc_analysis.py --stage pipeline-fast --smoke --resume --output-dir output/lv_multidwpc_smoke_opt --metapath-limit-per-target 5 --b-min 20 --b-max 50 --b-batch 10" }

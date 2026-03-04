@@ -403,7 +403,8 @@ class HetMat:
         data_dir: Union[str, Path],
         damping: float = 0.5,
         cache_dir: Optional[Union[str, Path]] = None,
-        use_disk_cache: bool = True
+        use_disk_cache: bool = True,
+        write_disk_cache: bool = True,
     ):
         """
         Initialize HetMat from data directory.
@@ -418,10 +419,14 @@ class HetMat:
             Directory for disk caching. Defaults to data_dir/dwpc_cache
         use_disk_cache : bool
             Whether to use disk caching for DWPC matrices
+        write_disk_cache : bool
+            Whether to write newly computed matrices to disk cache. When False,
+            existing disk cache entries are still read if available.
         """
         self.data_dir = Path(data_dir)
         self.damping = damping
         self.use_disk_cache = use_disk_cache
+        self.write_disk_cache = bool(write_disk_cache and use_disk_cache)
 
         # Set up cache directory
         if cache_dir is None:
@@ -441,6 +446,7 @@ class HetMat:
 
         self._node_dfs: Dict[str, pd.DataFrame] = {}
         self._dwpc_cache: Dict[Tuple[str, float], sparse.csr_matrix] = {}
+        self._dwpc_cache_csc: Dict[Tuple[str, float], sparse.csc_matrix] = {}
 
     def _get_cache_path(self, metapath: str, damping: float) -> Path:
         """Get the disk cache path for a DWPC matrix."""
@@ -458,7 +464,7 @@ class HetMat:
 
     def _save_to_disk(self, metapath: str, damping: float, matrix: sparse.csr_matrix):
         """Save DWPC matrix to disk cache."""
-        if not self.use_disk_cache:
+        if not self.write_disk_cache:
             return
 
         cache_path = self._get_cache_path(metapath, damping)
@@ -526,6 +532,30 @@ class HetMat:
         self._save_to_disk(metapath, damping, matrix)
 
         return matrix
+
+    def compute_dwpc_matrix_csc(
+        self,
+        metapath: str,
+        damping: Optional[float] = None
+    ) -> sparse.csc_matrix:
+        """
+        Compute/load a DWPC matrix and return CSC format.
+
+        CSC is optimized for repeated column slicing, which is the dominant
+        access pattern in LV precompute.
+        """
+        damping = damping if damping is not None else self.damping
+        cache_key = (metapath, damping)
+        if cache_key in self._dwpc_cache_csc:
+            return self._dwpc_cache_csc[cache_key]
+
+        matrix = self.compute_dwpc_matrix(metapath=metapath, damping=damping)
+        if sparse.isspmatrix_csc(matrix):
+            csc = matrix
+        else:
+            csc = matrix.tocsc()
+        self._dwpc_cache_csc[cache_key] = csc
+        return csc
 
     def precompute_matrices(
         self,
@@ -645,6 +675,18 @@ class HetMat:
     def clear_memory_cache(self):
         """Clear the in-memory cache to free RAM."""
         self._dwpc_cache.clear()
+        self._dwpc_cache_csc.clear()
+
+    def clear_metapath_from_memory(
+        self,
+        metapath: str,
+        damping: Optional[float] = None,
+    ):
+        """Clear one metapath matrix from in-memory caches."""
+        damping = damping if damping is not None else self.damping
+        cache_key = (metapath, damping)
+        self._dwpc_cache.pop(cache_key, None)
+        self._dwpc_cache_csc.pop(cache_key, None)
 
     def clear_disk_cache(self):
         """Clear the disk cache."""

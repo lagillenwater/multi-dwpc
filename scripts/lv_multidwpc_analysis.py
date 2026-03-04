@@ -1,7 +1,7 @@
 """
 LV multi-DWPC analysis orchestrator.
 - load LV loadings
-- select top 1% genes per LV
+- select top 0.5% genes per LV
 - emit top genes and summary tables
 """
 
@@ -446,7 +446,7 @@ def main() -> None:
     parser.add_argument(
         "--top-fraction",
         type=float,
-        default=0.01,
+        default=0.005,
         help="Fraction of mapped genes to keep per LV.",
     )
     parser.add_argument("--lv-column", default=None, help="Optional LV column name.")

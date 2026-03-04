@@ -4,20 +4,40 @@ Precompute gene-by-feature score matrices for optimized LV analysis.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
-from src.dwpc_direct import HetMat, get_dwpc_raw_mean, reverse_metapath_abbrev
+from src.dwpc_direct import (
+    HetMat,
+    get_dwpc_raw_mean,
+    load_metapath_stats,
+    reverse_metapath_abbrev,
+)
 from src.lv_dwpc import (
     DIRECT_GENE_TO_TARGET_METAPATHS,
     NODE_TYPE_TO_ABBREV,
 )
 
+SCORES_MEMMAP_FILENAME = "gene_feature_scores.f32.memmap"
+SCORES_MEMMAP_META_FILENAME = "gene_feature_scores.memmap.meta.json"
+PRECOMPUTE_PROGRESS_FILENAME = "precompute_completed_feature_idx.npy"
+
 
 def _load_metapath_stats(stats_path: Path) -> pd.DataFrame:
-    df = pd.read_csv(stats_path, sep="\t")
+    if stats_path.exists():
+        df = pd.read_csv(stats_path, sep="\t")
+    else:
+        # Keep LV stages robust by bootstrapping stats the same way HetMat does.
+        try:
+            df = load_metapath_stats(stats_path.parent)
+        except Exception as exc:
+            raise FileNotFoundError(
+                f"Metapath stats file not found and auto-download failed: {stats_path}"
+            ) from exc
     required_cols = {"metapath", "length"}
     missing = required_cols - set(df.columns)
     if missing:
@@ -150,6 +170,104 @@ def _map_target_positions(
     return target_pos_by_set
 
 
+def _mean_transformed_scores_for_targets(
+    dwpc_matrix_csc: sparse.csc_matrix,
+    target_positions: np.ndarray,
+    raw_mean: float,
+    n_genes: int,
+) -> np.ndarray:
+    """
+    Compute per-gene mean arcsinh(DWPC/raw_mean) across target columns.
+
+    This avoids repeated dense column materialization by working in sparse form.
+    """
+    if len(target_positions) == 0:
+        return np.zeros(n_genes, dtype=np.float64)
+
+    sub = dwpc_matrix_csc[:, target_positions]
+    if sub.nnz == 0:
+        return np.zeros(n_genes, dtype=np.float64)
+
+    transformed = sub.copy()
+    transformed.data = np.arcsinh(transformed.data / raw_mean)
+    row_sum = np.asarray(transformed.sum(axis=1)).ravel()
+    return row_sum / float(len(target_positions))
+
+
+def _write_json_atomic(path: Path, payload: dict) -> None:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _write_completed_atomic(path: Path, completed: set[int]) -> None:
+    arr = np.asarray(sorted(completed), dtype=np.int64)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("wb") as handle:
+        np.save(handle, arr)
+    tmp_path.replace(path)
+
+
+def _load_completed(path: Path, n_features: int) -> set[int]:
+    if not path.exists():
+        return set()
+    arr = np.load(path, allow_pickle=False)
+    arr = np.asarray(arr, dtype=np.int64).ravel()
+    return {int(x) for x in arr.tolist() if 0 <= int(x) < int(n_features)}
+
+
+def _prepare_score_memmap(
+    output_dir: Path,
+    n_genes: int,
+    n_features: int,
+) -> tuple[np.memmap, set[int], Path, Path, Path]:
+    score_memmap_path = output_dir / SCORES_MEMMAP_FILENAME
+    score_meta_path = output_dir / SCORES_MEMMAP_META_FILENAME
+    progress_path = output_dir / PRECOMPUTE_PROGRESS_FILENAME
+
+    resume_ready = (
+        score_memmap_path.exists()
+        and score_meta_path.exists()
+        and progress_path.exists()
+    )
+    if resume_ready:
+        meta = json.loads(score_meta_path.read_text(encoding="utf-8"))
+        valid_shape = (
+            int(meta.get("n_genes", -1)) == int(n_genes)
+            and int(meta.get("n_features", -1)) == int(n_features)
+            and str(meta.get("dtype", "")) == "float32"
+        )
+        if valid_shape:
+            score_matrix = np.memmap(
+                score_memmap_path,
+                mode="r+",
+                dtype=np.float32,
+                shape=(n_genes, n_features),
+            )
+            completed = _load_completed(progress_path, n_features=n_features)
+            return score_matrix, completed, score_memmap_path, score_meta_path, progress_path
+
+    score_matrix = np.memmap(
+        score_memmap_path,
+        mode="w+",
+        dtype=np.float32,
+        shape=(n_genes, n_features),
+    )
+    score_matrix[:] = 0.0
+    score_matrix.flush()
+    _write_json_atomic(
+        score_meta_path,
+        {
+            "n_genes": int(n_genes),
+            "n_features": int(n_features),
+            "dtype": "float32",
+        },
+    )
+    completed: set[int] = set()
+    _write_completed_atomic(progress_path, completed)
+    return score_matrix, completed, score_memmap_path, score_meta_path, progress_path
+
+
 def precompute_gene_feature_scores(
     output_dir: Path,
     data_dir: Path,
@@ -184,38 +302,76 @@ def precompute_gene_feature_scores(
         exclude_direct=not include_direct_metapaths,
         metapath_limit_per_target=metapath_limit_per_target,
     )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    feature_manifest_path = output_dir / "feature_manifest.csv"
+    if feature_manifest_path.exists():
+        existing_manifest = pd.read_csv(feature_manifest_path)
+        if not existing_manifest.equals(feature_manifest):
+            raise ValueError(
+                "Existing feature_manifest.csv does not match current configuration. "
+                "Use a new output directory or remove old precompute artifacts."
+            )
+    feature_manifest.to_csv(feature_manifest_path, index=False)
 
-    hetmat = HetMat(data_dir=data_dir, damping=damping, use_disk_cache=True)
+    # Read existing DWPC disk cache entries but do not write new files.
+    # This preserves speedup from existing caches without unbounded disk growth.
+    hetmat = HetMat(
+        data_dir=data_dir,
+        damping=damping,
+        use_disk_cache=True,
+        write_disk_cache=False,
+    )
     gene_nodes = hetmat.get_nodes("Gene")
     gene_ids = gene_nodes["identifier"].to_numpy()
     n_genes = len(gene_ids)
     n_features = len(feature_manifest)
-
-    # Warm cache for unique metapaths using existing parallel helper.
-    unique_metapaths = feature_manifest["metapath"].drop_duplicates().tolist()
-    hetmat.precompute_matrices(
-        unique_metapaths,
-        n_workers=max(1, int(n_workers_precompute)),
-        show_progress=True,
-    )
+    _ = n_workers_precompute  # retained for CLI compatibility in streamed precompute mode
 
     target_pos_by_set = _map_target_positions(hetmat=hetmat, target_sets=target_sets)
-    score_matrix = np.zeros((n_genes, n_features), dtype=np.float32)
+    score_matrix, completed, score_memmap_path, score_meta_path, progress_path = (
+        _prepare_score_memmap(output_dir=output_dir, n_genes=n_genes, n_features=n_features)
+    )
+    if completed:
+        print(
+            f"Resuming precompute from checkpoint: "
+            f"{len(completed)}/{n_features} features already complete."
+        )
 
-    for row in feature_manifest.itertuples(index=False):
-        feature_idx = int(row.feature_idx)
-        target_positions = target_pos_by_set[row.target_set_id]
-        dwpc_matrix = hetmat.compute_dwpc_matrix(row.metapath, damping=damping)
-        raw_mean = get_dwpc_raw_mean(hetmat.metapath_stats, row.metapath)
+    for metapath, mp_features in feature_manifest.groupby("metapath", sort=False):
+        pending_rows = [
+            row for row in mp_features.itertuples(index=False)
+            if int(row.feature_idx) not in completed
+        ]
+        if not pending_rows:
+            continue
+
+        # Use CSC once per metapath for repeated fast column slicing.
+        dwpc_matrix_csc = hetmat.compute_dwpc_matrix_csc(metapath, damping=damping)
+        raw_mean = get_dwpc_raw_mean(hetmat.metapath_stats, metapath)
         if raw_mean == 0:
-            raise ValueError(f"raw mean is zero for metapath {row.metapath}")
+            raise ValueError(f"raw mean is zero for metapath {metapath}")
 
-        accum = np.zeros(n_genes, dtype=np.float64)
-        for target_pos in target_positions:
-            column = np.asarray(dwpc_matrix[:, int(target_pos)].todense()).ravel()
-            transformed = np.arcsinh(column / raw_mean)
-            accum += transformed
-        score_matrix[:, feature_idx] = (accum / len(target_positions)).astype(np.float32)
+        for row in pending_rows:
+            feature_idx = int(row.feature_idx)
+            target_positions = target_pos_by_set[row.target_set_id]
+            mean_scores = _mean_transformed_scores_for_targets(
+                dwpc_matrix_csc=dwpc_matrix_csc,
+                target_positions=target_positions,
+                raw_mean=raw_mean,
+                n_genes=n_genes,
+            )
+            score_matrix[:, feature_idx] = mean_scores.astype(np.float32)
+            completed.add(feature_idx)
+
+        score_matrix.flush()
+        _write_completed_atomic(progress_path, completed)
+        # Stream by metapath: free matrix memory before the next metapath.
+        hetmat.clear_metapath_from_memory(metapath=metapath, damping=damping)
+
+    if len(completed) != int(n_features):
+        raise RuntimeError(
+            f"Precompute incomplete: {len(completed)}/{n_features} feature columns filled."
+        )
 
     # Real LV feature means.
     gene_id_to_row = {}
@@ -279,11 +435,17 @@ def precompute_gene_feature_scores(
 
     real_feature_scores = pd.DataFrame(real_mean_rows)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    np.save(output_dir / "gene_feature_scores.npy", score_matrix)
+    np.save(output_dir / "gene_feature_scores.npy", np.asarray(score_matrix))
     np.save(output_dir / "gene_ids.npy", gene_ids)
-    feature_manifest.to_csv(output_dir / "feature_manifest.csv", index=False)
     lv_real_gene_indices.to_csv(output_dir / "lv_real_gene_indices.csv", index=False)
     real_feature_scores.to_csv(output_dir / "real_feature_scores.csv", index=False)
+
+    try:
+        del score_matrix
+    except Exception:
+        pass
+    for path in (score_memmap_path, score_meta_path, progress_path):
+        if path.exists():
+            path.unlink()
 
     return feature_manifest, lv_real_gene_indices, real_feature_scores

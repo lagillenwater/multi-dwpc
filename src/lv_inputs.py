@@ -208,7 +208,7 @@ def extract_top_lv_genes(
     output_top_genes_path: Path,
     output_summary_path: Path,
     requested_lvs: Optional[Iterable[str]] = None,
-    top_fraction: float = 0.01,
+    top_fraction: float = 0.005,
     lv_column: Optional[str] = None,
     gene_column: Optional[str] = None,
     loading_column: Optional[str] = None,
@@ -229,7 +229,7 @@ def extract_top_lv_genes(
     requested_lvs
         Optional iterable of LV IDs to keep.
     top_fraction
-        Fraction of mapped genes to keep per LV (e.g., 0.01 for top 1%).
+        Fraction of mapped genes to keep per LV (e.g., 0.005 for top 0.5%).
     lv_column, gene_column, loading_column
         Optional explicit column names in the LV loadings table.
     """
