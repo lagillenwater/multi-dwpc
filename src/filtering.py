@@ -27,6 +27,72 @@ import numpy as np
 DEFAULT_JACCARD_THRESHOLD = 0.1
 
 
+def _format_id_preview(values, limit=5):
+    """Return a short, human-readable preview of IDs for error messages."""
+    values = list(values)
+    preview = ", ".join(map(str, values[:limit]))
+    if len(values) > limit:
+        preview += f", ... (+{len(values) - limit} more)"
+    return preview
+
+
+def _validate_overlap_inputs(jaccard_matrix, dataset):
+    """Validate input consistency before overlap filtering."""
+    required_cols = {
+        'go_id',
+        'no_of_genes_in_hetio_GO_2016',
+        'no_of_genes_in_GO_2024',
+    }
+    missing_cols = required_cols - set(dataset.columns)
+    if missing_cols:
+        raise ValueError(
+            f"Dataset is missing required columns: {sorted(missing_cols)}"
+        )
+
+    if jaccard_matrix.index.has_duplicates:
+        dup_idx = jaccard_matrix.index[jaccard_matrix.index.duplicated()].unique()
+        raise ValueError(
+            "Jaccard matrix index contains duplicate GO IDs: "
+            f"{_format_id_preview(dup_idx)}"
+        )
+    if jaccard_matrix.columns.has_duplicates:
+        dup_cols = jaccard_matrix.columns[
+            jaccard_matrix.columns.duplicated()
+        ].unique()
+        raise ValueError(
+            "Jaccard matrix columns contain duplicate GO IDs: "
+            f"{_format_id_preview(dup_cols)}"
+        )
+
+    if dataset['go_id'].duplicated().any():
+        dup_go_ids = dataset.loc[dataset['go_id'].duplicated(), 'go_id'].unique()
+        raise ValueError(
+            "Dataset contains duplicate go_id values; expected one row per GO term. "
+            f"Duplicates: {_format_id_preview(dup_go_ids)}"
+        )
+
+    index_ids = set(jaccard_matrix.index)
+    column_ids = set(jaccard_matrix.columns)
+    if index_ids != column_ids:
+        only_index = sorted(index_ids - column_ids)
+        only_columns = sorted(column_ids - index_ids)
+        raise ValueError(
+            "Jaccard matrix index/columns do not reference the same GO IDs. "
+            f"Only in index: {_format_id_preview(only_index)}; "
+            f"only in columns: {_format_id_preview(only_columns)}"
+        )
+
+    dataset_ids = set(dataset['go_id'])
+    missing_in_dataset = sorted(index_ids - dataset_ids)
+    missing_in_jaccard = sorted(dataset_ids - index_ids)
+    if missing_in_dataset or missing_in_jaccard:
+        raise ValueError(
+            "GO IDs must match between jaccard_matrix and dataset. "
+            f"Missing in dataset: {_format_id_preview(missing_in_dataset)}; "
+            f"missing in jaccard_matrix: {_format_id_preview(missing_in_jaccard)}"
+        )
+
+
 def calculate_iqr_thresholds(df, gene_col='no_of_genes_in_hetio_GO_2016',
                              pct_col='pct_change_genes'):
     """
@@ -144,6 +210,8 @@ def filter_overlapping_go_terms(jaccard_matrix, dataset,
     removal_df : pd.DataFrame
         Detailed information about removed pairs
     """
+    _validate_overlap_inputs(jaccard_matrix, dataset)
+
     # Work on a copy so the input dataset is never mutated by this function.
     dataset_with_pct = dataset.copy()
     dataset_with_pct['pct_change'] = np.abs(
@@ -151,10 +219,11 @@ def filter_overlapping_go_terms(jaccard_matrix, dataset,
          dataset_with_pct['no_of_genes_in_hetio_GO_2016']) /
         dataset_with_pct['no_of_genes_in_hetio_GO_2016'] * 100
     )
+    dataset_by_go = dataset_with_pct.set_index('go_id', verify_integrity=True)
 
-    # Fast lookup for deciding which term to keep in an overlapping pair.
-    pct_change_lookup = dict(zip(dataset_with_pct['go_id'],
-                                 dataset_with_pct['pct_change']))
+    # Fast strict lookup for deciding which term to keep in an overlapping pair.
+    # Input validation guarantees every GO ID exists in this index.
+    pct_change_lookup = dataset_by_go['pct_change']
 
     # Find all unique GO-term pairs in the upper triangle (i < j), then keep
     # only those whose Jaccard similarity exceeds the overlap threshold.
@@ -173,8 +242,8 @@ def filter_overlapping_go_terms(jaccard_matrix, dataset,
         go_id_j = go_terms[j]
         similarity = similarities[idx]
 
-        pct_i = pct_change_lookup.get(go_id_i, 0)
-        pct_j = pct_change_lookup.get(go_id_j, 0)
+        pct_i = pct_change_lookup.loc[go_id_i]
+        pct_j = pct_change_lookup.loc[go_id_j]
 
         # Retain the term with larger absolute change and mark the smaller one
         # as the candidate to remove for this pair.
@@ -213,10 +282,8 @@ def filter_overlapping_go_terms(jaccard_matrix, dataset,
         terms_to_remove.add(remove_id)
         removed_terms[remove_id] = keep_id
 
-        keep_row = dataset_with_pct[dataset_with_pct['go_id'] == keep_id].iloc[0]
-        remove_row = dataset_with_pct[
-            dataset_with_pct['go_id'] == remove_id
-        ].iloc[0]
+        keep_row = dataset_by_go.loc[keep_id]
+        remove_row = dataset_by_go.loc[remove_id]
 
         removal_details.append({
             'removed_go_id': remove_id,
