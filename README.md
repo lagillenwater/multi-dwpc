@@ -26,14 +26,7 @@ conda activate multi_dwpc
 pip install -e ".[dev]"
 ```
 
-## Run Pipeline
-
-This stage covers:
-- loading and harmonizing 2016/2024 GO-gene data,
-- percent-change and IQR filtering,
-- optional GO hierarchy analysis for publication mode,
-- Jaccard-based redundancy filtering,
-- permutation and random null dataset generation.
+## Prepare the Data
 
 ```bash
 # Production pipeline (skips GO hierarchy analysis)
@@ -45,9 +38,8 @@ poe pipeline-publication
 # Run individual steps
 poe load-data
 poe filter-change
+poe go-hierarchy-analysis
 poe filter-jaccard
-poe gen-permutation
-poe gen-random
 ```
 
 ### Available tasks
@@ -61,13 +53,11 @@ Run `poe --help` to see all available tasks:
 | `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
+| `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
 | `pipeline-production` | Run full production pipeline |
-| `pipeline-publication` | Run full publication pipeline |
 | `pipeline-null` | Run null dataset generation |
 
-Note: `filter-jaccard` includes parents_GO_postive_growth only when run with
-`python scripts/jaccard_similarity_and_filtering.py --include-parents` or via
-`poe pipeline-publication`.
+
 
 ### Pipeline scripts
 
@@ -79,13 +69,10 @@ Located in `scripts/`:
 4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
 5. **permutation_null_datasets.py** - Generates permutation-based null datasets
 6. **random_null_datasets.py** - Generates random null datasets
-7. **pipeline_publication.py** - Full publication pipeline runner
+7. **compute_dwpc_direct.py** - Direct DWPC computation
 8. **pipeline_production.py** - Full production pipeline runner
 
-### Dataset naming
 
-- `all_GO_positive_growth`: all GO terms with positive growth after IQR filtering
-- `parents_GO_positive_growth`: parents of leaf terms within the same filtered set
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
