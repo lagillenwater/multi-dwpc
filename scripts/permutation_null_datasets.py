@@ -160,28 +160,48 @@ perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
 perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print('\n2016 Permutations:')
-for i in range(1, 6):
-    perm_2016 = pd.read_csv(perm_dir_2016 / f'perm_{i:03d}.csv')
+perm_files_2016 = sorted(perm_dir_2016.glob('perm_*.csv'))
+for perm_path in perm_files_2016:
+    perm_2016 = pd.read_csv(perm_path)
     real_sizes = real_2016.groupby('go_id').size().sort_index()
     perm_sizes = perm_2016.groupby('go_id').size().sort_index()
-    
+
+    stem_parts_2016 = perm_path.stem.split('_')
+    perm_label_2016 = (
+        stem_parts_2016[1].lstrip('0')
+        if len(stem_parts_2016) > 1 else perm_path.stem
+    )
+    if not perm_label_2016:
+        perm_label_2016 = '0'
+
     if (real_sizes == perm_sizes).all():
-        print(f'  Permutation {i}: GO term sizes preserved')
+        print(f'  Permutation {perm_label_2016}: GO term sizes preserved')
     else:
         mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {i}: {mismatches} GO term size mismatches!')
+        print(f'  Permutation {perm_label_2016}: '
+              f'{mismatches} GO term size mismatches!')
 
 print('\n2024 Permutations:')
-for i in range(1, 6):
-    perm_2024 = pd.read_csv(perm_dir_2024 / f'perm_{i:03d}.csv')
+perm_files_2024 = sorted(perm_dir_2024.glob('perm_*.csv'))
+for perm_path in perm_files_2024:
+    perm_2024 = pd.read_csv(perm_path)
     real_sizes = real_2024.groupby('go_id').size().sort_index()
     perm_sizes = perm_2024.groupby('go_id').size().sort_index()
-    
+
+    stem_parts_2024 = perm_path.stem.split('_')
+    perm_label_2024 = (
+        stem_parts_2024[1].lstrip('0')
+        if len(stem_parts_2024) > 1 else perm_path.stem
+    )
+    if not perm_label_2024:
+        perm_label_2024 = '0'
+
     if (real_sizes == perm_sizes).all():
-        print(f'  Permutation {i}: GO term sizes preserved')
+        print(f'  Permutation {perm_label_2024}: GO term sizes preserved')
     else:
         mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {i}: {mismatches} GO term size mismatches!')
+        print(f'  Permutation {perm_label_2024}: '
+              f'{mismatches} GO term size mismatches!')
 
 # %%
 # Validation: Check genes unchanged (only labels shuffled)
