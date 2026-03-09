@@ -387,14 +387,29 @@ def run_plot_subgraphs_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     plots_dir = output_dir / "plots"
-    if args.resume and plots_dir.exists() and any(plots_dir.glob("*.png")) and not args.force:
-        n_existing = len(list(plots_dir.glob("*.png")))
-        print("\nTop-subgraph plotting skipped (resume cache hit).")
-        print(f"  Plots present: {n_existing:,}")
-        print(f"  Output dir: {plots_dir}")
-        return
+    plot_cfg = (
+        f"plot_shared_intermediates_min={args.plot_shared_intermediates_min}\n"
+        f"plot_min_genes={args.plot_min_genes}\n"
+        f"plot_max_genes={args.plot_max_genes}\n"
+    )
+    marker_path = plots_dir / ".plot_config_multigene.txt"
+    if args.resume and marker_path.exists() and not args.force:
+        prior_cfg = marker_path.read_text()
+        if prior_cfg == plot_cfg:
+            n_existing = len(list(plots_dir.glob("*__multigene.png")))
+            print("\nTop-subgraph plotting skipped (resume cache hit).")
+            print(f"  Multi-gene plots present: {n_existing:,}")
+            print(f"  Output dir: {plots_dir}")
+            return
 
-    n_written = plot_top_subgraphs(output_dir=output_dir)
+    n_written = plot_top_subgraphs(
+        output_dir=output_dir,
+        min_shared_intermediates=args.plot_shared_intermediates_min,
+        min_genes=args.plot_min_genes,
+        max_genes=args.plot_max_genes,
+    )
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(plot_cfg)
     print("\nTop-subgraph plotting complete.")
     print(f"  Plots written: {n_written:,}")
     print(f"  Output dir: {output_dir / 'plots'}")
@@ -553,6 +568,24 @@ def main() -> None:
         type=float,
         default=0.5,
         help="Degree damping for path instance extraction.",
+    )
+    parser.add_argument(
+        "--plot-shared-intermediates-min",
+        type=int,
+        default=0,
+        help="Minimum intermediate-node count in plotted paths (0 disables filter).",
+    )
+    parser.add_argument(
+        "--plot-min-genes",
+        type=int,
+        default=2,
+        help="Minimum genes required to render a multi-gene LV plot.",
+    )
+    parser.add_argument(
+        "--plot-max-genes",
+        type=int,
+        default=10,
+        help="Maximum genes to render per LV/metapath/target plot.",
     )
     args = parser.parse_args()
 

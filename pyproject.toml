@@ -60,6 +60,7 @@ divergence-score-analysis = "python scripts/divergence_score_analysis.py"
 # Testing
 test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
 benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
+benchmark-dwpc-plots = "python scripts/plot_dwpc_benchmark.py"
 
 # Grouped tasks
 pipeline-production = "python scripts/pipeline_production.py"

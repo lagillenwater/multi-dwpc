@@ -195,5 +195,27 @@ Direct computation is 1,000-6,000x faster than API lookups after matrices are ca
 | Direct (cached) | 0.002-0.01 ms | After initial matrix computation |
 | API | 12-15 ms | Network overhead per request |
 
+`Time per pair` is computed as:
+
+\[
+\text{time\_per\_pair\_ms} = \frac{\text{elapsed\_seconds}}{\text{n\_pairs}} \times 1000
+\]
+
+This metric is per gene-BP pair for each `(method, metapath, sample_size)` benchmark run.
+
+Generate runtime comparison plots from `output/benchmark_results.csv`:
+
+```bash
+poe benchmark-dwpc-plots
+```
+
+Outputs are written to `output/benchmark_plots/`, including:
+- `time_per_pair_by_metapath.png`
+- `time_per_pair_overall.png`
+- `speedup_api_over_direct.png`
+- `benchmark_summary_by_method.csv`
+- `benchmark_summary_by_metapath.csv`
+- `benchmark_speedup_summary.csv`
+
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

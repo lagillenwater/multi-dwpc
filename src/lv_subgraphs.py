@@ -357,9 +357,68 @@ def _build_positions(layers: list[list[str]]) -> dict[tuple[int, str], tuple[flo
     return positions
 
 
-def plot_top_subgraphs(output_dir: Path) -> int:
+def _select_shared_intermediate_gene_paths(
+    group: pd.DataFrame,
+    min_shared_intermediates: int,
+    min_genes: int,
+    max_genes: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Plot single-condition network diagrams from top_paths.csv.
+    Select top genes per LV/metapath/target group using pair-level DWPC rank.
+    """
+    work = group.copy()
+    work["path_nodes"] = work["path_nodes_names"].astype(str).str.split("|")
+    work["intermediate_nodes"] = work["path_nodes"].map(
+        lambda nodes: tuple(nodes[1:-1])
+    )
+
+    min_shared_intermediates = max(int(min_shared_intermediates), 0)
+    min_genes = max(int(min_genes), 2)
+    max_genes = max(int(max_genes), min_genes)
+
+    if min_shared_intermediates > 0:
+        work = work[
+            work["intermediate_nodes"].map(len) >= min_shared_intermediates
+        ].copy()
+    if work.empty:
+        return work, pd.DataFrame()
+
+    work["gene_identifier_str"] = work["gene_identifier"].astype(str)
+    work["gene_symbol"] = work["gene_symbol"].fillna("").astype(str)
+    gene_summary = (
+        work.groupby(["gene_identifier_str", "gene_symbol"], as_index=False)
+        .agg(
+            best_pair_rank=("pair_rank", "min"),
+            best_path_score=("path_score", "max"),
+            n_paths=("intermediate_nodes", "size"),
+            n_shared_patterns=("intermediate_nodes", "nunique"),
+        )
+        .sort_values(
+            ["best_pair_rank", "best_path_score", "n_paths"],
+            ascending=[True, False, False],
+        )
+    )
+    top_gene_ids = set(gene_summary["gene_identifier_str"].head(max_genes))
+    work = work[work["gene_identifier_str"].isin(top_gene_ids)].copy()
+
+    n_unique_genes = work["gene_identifier_str"].nunique()
+    if n_unique_genes < min_genes:
+        return work.iloc[0:0].copy(), pd.DataFrame()
+
+    gene_summary = gene_summary[
+        gene_summary["gene_identifier_str"].isin(top_gene_ids)
+    ].copy()
+    return work, gene_summary
+
+
+def plot_top_subgraphs(
+    output_dir: Path,
+    min_shared_intermediates: int = 0,
+    min_genes: int = 2,
+    max_genes: int = 8,
+) -> int:
+    """
+    Plot LV-level multi-gene network diagrams from top_paths.csv.
     """
     output_dir = Path(output_dir)
     top_paths_path = output_dir / "top_paths.csv"
@@ -372,34 +431,64 @@ def plot_top_subgraphs(output_dir: Path) -> int:
     if top_paths.empty:
         return 0
 
-    key_cols = [
-        "lv_id",
-        "target_set_id",
-        "metapath",
-        "target_id",
-        "gene_identifier",
-        "pair_rank",
-    ]
+    key_cols = ["lv_id", "target_set_id", "metapath", "target_id"]
     n_written = 0
     for key, group in top_paths.groupby(key_cols, sort=True):
-        paths = [str(p).split("|") for p in group["path_nodes_names"].tolist()]
+        selected_paths, _ = _select_shared_intermediate_gene_paths(
+            group=group,
+            min_shared_intermediates=min_shared_intermediates,
+            min_genes=min_genes,
+            max_genes=max_genes,
+        )
+        if selected_paths.empty:
+            continue
+
+        paths = selected_paths["path_nodes"].tolist()
         if not paths:
             continue
+
         n_layers = len(paths[0])
         layers = _build_layers(paths, n_layers)
         positions = _build_positions(layers)
+        gene_label_df = selected_paths[
+            ["gene_identifier_str", "gene_symbol"]
+        ].drop_duplicates()
+        gene_label_df["gene_label"] = (
+            gene_label_df["gene_symbol"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .replace("", pd.NA)
+            .fillna(gene_label_df["gene_identifier_str"])
+        )
+        gene_labels = gene_label_df["gene_label"].tolist()
+        cmap = plt.get_cmap("tab20", max(len(gene_labels), 1))
+        gene_color_map = {label: cmap(idx) for idx, label in enumerate(gene_labels)}
 
         fig, ax = plt.subplots(figsize=(6, max(4, 0.35 * max(len(x) for x in layers))))
         for path in paths:
+            gene_label = path[-1]
+            edge_color = gene_color_map.get(gene_label, "#a0a0a0")
             for idx in range(len(path) - 1):
                 x1, y1 = positions[(idx, path[idx])]
                 x2, y2 = positions[(idx + 1, path[idx + 1])]
-                ax.plot([x1, x2], [y1, y2], color="#a0a0a0", linewidth=1.0, alpha=0.7)
+                ax.plot(
+                    [x1, x2],
+                    [y1, y2],
+                    color=edge_color,
+                    linewidth=1.0,
+                    alpha=0.5,
+                )
 
         for idx, layer in enumerate(layers):
             for node in layer:
                 x, y = positions[(idx, node)]
-                color = "#4c78a8" if idx == 0 or idx == len(layers) - 1 else "#f58518"
+                if idx == 0:
+                    color = "#4c78a8"
+                elif idx == len(layers) - 1:
+                    color = gene_color_map.get(node, "#54a24b")
+                else:
+                    color = "#f58518"
                 ax.scatter([x], [y], s=130, c=color, edgecolors="white", linewidths=0.7)
                 ax.text(
                     x + 0.012,
@@ -411,10 +500,16 @@ def plot_top_subgraphs(output_dir: Path) -> int:
                     bbox=dict(facecolor="white", edgecolor="none", alpha=0.8, pad=0.4),
                 )
 
-        lv_id, target_set_id, metapath, target_id, gene_identifier, pair_rank = key
+        lv_id, target_set_id, metapath, target_id = key
+        target_name = str(selected_paths.iloc[0]["target_name"])
+        gene_text = ", ".join(gene_labels[:10])
+        if len(gene_labels) > 10:
+            gene_text += ", ..."
         title = (
             f"{lv_id} | {target_set_id} | {metapath}\n"
-            f"target={target_id} gene={gene_identifier} pair_rank={pair_rank}"
+            f"target={target_name} ({target_id}) | genes={len(gene_labels)} | "
+            f"intermediates>={min_shared_intermediates}\n"
+            f"{gene_text}"
         )
         ax.set_title(title, fontsize=10)
         ax.set_xlim(-0.05, 1.05)
@@ -423,7 +518,7 @@ def plot_top_subgraphs(output_dir: Path) -> int:
 
         out_name = (
             f"{_sanitize(lv_id)}__{_sanitize(target_set_id)}__{_sanitize(metapath)}__"
-            f"{_sanitize(str(target_id))}__{_sanitize(str(gene_identifier))}.png"
+            f"{_sanitize(str(target_id))}__multigene.png"
         )
         fig.tight_layout()
         fig.savefig(plots_dir / out_name, dpi=150, bbox_inches="tight")
