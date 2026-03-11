@@ -59,6 +59,7 @@ Run `poe --help` to see all available tasks:
 | `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
 | `benchmark-dwpc` | Benchmark direct vs API computation |
+| `lv-null-variance-exp` | LV null variance sweep across fixed replicate counts |
 | `pipeline-production` | Run full production pipeline |
 | `pipeline-publication` | Run full publication pipeline |
 | `pipeline-null` | Run null dataset generation |
@@ -216,6 +217,32 @@ Outputs are written to `output/benchmark_plots/`, including:
 - `benchmark_summary_by_method.csv`
 - `benchmark_summary_by_metapath.csv`
 - `benchmark_speedup_summary.csv`
+
+### LV null-variance experiment
+
+Run a compact LV experiment to measure variance of `diff_perm` and `diff_rand`
+across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
+
+```bash
+poe lv-null-variance-exp
+```
+
+Required environment variable:
+
+```bash
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+```
+
+Outputs are written under:
+
+- `output/lv_null_variance_exp/null_variance_experiment/all_runs_wide.csv`
+- `output/lv_null_variance_exp/null_variance_experiment/all_runs_long.csv`
+- `output/lv_null_variance_exp/null_variance_experiment/feature_variance_summary.csv`
+- `output/lv_null_variance_exp/null_variance_experiment/overall_variance_summary.csv`
+- `output/lv_null_variance_exp/null_variance_experiment/variance_overall_by_b.png`
+- `output/lv_null_variance_exp/null_variance_experiment/sd_overall_by_b.png`
+- `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_permuted.png`
+- `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_random.png`
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
