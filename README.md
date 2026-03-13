@@ -244,5 +244,36 @@ Outputs are written under:
 - `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_permuted.png`
 - `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_random.png`
 
+### LV rank-stability experiment
+
+Run a compact LV experiment to measure metapath-rank and path-instance stability
+across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
+
+```bash
+poe lv-rank-stability-exp
+```
+
+By default, this experiment ranks top pairs for path extraction using
+`pair_rank_metric=contrast_min` (conservative null contrast), not raw DWPC.
+
+Required environment variable:
+
+```bash
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+```
+
+Outputs are written under:
+
+- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_runs.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/top_pairs_runs.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/top_paths_runs.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_stability_by_b.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/path_selection_stability_by_b.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/path_rank_variability_by_b.csv`
+- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_spearman_vs_b.png`
+- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_topk_jaccard_vs_b.png`
+- `output/lv_rank_stability_exp/rank_stability_experiment/path_selection_jaccard_vs_b.png`
+- `output/lv_rank_stability_exp/rank_stability_experiment/path_rank_sd_vs_b.png`
+
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

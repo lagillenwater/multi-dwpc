@@ -192,6 +192,7 @@ def extract_top_subgraphs(
     top_paths: int,
     damping: float = 0.5,
     degree_d: float = 0.5,
+    pair_rank_metric: str = "dwpc",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Create top pair and path-instance outputs for supported metapaths.
@@ -234,11 +235,59 @@ def extract_top_subgraphs(
         use_disk_cache=True,
     )
 
-    keep_cols = ["lv_id", "target_set_id", "metapath"]
-    filtered_pairs = pair_dwpc.merge(top_mp[keep_cols], on=keep_cols, how="inner")
+    join_cols = ["lv_id", "target_set_id", "metapath"]
+    keep_cols = join_cols + [
+        "lv_id",
+        "target_set_id",
+        "metapath",
+        "perm_null_mean",
+        "rand_null_mean",
+        "diff_perm",
+        "diff_rand",
+        "min_diff",
+    ]
+    keep_cols = list(dict.fromkeys(keep_cols))
+    filtered_pairs = pair_dwpc.merge(top_mp[keep_cols], on=join_cols, how="inner")
+    filtered_pairs["pair_diff_perm"] = (
+        filtered_pairs["dwpc"] - filtered_pairs["perm_null_mean"]
+    )
+    filtered_pairs["pair_diff_rand"] = (
+        filtered_pairs["dwpc"] - filtered_pairs["rand_null_mean"]
+    )
+    filtered_pairs["pair_diff_min"] = filtered_pairs[
+        ["pair_diff_perm", "pair_diff_rand"]
+    ].min(axis=1)
+    filtered_pairs["pair_diff_mean"] = filtered_pairs[
+        ["pair_diff_perm", "pair_diff_rand"]
+    ].mean(axis=1)
+
+    metric_to_col = {
+        "dwpc": "dwpc",
+        "contrast_min": "pair_diff_min",
+        "contrast_perm": "pair_diff_perm",
+        "contrast_rand": "pair_diff_rand",
+        "contrast_mean": "pair_diff_mean",
+    }
+    if pair_rank_metric not in metric_to_col:
+        valid = ", ".join(sorted(metric_to_col))
+        raise ValueError(
+            f"Unsupported pair_rank_metric='{pair_rank_metric}'. Choose one of: {valid}"
+        )
+    pair_rank_col = metric_to_col[pair_rank_metric]
+    filtered_pairs["pair_rank_score"] = filtered_pairs[pair_rank_col]
+    filtered_pairs["pair_rank_metric"] = pair_rank_metric
+
     filtered_pairs = filtered_pairs.sort_values(
-        ["lv_id", "target_set_id", "metapath", "dwpc"],
-        ascending=[True, True, True, False],
+        [
+            "lv_id",
+            "target_set_id",
+            "metapath",
+            "pair_rank_score",
+            "dwpc",
+            "gene_rank",
+            "gene_identifier",
+        ],
+        ascending=[True, True, True, False, False, True, True],
     )
     top_pairs_df = (
         filtered_pairs.groupby(["lv_id", "target_set_id", "metapath"]).head(top_pairs).copy()
@@ -308,6 +357,13 @@ def extract_top_subgraphs(
                     "gene_identifier": row.gene_identifier,
                     "gene_symbol": row.gene_symbol,
                     "pair_rank": int(row.pair_rank),
+                    "pair_rank_metric": str(row.pair_rank_metric),
+                    "pair_rank_score": float(row.pair_rank_score),
+                    "pair_dwpc": float(row.dwpc),
+                    "pair_diff_perm": float(row.pair_diff_perm),
+                    "pair_diff_rand": float(row.pair_diff_rand),
+                    "pair_diff_min": float(row.pair_diff_min),
+                    "pair_diff_mean": float(row.pair_diff_mean),
                     "path_rank": rank,
                     "path_score": float(score),
                     "path_nodes_ids": "|".join(id_path),
@@ -327,6 +383,13 @@ def extract_top_subgraphs(
         "gene_identifier",
         "gene_symbol",
         "pair_rank",
+        "pair_rank_metric",
+        "pair_rank_score",
+        "pair_dwpc",
+        "pair_diff_perm",
+        "pair_diff_rand",
+        "pair_diff_min",
+        "pair_diff_mean",
         "path_rank",
         "path_score",
         "path_nodes_ids",

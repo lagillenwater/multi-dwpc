@@ -357,15 +357,27 @@ def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
 
     top_pair_path = output_dir / "top_pairs.csv"
     top_path_path = output_dir / "top_paths.csv"
+    cfg_path = output_dir / ".top_subgraph_config.txt"
+    cfg_text = (
+        f"top_metapaths={args.top_metapaths}\n"
+        f"top_pairs={args.top_pairs}\n"
+        f"top_paths={args.top_paths}\n"
+        f"damping={args.damping}\n"
+        f"degree_d={args.degree_d}\n"
+        f"pair_rank_metric={args.pair_rank_metric}\n"
+    )
     if args.resume and top_pair_path.exists() and top_path_path.exists() and not args.force:
-        top_pairs_df = pd.read_csv(top_pair_path)
-        top_paths_df = pd.read_csv(top_path_path)
-        print("\nTop-subgraph extraction skipped (resume cache hit).")
-        print(f"  Top pair rows: {len(top_pairs_df):,}")
-        print(f"  Top path rows: {len(top_paths_df):,}")
-        print(f"  Output: {top_pair_path}")
-        print(f"  Output: {top_path_path}")
-        return
+        prior_cfg = cfg_path.read_text() if cfg_path.exists() else ""
+        if prior_cfg == cfg_text:
+            top_pairs_df = pd.read_csv(top_pair_path)
+            top_paths_df = pd.read_csv(top_path_path)
+            print("\nTop-subgraph extraction skipped (resume cache hit).")
+            print(f"  Top pair rows: {len(top_pairs_df):,}")
+            print(f"  Top path rows: {len(top_paths_df):,}")
+            print(f"  Pair ranking metric: {args.pair_rank_metric}")
+            print(f"  Output: {top_pair_path}")
+            print(f"  Output: {top_path_path}")
+            return
 
     top_pairs_df, top_paths_df = extract_top_subgraphs(
         repo_root=REPO_ROOT,
@@ -375,10 +387,13 @@ def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
         top_paths=args.top_paths,
         damping=args.damping,
         degree_d=args.degree_d,
+        pair_rank_metric=args.pair_rank_metric,
     )
+    cfg_path.write_text(cfg_text)
     print("\nTop-subgraph extraction complete.")
     print(f"  Top pair rows: {len(top_pairs_df):,}")
     print(f"  Top path rows: {len(top_paths_df):,}")
+    print(f"  Pair ranking metric: {args.pair_rank_metric}")
     print(f"  Output: {output_dir / 'top_pairs.csv'}")
     print(f"  Output: {output_dir / 'top_paths.csv'}")
 
@@ -562,6 +577,16 @@ def main() -> None:
         type=int,
         default=5,
         help="Top path instances per selected pair.",
+    )
+    parser.add_argument(
+        "--pair-rank-metric",
+        choices=["dwpc", "contrast_min", "contrast_perm", "contrast_rand", "contrast_mean"],
+        default="dwpc",
+        help=(
+            "Metric for selecting top pairs within each LV/target/metapath. "
+            "`dwpc` ranks by real transformed DWPC; `contrast_*` ranks by "
+            "DWPC minus feature-level null mean."
+        ),
     )
     parser.add_argument(
         "--degree-d",
