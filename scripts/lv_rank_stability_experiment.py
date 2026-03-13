@@ -740,6 +740,257 @@ def _plot_seed_reference_rank_scatter_by_lv_b(rank_df: pd.DataFrame, output_dir:
         plt.close(fig)
 
 
+def _plot_seed_reference_pair_rank_scatter_by_lv_b(
+    top_pairs_runs_df: pd.DataFrame, output_dir: Path
+) -> None:
+    """
+    For each (B, LV, target_set), plot pair ranks for reference seed_a vs seed_b.
+
+    Pair identity is defined by (metapath, target_id, gene_identifier).
+    """
+    required = {
+        "b",
+        "lv_id",
+        "target_set_id",
+        "seed",
+        "metapath",
+        "target_id",
+        "gene_identifier",
+        "pair_rank",
+    }
+    if top_pairs_runs_df.empty or not required.issubset(top_pairs_runs_df.columns):
+        return
+
+    def _sanitize(value: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in str(value))
+
+    df = top_pairs_runs_df.copy()
+    for col in ["metapath", "target_id", "gene_identifier"]:
+        df[col] = df[col].astype(str)
+    df["pair_rank"] = pd.to_numeric(df["pair_rank"], errors="coerce")
+    df = df[df["pair_rank"].notna()].copy()
+    if df.empty:
+        return
+
+    for (b, lv_id, target_set_id), group in df.groupby(
+        ["b", "lv_id", "target_set_id"], dropna=False
+    ):
+        seeds = sorted(group["seed"].dropna().astype(int).unique().tolist())
+        if len(seeds) < 2:
+            continue
+        seed_a = int(seeds[0])
+        ref = group[group["seed"].astype(int) == seed_a][
+            ["metapath", "target_id", "gene_identifier", "pair_rank"]
+        ].copy()
+        ref = ref.rename(columns={"pair_rank": "rank_a"})
+        if ref.empty:
+            continue
+
+        others = [int(s) for s in seeds if int(s) != seed_a]
+        cmap = plt.get_cmap("tab10")
+        color_map = {seed_b: cmap(i % 10) for i, seed_b in enumerate(others)}
+        rows = []
+        for seed_b in others:
+            sub = group[group["seed"].astype(int) == seed_b][
+                ["metapath", "target_id", "gene_identifier", "pair_rank"]
+            ].copy()
+            sub = sub.rename(columns={"pair_rank": "rank_b"})
+            merged = ref.merge(
+                sub,
+                on=["metapath", "target_id", "gene_identifier"],
+                how="inner",
+            )
+            if merged.empty:
+                continue
+            merged["seed_b"] = seed_b
+            rows.append(merged)
+        if not rows:
+            continue
+        plot_df = pd.concat(rows, ignore_index=True)
+
+        max_rank = float(
+            np.nanmax(
+                np.concatenate(
+                    [
+                        plot_df["rank_a"].to_numpy(dtype=float),
+                        plot_df["rank_b"].to_numpy(dtype=float),
+                    ]
+                )
+            )
+        )
+        lim_low, lim_high = 0.5, max_rank + 0.5
+        fig_h = max(5.0, 0.2 * max_rank + 2.0)
+        fig, ax = plt.subplots(figsize=(7.0, fig_h))
+        for seed_b in others:
+            sub = plot_df[plot_df["seed_b"] == seed_b]
+            if sub.empty:
+                continue
+            seed_token = f"{int(b)}|{lv_id}|{target_set_id}|pair|{seed_a}|{seed_b}"
+            jitter_seed = zlib.crc32(seed_token.encode("utf-8")) & 0xFFFFFFFF
+            rng = np.random.default_rng(jitter_seed)
+            x_jitter = rng.normal(loc=0.0, scale=0.06, size=len(sub))
+            y_jitter = rng.normal(loc=0.0, scale=0.06, size=len(sub))
+            ax.scatter(
+                sub["rank_a"].to_numpy(dtype=float) + x_jitter,
+                sub["rank_b"].to_numpy(dtype=float) + y_jitter,
+                s=35,
+                alpha=0.8,
+                color=color_map[seed_b],
+                label=f"seed {seed_b}",
+            )
+
+        ax.plot([lim_low, lim_high], [lim_low, lim_high], "k--", linewidth=1.0, alpha=0.4)
+        ax.set_xlim(lim_low, lim_high)
+        ax.set_ylim(lim_low, lim_high)
+        ax.set_xlabel(f"Seed {seed_a} pair rank")
+        ax.set_ylabel("Seed_b pair rank")
+        ax.set_title(f"Pair Rank Scatter (B={int(b)}, {lv_id}, {target_set_id})")
+        ax.grid(alpha=0.25)
+        ax.legend(title="Seed_b", frameon=False, fontsize=8)
+        fig.tight_layout()
+        out_name = (
+            f"pair_rank_scatter_ref_seed_b{int(b)}_"
+            f"{_sanitize(str(lv_id))}_{_sanitize(str(target_set_id))}.png"
+        )
+        fig.savefig(output_dir / out_name, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+
+def _plot_seed_reference_path_rank_scatter_by_lv_b(
+    top_paths_runs_df: pd.DataFrame, output_dir: Path
+) -> None:
+    """
+    For each (B, LV, target_set), plot path ranks for reference seed_a vs seed_b.
+
+    Path identity is defined by
+    (metapath_g_orientation, target_id, gene_identifier, path_nodes_ids).
+    """
+    required = {
+        "b",
+        "lv_id",
+        "target_set_id",
+        "seed",
+        "metapath_g_orientation",
+        "target_id",
+        "gene_identifier",
+        "path_nodes_ids",
+        "path_rank",
+    }
+    if top_paths_runs_df.empty or not required.issubset(top_paths_runs_df.columns):
+        return
+
+    def _sanitize(value: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in str(value))
+
+    df = top_paths_runs_df.copy()
+    for col in ["metapath_g_orientation", "target_id", "gene_identifier", "path_nodes_ids"]:
+        df[col] = df[col].astype(str)
+    df["path_rank"] = pd.to_numeric(df["path_rank"], errors="coerce")
+    df = df[df["path_rank"].notna()].copy()
+    if df.empty:
+        return
+
+    for (b, lv_id, target_set_id), group in df.groupby(
+        ["b", "lv_id", "target_set_id"], dropna=False
+    ):
+        seeds = sorted(group["seed"].dropna().astype(int).unique().tolist())
+        if len(seeds) < 2:
+            continue
+        seed_a = int(seeds[0])
+        ref = group[group["seed"].astype(int) == seed_a][
+            [
+                "metapath_g_orientation",
+                "target_id",
+                "gene_identifier",
+                "path_nodes_ids",
+                "path_rank",
+            ]
+        ].copy()
+        ref = ref.rename(columns={"path_rank": "rank_a"})
+        if ref.empty:
+            continue
+
+        others = [int(s) for s in seeds if int(s) != seed_a]
+        cmap = plt.get_cmap("tab10")
+        color_map = {seed_b: cmap(i % 10) for i, seed_b in enumerate(others)}
+        rows = []
+        for seed_b in others:
+            sub = group[group["seed"].astype(int) == seed_b][
+                [
+                    "metapath_g_orientation",
+                    "target_id",
+                    "gene_identifier",
+                    "path_nodes_ids",
+                    "path_rank",
+                ]
+            ].copy()
+            sub = sub.rename(columns={"path_rank": "rank_b"})
+            merged = ref.merge(
+                sub,
+                on=[
+                    "metapath_g_orientation",
+                    "target_id",
+                    "gene_identifier",
+                    "path_nodes_ids",
+                ],
+                how="inner",
+            )
+            if merged.empty:
+                continue
+            merged["seed_b"] = seed_b
+            rows.append(merged)
+        if not rows:
+            continue
+        plot_df = pd.concat(rows, ignore_index=True)
+
+        max_rank = float(
+            np.nanmax(
+                np.concatenate(
+                    [
+                        plot_df["rank_a"].to_numpy(dtype=float),
+                        plot_df["rank_b"].to_numpy(dtype=float),
+                    ]
+                )
+            )
+        )
+        lim_low, lim_high = 0.5, max_rank + 0.5
+        fig_h = max(5.0, 0.2 * max_rank + 2.0)
+        fig, ax = plt.subplots(figsize=(7.0, fig_h))
+        for seed_b in others:
+            sub = plot_df[plot_df["seed_b"] == seed_b]
+            if sub.empty:
+                continue
+            seed_token = f"{int(b)}|{lv_id}|{target_set_id}|path|{seed_a}|{seed_b}"
+            jitter_seed = zlib.crc32(seed_token.encode("utf-8")) & 0xFFFFFFFF
+            rng = np.random.default_rng(jitter_seed)
+            x_jitter = rng.normal(loc=0.0, scale=0.06, size=len(sub))
+            y_jitter = rng.normal(loc=0.0, scale=0.06, size=len(sub))
+            ax.scatter(
+                sub["rank_a"].to_numpy(dtype=float) + x_jitter,
+                sub["rank_b"].to_numpy(dtype=float) + y_jitter,
+                s=35,
+                alpha=0.8,
+                color=color_map[seed_b],
+                label=f"seed {seed_b}",
+            )
+
+        ax.plot([lim_low, lim_high], [lim_low, lim_high], "k--", linewidth=1.0, alpha=0.4)
+        ax.set_xlim(lim_low, lim_high)
+        ax.set_ylim(lim_low, lim_high)
+        ax.set_xlabel(f"Seed {seed_a} path rank")
+        ax.set_ylabel("Seed_b path rank")
+        ax.set_title(f"Path Rank Scatter (B={int(b)}, {lv_id}, {target_set_id})")
+        ax.grid(alpha=0.25)
+        ax.legend(title="Seed_b", frameon=False, fontsize=8)
+        fig.tight_layout()
+        out_name = (
+            f"path_rank_scatter_ref_seed_b{int(b)}_"
+            f"{_sanitize(str(lv_id))}_{_sanitize(str(target_set_id))}.png"
+        )
+        fig.savefig(output_dir / out_name, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+
 def _analyze_and_write_outputs(
     metapath_runs_df: pd.DataFrame,
     top_pairs_runs_df: pd.DataFrame,
@@ -827,6 +1078,14 @@ def _analyze_and_write_outputs(
     )
     _plot_seed_reference_rank_scatter_by_lv_b(
         rank_df=rank_df,
+        output_dir=exp_dir,
+    )
+    _plot_seed_reference_pair_rank_scatter_by_lv_b(
+        top_pairs_runs_df=top_pairs_runs_df,
+        output_dir=exp_dir,
+    )
+    _plot_seed_reference_path_rank_scatter_by_lv_b(
+        top_paths_runs_df=top_paths_runs_df,
         output_dir=exp_dir,
     )
 
