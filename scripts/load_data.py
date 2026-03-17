@@ -51,19 +51,23 @@
 # The number of unique genes associated with these GO terms
 
 # %% papermill={"duration": 2.108204, "end_time": "2025-12-05T20:29:38.442376", "exception": false, "start_time": "2025-12-05T20:29:36.334172", "status": "completed"}
-import pandas as pd
-import numpy as np
-import scipy.sparse
+import csv
+from collections import Counter
 from pathlib import Path
-from tqdm import tqdm
-import hetnetpy.readwrite
+
 import hetmatpy.hetmat
+import hetnetpy.readwrite
+import numpy as np
+import pandas as pd
+import scipy.sparse
 import urllib.request
+
+csv.field_size_limit(10_000_000)
 
 # Constants
 HETIONET_GENE_MIN = 2
 HETIONET_GENE_MAX = 1000
-GO_2024_CHUNKSIZE = 100_000
+GO_2024_CHUNKSIZE = 10_000
 HETIONET_URL = (
     "https://github.com/dhimmel/hetionet/raw/"
     "76550e6c93fbe92124edc71725e8c7dd4ca8b1f5/hetnet/json/hetionet-v1.0.json.bz2"
@@ -180,18 +184,16 @@ print(f"2016 GO terms counted: {len(hetio_bp_g_freq_df)}")
 # This section loads the updated 2024 GO annotations from a remote TSV file, expands gene IDs and gene symbols into individual rows, cleans the data, and displays the first few rows. It then prints the total number of GO term-gene pairs and focuses on the Biological Process (BP) domain.
 
 # %% papermill={"duration": 2.538711, "end_time": "2025-12-05T20:29:44.404314", "exception": false, "start_time": "2025-12-05T20:29:41.865603", "status": "completed"}
-# Load 2024 GO annotations with chunked parsing to avoid large memory spikes.
+# Load 2024 GO annotations via streaming parsing to keep memory bounded.
 hetio_genes = set(hetio_BPpG_df['entrez_gene_id'].unique())
 hetio_go_terms = set(hetio_BPpG_df['go_id'].unique())
-bp_frames = []
-total_input_rows = 0
-total_bp_rows = 0
-total_exploded_rows = 0
+stage1_2024_path = output_dir / "upd_go_bp_2024_stage1.csv"
 
-print(
-    "Loading 2024 GO annotations in chunks "
-    f"(chunksize={GO_2024_CHUNKSIZE:,})..."
-)
+for path in [stage1_2024_path, upd_2024_out]:
+    if path.exists():
+        path.unlink()
+
+print("Loading 2024 GO annotations via streaming parser...")
 if go_2024_cache_path.exists():
     print(f"Using cached GO 2024 annotations: {go_2024_cache_path}")
 elif legacy_go_2024_cache_path.exists():
@@ -204,102 +206,142 @@ else:
     except Exception as e:
         raise RuntimeError(f"Failed to download GO 2024 annotations: {e}")
 
-try:
-    reader = pd.read_csv(
-        go_2024_cache_path,
-        sep='\t',
-        usecols=['go_id', 'go_name', 'go_domain', 'gene_ids', 'gene_symbols'],
-        dtype={
-            'go_id': 'string',
-            'go_name': 'string',
-            'go_domain': 'string',
-            'gene_ids': 'string',
-            'gene_symbols': 'string',
-        },
-        chunksize=GO_2024_CHUNKSIZE,
-        engine='python',
+total_input_rows = 0
+total_bp_rows = 0
+total_stage1_rows = 0
+go_counts_stage1: Counter[str] = Counter()
+
+with go_2024_cache_path.open("r", encoding="utf-8", newline="") as infile, \
+     stage1_2024_path.open("w", encoding="utf-8", newline="") as stage1_file:
+    reader = csv.DictReader(infile, delimiter="\t")
+    writer = csv.DictWriter(
+        stage1_file,
+        fieldnames=["go_id", "go_name", "entrez_gene_id"],
     )
-except Exception as e:
-    raise RuntimeError(f"Failed to fetch GO 2024 annotations: {e}")
+    writer.writeheader()
 
-for chunk_idx, chunk in enumerate(reader, start=1):
-    total_input_rows += len(chunk)
-    chunk = chunk[chunk['go_domain'] == 'biological_process'].copy()
-    if chunk.empty:
-        continue
+    for row_idx, row in enumerate(reader, start=1):
+        total_input_rows += 1
+        if row.get("go_domain") != "biological_process":
+            continue
 
-    total_bp_rows += len(chunk)
-    expanded = chunk.assign(
-        gene_id=chunk['gene_ids'].str.split('|'),
-        gene_symbol=chunk['gene_symbols'].str.split('|')
-    ).explode(['gene_id', 'gene_symbol'])
+        total_bp_rows += 1
+        go_id = (row.get("go_id") or "").strip()
+        if not go_id or go_id not in hetio_go_terms:
+            continue
 
-    expanded['gene_id'] = expanded['gene_id'].astype('string').str.strip()
-    expanded['gene_symbol'] = expanded['gene_symbol'].astype('string').str.strip()
-    expanded = expanded[expanded['gene_id'].notna() & (expanded['gene_id'] != '...')]
-    expanded['entrez_gene_id'] = pd.to_numeric(expanded['gene_id'], errors='coerce')
-    expanded = expanded.dropna(subset=['entrez_gene_id'])
-    expanded['entrez_gene_id'] = expanded['entrez_gene_id'].astype(np.int64)
+        go_name = row.get("go_name") or ""
+        gene_ids = row.get("gene_ids") or ""
+        for token in gene_ids.split("|"):
+            token = token.strip()
+            if not token or token == "...":
+                continue
+            try:
+                gene_id = int(token)
+            except ValueError:
+                continue
+            if gene_id not in hetio_genes:
+                continue
 
-    # Keep only the Hetionet-aligned universe early to reduce memory.
-    expanded = expanded[
-        expanded['entrez_gene_id'].isin(hetio_genes)
-        & expanded['go_id'].isin(hetio_go_terms)
-    ]
-    if expanded.empty:
-        continue
+            writer.writerow(
+                {
+                    "go_id": go_id,
+                    "go_name": go_name,
+                    "entrez_gene_id": gene_id,
+                }
+            )
+            go_counts_stage1[go_id] += 1
+            total_stage1_rows += 1
 
-    total_exploded_rows += len(expanded)
-    bp_frames.append(expanded[['go_id', 'go_name', 'entrez_gene_id', 'gene_symbol']].copy())
+        if row_idx == 1 or row_idx % GO_2024_CHUNKSIZE == 0:
+            print(
+                f"  processed source rows: {row_idx:,}, "
+                f"bp rows: {total_bp_rows:,}, "
+                f"kept BP gene rows: {total_stage1_rows:,}"
+            )
 
-    if chunk_idx == 1 or chunk_idx % 10 == 0:
-        print(
-            f"  processed chunks: {chunk_idx}, "
-            f"input rows: {total_input_rows:,}, "
-            f"kept BP gene rows: {total_exploded_rows:,}"
-        )
-
-if not bp_frames:
+if total_stage1_rows == 0:
     raise RuntimeError(
-        "Failed to construct 2024 BP gene table after chunked parsing. "
+        "Failed to construct 2024 BP gene table after streaming parsing. "
         "Check GO annotation source availability and format."
     )
 
-upd_go_bp_2024_df = pd.concat(bp_frames, ignore_index=True)
 print(f"Loaded {total_input_rows:,} total annotation rows from source")
-print(f"Biological-process rows before explode: {total_bp_rows:,}")
-print(f"After explode + Hetionet filters: {len(upd_go_bp_2024_df):,} pairs")
+print(f"Biological-process rows before gene expansion: {total_bp_rows:,}")
+print(f"After gene expansion + Hetionet filters: {total_stage1_rows:,} pairs")
 
-# Filter 3: Terms with 2-1000 genes (Hetionet criterion)
-upd_go_bp_2024_freq_df = (
-    upd_go_bp_2024_df
-    .groupby('go_id')
-    .size()
-    .reset_index(name='no_of_genes_in_GO_2024')
+valid_go_terms = {
+    go_id for go_id, count in go_counts_stage1.items()
+    if HETIONET_GENE_MIN <= count <= HETIONET_GENE_MAX
+}
+if not valid_go_terms:
+    raise RuntimeError(
+        "No GO terms remained after applying the 2-1000 gene filter."
+    )
+
+genes_2024 = set()
+with stage1_2024_path.open("r", encoding="utf-8", newline="") as infile:
+    reader = csv.DictReader(infile)
+    for row in reader:
+        go_id = row["go_id"]
+        if go_id not in valid_go_terms:
+            continue
+        genes_2024.add(int(row["entrez_gene_id"]))
+
+genes_2016 = set(hetio_BPpG_df['entrez_gene_id'].unique())
+common_genes = genes_2016 & genes_2024
+
+final_go_counts: Counter[str] = Counter()
+final_rows_2024 = 0
+with stage1_2024_path.open("r", encoding="utf-8", newline="") as infile, \
+     upd_2024_out.open("w", encoding="utf-8", newline="") as outfile:
+    reader = csv.DictReader(infile)
+    writer = csv.DictWriter(
+        outfile,
+        fieldnames=["go_id", "go_name", "entrez_gene_id"],
+    )
+    writer.writeheader()
+
+    for row in reader:
+        go_id = row["go_id"]
+        gene_id = int(row["entrez_gene_id"])
+        if go_id not in valid_go_terms or gene_id not in common_genes:
+            continue
+        writer.writerow(
+            {
+                "go_id": go_id,
+                "go_name": row["go_name"],
+                "entrez_gene_id": gene_id,
+            }
+        )
+        final_go_counts[go_id] += 1
+        final_rows_2024 += 1
+
+if stage1_2024_path.exists():
+    stage1_2024_path.unlink()
+
+if final_rows_2024 == 0:
+    raise RuntimeError(
+        "No rows remained in 2024 BP associations after common-gene harmonization."
+    )
+
+upd_go_bp_2024_freq_df = pd.DataFrame(
+    [
+        {"go_id": go_id, "no_of_genes_in_GO_2024": count}
+        for go_id, count in final_go_counts.items()
+    ]
+).sort_values("go_id").reset_index(drop=True)
+print(
+    "After 2-1000 gene filter + common-gene harmonization: "
+    f"{final_rows_2024} pairs ({len(upd_go_bp_2024_freq_df)} terms)"
 )
-upd_go_bp_2024_freq_df = upd_go_bp_2024_freq_df[
-    (upd_go_bp_2024_freq_df['no_of_genes_in_GO_2024'] >= HETIONET_GENE_MIN) & 
-    (upd_go_bp_2024_freq_df['no_of_genes_in_GO_2024'] <= HETIONET_GENE_MAX)
-]
-upd_go_bp_2024_df = upd_go_bp_2024_df[
-    upd_go_bp_2024_df['go_id'].isin(upd_go_bp_2024_freq_df['go_id'])
-]
-print(f"After filtering to {HETIONET_GENE_MIN}-{HETIONET_GENE_MAX} genes: "
-      f"{len(upd_go_bp_2024_df)} pairs ({len(upd_go_bp_2024_freq_df)} terms)")
-
-# Persist 2024 associations before common-gene harmonization so users retain
-# a usable intermediate if later steps fail.
-upd_go_bp_2024_df.to_csv(upd_2024_out, index=False)
-print(f"Saved {upd_2024_out.name}: {len(upd_go_bp_2024_df)} rows (pre common-gene filter)")
-
-upd_go_bp_2024_df.head()
+print(f"Saved {upd_2024_out.name}: {final_rows_2024} rows")
 
 # %% [markdown] papermill={"duration": 0.007123, "end_time": "2025-12-05T20:29:44.413331", "exception": false, "start_time": "2025-12-05T20:29:44.406208", "status": "completed"}
 # ### As hetionet considered GO terms with Biological processes with 2–1000 annotated genes were included. Same filter were applied for GO 2024  https://github.com/dhimmel/gene-ontology/issues/9
 
 # %% papermill={"duration": 0.091813, "end_time": "2025-12-05T20:29:44.529038", "exception": false, "start_time": "2025-12-05T20:29:44.437225", "status": "completed"}
 # Filter both datasets to common gene universe for fair comparison
-genes_2024 = set(upd_go_bp_2024_df['entrez_gene_id'].unique())
 genes_2016 = set(hetio_BPpG_df['entrez_gene_id'].unique())
 common_genes = genes_2016 & genes_2024
 
@@ -309,15 +351,12 @@ print(f"Common genes: {len(common_genes)}")
 print(f"Genes only in 2016: {len(genes_2016 - genes_2024)}")
 print(f"Genes only in 2024: {len(genes_2024 - genes_2016)}")
 
-# Filter both datasets to common genes
+# Filter 2016 dataset to common genes
 hetio_BPpG_df = hetio_BPpG_df[hetio_BPpG_df['entrez_gene_id'].isin(common_genes)]
-upd_go_bp_2024_df = upd_go_bp_2024_df[
-    upd_go_bp_2024_df['entrez_gene_id'].isin(common_genes)
-]
 
 print(f"\nAfter filtering to common genes:")
 print(f"Hetionet 2016: {len(hetio_BPpG_df)} pairs")
-print(f"2024: {len(upd_go_bp_2024_df)} pairs")
+print(f"2024: {final_rows_2024} pairs")
 
 # Recalculate frequencies with common gene universe
 hetio_bp_g_freq_df = (
@@ -326,21 +365,6 @@ hetio_bp_g_freq_df = (
     .size()
     .reset_index(name='no_of_genes_in_hetio_GO_2016')
 )
-upd_go_bp_2024_freq_df = (
-    upd_go_bp_2024_df
-    .groupby('go_id')
-    .size()
-    .reset_index(name='no_of_genes_in_GO_2024')
-)
-
-# Reapply 2-1000 filter
-upd_go_bp_2024_freq_df = upd_go_bp_2024_freq_df[
-    (upd_go_bp_2024_freq_df['no_of_genes_in_GO_2024'] >= HETIONET_GENE_MIN) & 
-    (upd_go_bp_2024_freq_df['no_of_genes_in_GO_2024'] <= HETIONET_GENE_MAX)
-]
-upd_go_bp_2024_df = upd_go_bp_2024_df[
-    upd_go_bp_2024_df['go_id'].isin(upd_go_bp_2024_freq_df['go_id'])
-]
 
 print(f"After reapplying {HETIONET_GENE_MIN}-{HETIONET_GENE_MAX} gene filter: "
       f"{len(upd_go_bp_2024_freq_df)} terms in 2024")
@@ -363,9 +387,8 @@ print('Saving intermediate outputs...')
 hetio_BPpG_df.to_csv(hetio_2016_out, index=False)
 print(f'Saved {hetio_2016_out.name}: {len(hetio_BPpG_df)} rows')
 
-# Save 2024 BP-Gene associations
-upd_go_bp_2024_df.to_csv(upd_2024_out, index=False)
-print(f'Saved {upd_2024_out.name}: {len(upd_go_bp_2024_df)} rows')
+# 2024 BP-Gene associations were already streamed to disk at upd_2024_out.
+print(f'{upd_2024_out.name} already saved: {final_rows_2024} rows')
 
 # Save common GO terms with both 2016 and 2024 counts
 common_terms_df.to_csv(common_terms_out, index=False)
