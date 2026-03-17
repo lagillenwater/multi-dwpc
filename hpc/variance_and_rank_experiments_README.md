@@ -1,0 +1,308 @@
+# Variance And Rank Experiment Runbook
+
+This runbook covers the unified null-replicate workflow used by both the LV and year experiments.
+
+## Shared experiment shape
+
+Both domains now follow the same pattern:
+
+1. prepare shared inputs
+2. generate explicit null replicate artifacts
+3. compute one metapath-summary artifact per replicate
+4. run variance analysis
+5. run rank-stability analysis
+
+The difference is the underlying bipartite graph:
+
+- LV: `LV x selected gene`
+- year: `GO term x gene`
+
+## Null hypotheses
+
+### Permuted control
+
+`permuted` is the primary null in both domains.
+
+It uses degree-preserving bipartite permutations, so it preserves:
+
+- source degree exactly
+- target degree exactly
+- total edge count exactly
+- binary edge structure with no duplicate source-target edges
+
+Interpretation:
+
+- conditional on the observed degree sequences, the specific edge configuration is arbitrary with respect to downstream metapath signal
+
+### Random control
+
+`random` is the matched synthetic control in both domains.
+
+It preserves:
+
+- source set size exactly
+- target exclusion from the real source set
+- approximate target promiscuity matching
+
+Promiscuity means:
+
+- year: number of GO terms containing the gene
+- LV: number of LV top-gene sets containing the gene
+
+## Prerequisites
+
+### Environment
+
+```bash
+conda activate multi_dwpc
+```
+
+HPC batch scripts already run:
+
+```bash
+module load anaconda
+conda activate multi_dwpc
+```
+
+### Year inputs
+
+```bash
+poe load-data
+poe filter-change
+poe filter-jaccard
+```
+
+### LV inputs
+
+Download the LV loading matrix once:
+
+```bash
+poe download-lv-loadings
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+```
+
+## Local workflow
+
+### Year
+
+#### Step 1: generate explicit null replicate artifacts
+
+```bash
+N_PERMUTATIONS=20 poe gen-permutation
+N_RANDOM_SAMPLES=20 poe gen-random
+```
+
+This writes:
+
+- `output/permutations/all_GO_positive_growth_2016/perm_###.csv`
+- `output/permutations/all_GO_positive_growth_2024/perm_###.csv`
+- `output/random_samples/all_GO_positive_growth_2016/random_###.csv`
+- `output/random_samples/all_GO_positive_growth_2024/random_###.csv`
+
+#### Step 2: compute per-replicate DWPC outputs and metapath summaries
+
+```bash
+poe compute-dwpc-direct
+```
+
+This now writes both pair-level DWPC files and per-replicate summary files:
+
+- `output/dwpc_direct/all_GO_positive_growth/results/dwpc_*.csv`
+- `output/dwpc_direct/all_GO_positive_growth/replicate_summaries/summary_*.csv`
+- `output/dwpc_direct/all_GO_positive_growth/replicate_manifest.csv`
+
+#### Step 3: variance
+
+```bash
+poe year-null-variance-exp
+```
+
+#### Step 4: rank stability
+
+```bash
+poe year-rank-stability-exp
+```
+
+Use `20` null replicates by default for both year and LV so the workflows stay parallel. Increase that explicitly for final production runs if you need tighter stability estimates.
+
+### LV
+
+#### Step 1: prepare
+
+```bash
+poe lv-prepare-exp
+```
+
+This creates the shared LV workspace in `output/lv_experiment/`, including:
+
+- `lv_top_genes.csv`
+- `lv_target_map.csv`
+- `feature_manifest.csv`
+- `gene_feature_scores.npy`
+- `real_feature_scores.csv`
+- `replicate_artifacts/lv_real.csv`
+- `replicate_manifest.csv`
+
+For all metapaths:
+
+```bash
+LV_OUTPUT_DIR=output/lv_experiment_all_metapaths poe lv-prepare-exp-all-metapaths
+```
+
+#### Step 2: generate null replicate artifacts
+
+```bash
+LV_N_REPLICATES=20 poe lv-gen-permutation
+LV_N_REPLICATES=20 poe lv-gen-random
+```
+
+This writes explicit LV null edge lists under:
+
+- `output/lv_experiment/replicate_artifacts/lv_permuted_###.csv`
+- `output/lv_experiment/replicate_artifacts/lv_random_###.csv`
+
+#### Step 3: compute per-replicate metapath summaries
+
+```bash
+poe lv-compute-replicate-summaries
+```
+
+This writes one summary file per artifact under:
+
+- `output/lv_experiment/replicate_summaries/summary_lv_real.csv`
+- `output/lv_experiment/replicate_summaries/summary_lv_permuted_###.csv`
+- `output/lv_experiment/replicate_summaries/summary_lv_random_###.csv`
+
+#### Step 4: variance
+
+```bash
+poe lv-null-variance-exp
+```
+
+This keeps the original LV analysis semantics:
+
+- for each `B`
+- for each seed
+- choose `B` explicit null replicate summaries without replacement
+- average them to form the null mean
+- compute `diff = real - null_mean`
+- estimate variance across seeds at fixed `B`
+
+#### Step 5: rank stability
+
+```bash
+poe lv-rank-stability-exp
+```
+
+This ranks metapaths by `diff` for each `(control, B, seed, LV, target set)` and compares rankings across seeds.
+
+## HPC workflow
+
+### Year
+
+#### Step 1: generate controls
+
+```bash
+sbatch --array=0-19 hpc/year_permutations_array.sbatch
+sbatch --array=0-19 hpc/year_random_controls_array.sbatch
+```
+
+#### Step 2: compute per-replicate DWPC and summary artifacts
+
+```bash
+python scripts/compute_dwpc_direct.py --list-datasets > output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt
+sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt)-1)) hpc/year_dwpc_array.sbatch
+```
+
+#### Step 3: aggregate variance and rank stability
+
+```bash
+sbatch hpc/year_null_variance.sbatch
+sbatch hpc/year_rank_stability.sbatch
+```
+
+### LV
+
+#### Step 1: prepare
+
+```bash
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+sbatch hpc/lv_prepare.sbatch
+```
+
+#### Step 2: generate controls
+
+```bash
+sbatch --array=0-19 hpc/lv_permutations_array.sbatch
+sbatch --array=0-19 hpc/lv_random_controls_array.sbatch
+```
+
+#### Step 3: summarize artifacts
+
+Build the artifact manifest once:
+
+```bash
+python scripts/lv_compute_replicate_summaries.py --output-dir output/lv_experiment --list-artifacts > output/lv_experiment/artifact_manifest.txt
+```
+
+Then submit the summary array:
+
+```bash
+sbatch --array=0-$(($(wc -l < output/lv_experiment/artifact_manifest.txt)-1)) hpc/lv_summary_array.sbatch
+```
+
+#### Step 4: aggregate variance and rank stability
+
+```bash
+sbatch hpc/lv_null_variance_aggregate.sbatch
+sbatch hpc/lv_rank_stability_aggregate.sbatch
+```
+
+## Output locations
+
+### LV shared workspace
+
+- `output/lv_experiment/replicate_manifest.csv`
+- `output/lv_experiment/replicate_artifacts/`
+- `output/lv_experiment/replicate_summaries/`
+
+### LV variance
+
+- `output/lv_experiment/lv_null_variance_experiment/all_runs_wide.csv`
+- `output/lv_experiment/lv_null_variance_experiment/feature_variance_summary.csv`
+- `output/lv_experiment/lv_null_variance_experiment/overall_variance_summary.csv`
+- `output/lv_experiment/lv_null_variance_experiment/variance_overall_by_group.png`
+- `output/lv_experiment/lv_null_variance_experiment/sd_overall_by_group.png`
+
+### LV rank stability
+
+- `output/lv_experiment/lv_rank_stability_experiment/all_runs_long.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/metapath_rank_table.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/pairwise_metrics.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/lv_stability_summary.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/overall_stability_summary.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/spearman_overall_by_group.png`
+- `output/lv_experiment/lv_rank_stability_experiment/topk_jaccard_overall_by_group.png`
+
+### Year shared workspace
+
+- `output/dwpc_direct/all_GO_positive_growth/replicate_manifest.csv`
+- `output/dwpc_direct/all_GO_positive_growth/replicate_summaries/`
+
+### Year variance
+
+- `output/year_null_variance_exp/year_null_variance_experiment/all_runs_long.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/feature_variance_summary.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/overall_variance_summary.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/variance_overall_by_group.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/sd_overall_by_group.png`
+
+### Year rank stability
+
+- `output/year_rank_stability_exp/year_rank_stability_experiment/all_runs_long.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/metapath_rank_table.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/pairwise_metrics.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/go_term_stability_summary.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/overall_stability_summary.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/spearman_overall_by_group.png`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/topk_jaccard_overall_by_group.png`
