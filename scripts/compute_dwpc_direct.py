@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 # Setup repo root
@@ -160,7 +161,15 @@ def summarize_dataset_results(config: dict, results_df: pd.DataFrame) -> pd.Data
     return summary_df
 
 
-def process_dataset(config: dict, hetmat: HetMat, metapaths: list[str], gene_id_to_idx: dict, bp_id_to_idx: dict) -> dict:
+def process_dataset(
+    config: dict,
+    hetmat: HetMat,
+    metapaths: list[str],
+    gene_id_to_idx: dict,
+    bp_id_to_idx: dict,
+    output_path: Path,
+    summary_path: Path,
+) -> dict:
     name = config["name"]
     path = config["path"]
 
@@ -186,33 +195,74 @@ def process_dataset(config: dict, hetmat: HetMat, metapaths: list[str], gene_id_
     gene_ids = df_mapped[config["gene_col"]].values
     go_ids = df_mapped[config["go_col"]].values
 
-    results_list = []
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_output_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    tmp_summary_path = summary_path.with_suffix(summary_path.suffix + ".tmp")
+    if tmp_output_path.exists():
+        tmp_output_path.unlink()
+    if tmp_summary_path.exists():
+        tmp_summary_path.unlink()
+    summary_rows = []
+    write_header = True
+    total_results = 0
+
     for metapath in metapaths:
         try:
             dwpc_values = hetmat.get_dwpc_for_pairs(metapath, source_indices, target_indices)
-            results_list.append(
-                pd.DataFrame(
-                    {
-                        "entrez_gene_id": gene_ids,
-                        "go_id": go_ids,
-                        "source_idx": source_indices,
-                        "target_idx": target_indices,
-                        "metapath": metapath,
-                        "dwpc": dwpc_values,
-                    }
-                )
+            metapath_df = pd.DataFrame(
+                {
+                    "entrez_gene_id": gene_ids,
+                    "go_id": go_ids,
+                    "source_idx": source_indices,
+                    "target_idx": target_indices,
+                    "metapath": metapath,
+                    "dwpc": dwpc_values,
+                }
             )
+            metapath_df.to_csv(
+                tmp_output_path,
+                mode="w" if write_header else "a",
+                header=write_header,
+                index=False,
+            )
+            write_header = False
+            total_results += len(metapath_df)
+
+            grouped = (
+                metapath_df.groupby("go_id", as_index=False)["dwpc"]
+                .agg(mean_score="mean", n_pairs="size")
+            )
+            grouped.insert(0, "metapath", metapath)
+            summary_rows.append(grouped)
         except Exception as exc:
             print(f"  Error computing {metapath}: {exc}")
+        finally:
+            hetmat.clear_metapath_from_memory(metapath)
 
-    results_df = pd.concat(results_list, ignore_index=True) if results_list else pd.DataFrame()
+    if summary_rows:
+        summary_df = pd.concat(summary_rows, ignore_index=True)
+        summary_df.insert(0, "year", int(config["year"]))
+        summary_df.insert(0, "replicate", int(config["replicate"]))
+        summary_df.insert(0, "control", str(config["control"]))
+        summary_df.insert(0, "name", str(config["name"]))
+        summary_df.insert(0, "domain", "year")
+        summary_df.to_csv(tmp_summary_path, index=False)
+    else:
+        summary_df = pd.DataFrame()
+
+    if total_results > 0 and tmp_output_path.exists():
+        tmp_output_path.replace(output_path)
+    if len(summary_df) > 0 and tmp_summary_path.exists():
+        tmp_summary_path.replace(summary_path)
+
     return {
         "name": name,
         "status": "completed",
         "n_input_pairs": n_pairs,
         "n_mapped_pairs": len(df_mapped),
-        "n_results": len(results_df),
-        "results_df": results_df,
+        "n_results": int(total_results),
+        "n_summary_rows": int(len(summary_df)),
     }
 
 
@@ -280,10 +330,7 @@ def main() -> None:
     gene_id_to_idx = dict(zip(gene_nodes["identifier"], gene_nodes["position"]))
     bp_id_to_idx = dict(zip(bp_nodes["identifier"], bp_nodes["position"]))
 
-    print("Precomputing DWPC matrices...")
-    precompute_start = time.perf_counter()
-    hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
-    print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
+    print("Streaming metapaths without upfront global precompute...")
 
     all_summaries = []
     manifest_rows = []
@@ -302,30 +349,34 @@ def main() -> None:
             "result_path": str(output_path),
             "summary_path": str(summary_path),
         }
-        if output_path.exists():
+        if output_path.exists() and summary_path.exists():
             existing_df = pd.read_csv(output_path)
             print(f"  Already processed: {len(existing_df)} rows")
-            if not summary_path.exists():
-                summary_df = summarize_dataset_results(config, existing_df)
-                summary_df.to_csv(summary_path, index=False)
             all_summaries.append(
                 {"name": config["name"], "status": "skipped (exists)", "n_results": len(existing_df)}
             )
             manifest_rows.append(manifest_row)
             continue
+        if output_path.exists() and not summary_path.exists():
+            print(f"  Found stale partial output without summary; recomputing {output_path.name}")
 
         start = time.perf_counter()
-        summary = process_dataset(config, hetmat, metapaths, gene_id_to_idx, bp_id_to_idx)
+        summary = process_dataset(
+            config=config,
+            hetmat=hetmat,
+            metapaths=metapaths,
+            gene_id_to_idx=gene_id_to_idx,
+            bp_id_to_idx=bp_id_to_idx,
+            output_path=output_path,
+            summary_path=summary_path,
+        )
         if summary["status"] == "completed":
-            summary["results_df"].to_csv(output_path, index=False)
-            summarize_dataset_results(config, summary["results_df"]).to_csv(summary_path, index=False)
             elapsed = time.perf_counter() - start
             print(f"  Saved: {output_path}")
             print(f"  Saved: {summary_path}")
             print(f"  Rows: {summary['n_results']}")
             print(f"  Time: {elapsed:.1f}s")
             summary["time_seconds"] = elapsed
-            del summary["results_df"]
         all_summaries.append(summary)
         manifest_rows.append(manifest_row)
 
