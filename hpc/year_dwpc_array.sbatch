@@ -2,7 +2,7 @@
 #SBATCH --job-name=year-dwpc
 #SBATCH --qos=normal
 #SBATCH --partition=amilan
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=1
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
 #SBATCH --output=slurm_%x_%A_%a.out
@@ -46,4 +46,4 @@ fi
 $PYTHON_EXE scripts/compute_dwpc_direct.py \
   --output-dir "$OUTPUT_DIR" \
   --dataset-name "$DATASET_NAME" \
-  --n-workers "${YEAR_DWPC_N_WORKERS:-4}"
+  --n-workers "${YEAR_DWPC_N_WORKERS:-1}"

@@ -530,7 +530,7 @@ def main() -> None:
     parser.add_argument(
         "--n-workers-precompute",
         type=int,
-        default=4,
+        default=1,
         help="Workers for precompute matrix warmup.",
     )
     parser.add_argument(
