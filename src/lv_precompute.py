@@ -143,6 +143,88 @@ def _build_feature_manifest(
     return manifest
 
 
+def prepare_feature_manifest(
+    output_dir: Path,
+    metapath_stats_path: Path,
+    max_metapath_length: int = 3,
+    metapath_limit_per_target: int | None = None,
+    include_direct_metapaths: bool = False,
+) -> pd.DataFrame:
+    """
+    Build and persist the LV feature manifest without computing score matrices.
+    """
+    output_dir = Path(output_dir)
+    target_sets_path = output_dir / "target_sets.csv"
+    lv_map_path = output_dir / "lv_target_map.csv"
+
+    for path in (target_sets_path, lv_map_path):
+        if not path.exists():
+            raise FileNotFoundError(f"Missing required input: {path}")
+
+    target_sets = pd.read_csv(target_sets_path)
+    stats_df = _load_metapath_stats(metapath_stats_path)
+    feature_manifest = _build_feature_manifest(
+        target_sets=target_sets,
+        stats_df=stats_df,
+        max_metapath_length=max_metapath_length,
+        exclude_direct=not include_direct_metapaths,
+        metapath_limit_per_target=metapath_limit_per_target,
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    feature_manifest_path = output_dir / "feature_manifest.csv"
+    if feature_manifest_path.exists():
+        existing_manifest = pd.read_csv(feature_manifest_path)
+        if not existing_manifest.equals(feature_manifest):
+            raise ValueError(
+                "Existing feature_manifest.csv does not match current configuration. "
+                "Use a new output directory or remove old precompute artifacts."
+            )
+    feature_manifest.to_csv(feature_manifest_path, index=False)
+    return feature_manifest
+
+
+def list_feature_metapaths(output_dir: Path) -> list[str]:
+    feature_manifest_path = Path(output_dir) / "feature_manifest.csv"
+    if not feature_manifest_path.exists():
+        raise FileNotFoundError(
+            f"Missing {feature_manifest_path}. Prepare LV metadata before listing metapaths."
+        )
+    feature_manifest = pd.read_csv(feature_manifest_path, usecols=["metapath"])
+    return sorted(feature_manifest["metapath"].astype(str).unique().tolist())
+
+
+def warmup_feature_metapath_cache(
+    output_dir: Path,
+    data_dir: Path,
+    metapath: str,
+    damping: float = 0.5,
+) -> None:
+    """
+    Compute and persist the shared DWPC cache entry for one LV feature metapath.
+    """
+    feature_manifest_path = Path(output_dir) / "feature_manifest.csv"
+    if not feature_manifest_path.exists():
+        raise FileNotFoundError(
+            f"Missing {feature_manifest_path}. Prepare LV metadata before warming cache."
+        )
+    feature_manifest = pd.read_csv(feature_manifest_path, usecols=["metapath"])
+    valid_metapaths = set(feature_manifest["metapath"].astype(str).tolist())
+    if str(metapath) not in valid_metapaths:
+        available = "\n  - ".join(sorted(valid_metapaths))
+        raise ValueError(
+            f"Unknown LV warmup metapath: {metapath}\nAvailable metapaths:\n  - {available}"
+        )
+
+    hetmat = HetMat(
+        data_dir=data_dir,
+        damping=damping,
+        use_disk_cache=True,
+        write_disk_cache=True,
+    )
+    _ = hetmat.compute_dwpc_matrix_csc(str(metapath), damping=damping)
+    hetmat.clear_metapath_from_memory(metapath=str(metapath), damping=damping)
+
+
 def _map_target_positions(
     hetmat: HetMat,
     target_sets: pd.DataFrame,
@@ -294,24 +376,13 @@ def precompute_gene_feature_scores(
     target_sets = pd.read_csv(target_sets_path)
     lv_map = pd.read_csv(lv_map_path)
 
-    stats_df = _load_metapath_stats(metapath_stats_path)
-    feature_manifest = _build_feature_manifest(
-        target_sets=target_sets,
-        stats_df=stats_df,
+    feature_manifest = prepare_feature_manifest(
+        output_dir=output_dir,
+        metapath_stats_path=metapath_stats_path,
         max_metapath_length=max_metapath_length,
-        exclude_direct=not include_direct_metapaths,
         metapath_limit_per_target=metapath_limit_per_target,
+        include_direct_metapaths=include_direct_metapaths,
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-    feature_manifest_path = output_dir / "feature_manifest.csv"
-    if feature_manifest_path.exists():
-        existing_manifest = pd.read_csv(feature_manifest_path)
-        if not existing_manifest.equals(feature_manifest):
-            raise ValueError(
-                "Existing feature_manifest.csv does not match current configuration. "
-                "Use a new output directory or remove old precompute artifacts."
-            )
-    feature_manifest.to_csv(feature_manifest_path, index=False)
 
     # Read existing DWPC disk cache entries but do not write new files.
     # This preserves speedup from existing caches without unbounded disk growth.

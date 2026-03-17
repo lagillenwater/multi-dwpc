@@ -317,6 +317,15 @@ export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
 poe lv-prepare-exp
 ```
 
+For HPC, the recommended path mirrors the year workflow:
+
+1. prepare LV metadata
+2. warm the shared DWPC cache across LV metapaths
+3. finalize LV precompute outputs
+4. generate null replicate artifacts
+5. summarize artifacts
+6. run variance and rank-stability aggregates
+
 Generate explicit LV null artifacts:
 
 ```bash

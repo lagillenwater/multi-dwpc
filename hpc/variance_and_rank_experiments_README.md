@@ -244,21 +244,39 @@ sbatch hpc/year_rank_stability.sbatch
 
 ### LV
 
-#### Step 1: prepare
+#### Step 1: prepare metadata
 
 ```bash
 export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
 sbatch hpc/lv_prepare.sbatch
 ```
 
-#### Step 2: generate controls
+#### Step 2: warm the shared DWPC cache across metapaths
+
+```bash
+python scripts/lv_prepare_experiment.py --output-dir output/lv_experiment --list-metapaths > output/lv_experiment/metapath_manifest.txt
+sbatch --array=0-$(($(wc -l < output/lv_experiment/metapath_manifest.txt)-1)) hpc/lv_dwpc_cache_warmup_array.sbatch
+```
+
+#### Step 3: finalize LV precompute outputs
+
+```bash
+sbatch hpc/lv_precompute_finalize.sbatch
+```
+
+Notes:
+
+- the metapath warmup array builds the shared `data/dwpc_cache/` one metapath at a time for the LV feature set
+- the finalize step computes `gene_feature_scores.npy` and `real_feature_scores.csv` using the warmed cache
+
+#### Step 4: generate controls
 
 ```bash
 sbatch --array=0-19 hpc/lv_permutations_array.sbatch
 sbatch --array=0-19 hpc/lv_random_controls_array.sbatch
 ```
 
-#### Step 3: summarize artifacts
+#### Step 5: summarize artifacts
 
 Build the artifact manifest once:
 
@@ -272,7 +290,7 @@ Then submit the summary array:
 sbatch --array=0-$(($(wc -l < output/lv_experiment/artifact_manifest.txt)-1)) hpc/lv_summary_array.sbatch
 ```
 
-#### Step 4: aggregate variance and rank stability
+#### Step 6: aggregate variance and rank stability
 
 ```bash
 sbatch hpc/lv_null_variance_aggregate.sbatch

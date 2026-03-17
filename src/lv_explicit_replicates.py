@@ -33,10 +33,15 @@ def manifest_path(output_dir: Path) -> Path:
     return Path(output_dir) / MANIFEST_FILENAME
 
 
-def _required_prepare_files(output_dir: Path) -> list[Path]:
+def _required_metadata_files(output_dir: Path) -> list[Path]:
     return [
         Path(output_dir) / "lv_top_genes.csv",
         Path(output_dir) / "lv_target_map.csv",
+    ]
+
+
+def _required_summary_files(output_dir: Path) -> list[Path]:
+    return [
         Path(output_dir) / "feature_manifest.csv",
         Path(output_dir) / "gene_feature_scores.npy",
         Path(output_dir) / "gene_ids.npy",
@@ -44,19 +49,30 @@ def _required_prepare_files(output_dir: Path) -> list[Path]:
     ]
 
 
-def assert_prepared(output_dir: Path) -> None:
-    missing = [str(path) for path in _required_prepare_files(output_dir) if not path.exists()]
+def assert_metadata_prepared(output_dir: Path) -> None:
+    missing = [str(path) for path in _required_metadata_files(output_dir) if not path.exists()]
     if missing:
         joined = "\n  - ".join(missing)
         raise FileNotFoundError(
-            "LV explicit replicate workflow requires prepared LV artifacts. Missing:\n"
+            "LV explicit replicate workflow requires prepared LV metadata. Missing:\n"
             f"  - {joined}\n"
-            "Run the prepare stage first."
+            "Run the metadata prepare stage first."
+        )
+
+
+def assert_summary_prepared(output_dir: Path) -> None:
+    missing = [str(path) for path in _required_summary_files(output_dir) if not path.exists()]
+    if missing:
+        joined = "\n  - ".join(missing)
+        raise FileNotFoundError(
+            "LV summary computation requires finalized LV precompute outputs. Missing:\n"
+            f"  - {joined}\n"
+            "Run the precompute finalize stage first."
         )
 
 
 def load_base_edges(output_dir: Path) -> pd.DataFrame:
-    assert_prepared(output_dir)
+    assert_metadata_prepared(output_dir)
     top_genes = pd.read_csv(Path(output_dir) / "lv_top_genes.csv")
     lv_map = pd.read_csv(Path(output_dir) / "lv_target_map.csv")
     base = top_genes.merge(lv_map, on="lv_id", how="inner")
@@ -189,6 +205,7 @@ def _gene_id_to_row_map(output_dir: Path) -> dict[str, int]:
 
 def compute_summary_for_artifact(output_dir: Path, artifact_name: str, force: bool = False) -> Path:
     output_dir = Path(output_dir)
+    assert_summary_prepared(output_dir)
     manifest = load_manifest(output_dir)
     matches = manifest[manifest["name"].astype(str) == str(artifact_name)]
     if matches.empty:
