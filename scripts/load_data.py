@@ -73,6 +73,7 @@ GO_2024_URL = (
     "refs/heads/gh-pages/annotations/taxid_9606/"
     "GO_annotations-9606-inferred-allev.tsv"
 )
+GO_2024_CACHE_NAME = "upd_go_bp_2024_raw.tsv"
 
 # Expected ranges based on Hetionet v1.0 statistics
 EXPECTED_EDGE_RANGE = (500_000, 1_500_000)
@@ -91,6 +92,8 @@ output_dir = repo_root / "output" / "intermediate"
 hetio_2016_out = output_dir / "hetio_bppg_2016.csv"
 upd_2024_out = output_dir / "upd_go_bp_2024.csv"
 common_terms_out = output_dir / "common_go_terms.csv"
+go_2024_cache_path = output_dir / GO_2024_CACHE_NAME
+legacy_go_2024_cache_path = data_dir / "GO_annotations-9606-inferred-allev.tsv"
 data_dir.mkdir(exist_ok=True)
 output_dir.mkdir(parents=True, exist_ok=True)
 print(f"Data directory: {data_dir.resolve()}")
@@ -189,9 +192,21 @@ print(
     "Loading 2024 GO annotations in chunks "
     f"(chunksize={GO_2024_CHUNKSIZE:,})..."
 )
+if go_2024_cache_path.exists():
+    print(f"Using cached GO 2024 annotations: {go_2024_cache_path}")
+elif legacy_go_2024_cache_path.exists():
+    go_2024_cache_path = legacy_go_2024_cache_path
+    print(f"Using legacy cached GO 2024 annotations: {go_2024_cache_path}")
+else:
+    print(f"Downloading GO 2024 annotations to: {go_2024_cache_path}")
+    try:
+        urllib.request.urlretrieve(GO_2024_URL, go_2024_cache_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to download GO 2024 annotations: {e}")
+
 try:
     reader = pd.read_csv(
-        GO_2024_URL,
+        go_2024_cache_path,
         sep='\t',
         usecols=['go_id', 'go_name', 'go_domain', 'gene_ids', 'gene_symbols'],
         dtype={
@@ -202,6 +217,7 @@ try:
             'gene_symbols': 'string',
         },
         chunksize=GO_2024_CHUNKSIZE,
+        engine='python',
     )
 except Exception as e:
     raise RuntimeError(f"Failed to fetch GO 2024 annotations: {e}")
@@ -236,7 +252,7 @@ for chunk_idx, chunk in enumerate(reader, start=1):
     total_exploded_rows += len(expanded)
     bp_frames.append(expanded[['go_id', 'go_name', 'entrez_gene_id', 'gene_symbol']].copy())
 
-    if chunk_idx % 10 == 0:
+    if chunk_idx == 1 or chunk_idx % 10 == 0:
         print(
             f"  processed chunks: {chunk_idx}, "
             f"input rows: {total_input_rows:,}, "
