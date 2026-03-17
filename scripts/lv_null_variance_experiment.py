@@ -119,6 +119,7 @@ def _prepare_workspace(args: argparse.Namespace, root: Path) -> None:
     pipeline_path = _pipeline_script(root)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    metapath_limit = None if args.all_metapaths else args.metapath_limit_per_target
 
     # top-genes
     cmd = _stage_cmd(args.python_exe, pipeline_path, "top-genes", output_dir)
@@ -160,9 +161,9 @@ def _prepare_workspace(args: argparse.Namespace, root: Path) -> None:
             str(args.max_metapath_length),
         ]
     )
-    if args.metapath_limit_per_target is not None:
+    if metapath_limit is not None:
         cmd.extend(
-            ["--metapath-limit-per-target", str(args.metapath_limit_per_target)]
+            ["--metapath-limit-per-target", str(metapath_limit)]
         )
     if args.include_direct_metapaths:
         cmd.append("--include-direct-metapaths")
@@ -362,6 +363,8 @@ def run_experiment(args: argparse.Namespace) -> None:
     seeds = _parse_int_list(args.seeds)
 
     print("[setup] Preparing compact LV workspace...")
+    if args.all_metapaths:
+        print("[setup] all-metapaths mode enabled (no per-target metapath cap).")
     _prepare_workspace(args=args, root=root)
 
     pipeline_path = _pipeline_script(root)
@@ -520,6 +523,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="Limit metapaths per target type to keep the experiment compact.",
+    )
+    parser.add_argument(
+        "--all-metapaths",
+        action="store_true",
+        help="Disable metapath cap and precompute all eligible metapaths.",
     )
     parser.add_argument(
         "--max-metapath-length",

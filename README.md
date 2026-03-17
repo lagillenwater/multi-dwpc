@@ -59,7 +59,12 @@ Run `poe --help` to see all available tasks:
 | `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
 | `benchmark-dwpc` | Benchmark direct vs API computation |
+| `year-null-variance-exp` | Year-based null variance analysis across perm/random replicates |
 | `lv-null-variance-exp` | LV null variance sweep across fixed replicate counts |
+| `lv-rank-stability-exp` | LV metapath/path rank-stability sweep |
+| `lv-null-variance-exp-all-metapaths` | LV null variance sweep across all metapaths |
+| `lv-rank-stability-exp-all-metapaths` | LV rank-stability sweep across all metapaths |
+| `pipeline-year-exp` | Run staged year-comparison experiment pipeline |
 | `pipeline-production` | Run full production pipeline |
 | `pipeline-publication` | Run full publication pipeline |
 | `pipeline-null` | Run null dataset generation |
@@ -84,6 +89,8 @@ Located in `scripts/`:
 8. **lookup_dwpc_api.py** - API-based DWPC lookup
 9. **pipeline_publication.py** - Full publication pipeline runner
 10. **pipeline_production.py** - Full production pipeline runner
+11. **pipeline_year_experiment.py** - Staged year-comparison experiment runner
+12. **year_null_variance_experiment.py** - Year null-variance analysis runner
 
 ### Dataset naming
 
@@ -227,6 +234,12 @@ across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
 poe lv-null-variance-exp
 ```
 
+For a full-metapath run (no per-target metapath cap):
+
+```bash
+poe lv-null-variance-exp-all-metapaths
+```
+
 Required environment variable:
 
 ```bash
@@ -253,6 +266,12 @@ across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
 poe lv-rank-stability-exp
 ```
 
+For a full-metapath run (no per-target metapath cap):
+
+```bash
+poe lv-rank-stability-exp-all-metapaths
+```
+
 By default, this experiment ranks top pairs for path extraction using
 `pair_rank_metric=contrast_min` (conservative null contrast), not raw DWPC.
 
@@ -274,6 +293,35 @@ Outputs are written under:
 - `output/lv_rank_stability_exp/rank_stability_experiment/metapath_topk_jaccard_vs_b.png`
 - `output/lv_rank_stability_exp/rank_stability_experiment/path_selection_jaccard_vs_b.png`
 - `output/lv_rank_stability_exp/rank_stability_experiment/path_rank_sd_vs_b.png`
+
+### Year experiment pipeline
+
+Run the staged year comparison pipeline (2016 vs 2024) with null generation,
+direct DWPC computation, and downstream metapath analyses:
+
+```bash
+poe pipeline-year-exp
+```
+
+### Year null-variance plots
+
+To generate LV-style variance plots for the year experiment, first generate
+multiple null replicates, then compute DWPC and run:
+
+```bash
+N_PERMUTATIONS=20 poe gen-permutation
+N_RANDOM_SAMPLES=20 poe gen-random
+poe compute-dwpc-direct
+poe year-null-variance-exp
+```
+
+Outputs are written under:
+
+- `output/year_null_variance_exp/year_null_variance_experiment/all_runs_long.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/feature_variance_summary.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/overall_variance_summary.csv`
+- `output/year_null_variance_exp/year_null_variance_experiment/variance_overall_by_group.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/sd_overall_by_group.png`
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

@@ -44,6 +44,7 @@
 import pandas as pd
 import numpy as np
 import sys
+import os
 from pathlib import Path
 
 # Setup repo root for consistent paths
@@ -68,6 +69,10 @@ from src.random_sampling import (
 
 print(f'Repo root: {repo_root}')
 print('Environment setup complete')
+N_RANDOM_SAMPLES = int(os.getenv('N_RANDOM_SAMPLES', '1'))
+if N_RANDOM_SAMPLES < 1:
+    raise ValueError('N_RANDOM_SAMPLES must be >= 1')
+print(f'N_RANDOM_SAMPLES={N_RANDOM_SAMPLES}')
 
 # %% [markdown]
 # ## Load Data
@@ -162,16 +167,16 @@ for _, row in top_2024.iterrows():
 # %% [markdown]
 # ## Generate Random Samples for 2016
 #
-# Generate 1 independent random sample with a fixed random seed.
+# Generate N independent random samples with fixed random seeds.
 
 # %%
-print('Generating 1 promiscuity-controlled random sample for 2016...')
+print(f'Generating {N_RANDOM_SAMPLES} promiscuity-controlled random sample(s) for 2016...')
 print('=' * 80)
 
 random_samples_2016 = []
 
-for i in range(1, 2):
-    print(f'\nGenerating random sample {i}/1...')
+for i in range(1, N_RANDOM_SAMPLES + 1):
+    print(f'\nGenerating random sample {i}/{N_RANDOM_SAMPLES}...')
     
     random_sample = generate_promiscuity_controlled_samples(
         go_gene_df=real_2016,
@@ -195,16 +200,16 @@ print('\n2016 random sample complete')
 # %% [markdown]
 # ## Generate Random Samples for 2024
 #
-# Generate 1 independent random sample for 2024 data.
+# Generate N independent random samples for 2024 data.
 
 # %%
-print('Generating 1 promiscuity-controlled random sample for 2024...')
+print(f'Generating {N_RANDOM_SAMPLES} promiscuity-controlled random sample(s) for 2024...')
 print('=' * 80)
 
 random_samples_2024 = []
 
-for i in range(1, 2):
-    print(f'\nGenerating random sample {i}/1...')
+for i in range(1, N_RANDOM_SAMPLES + 1):
+    print(f'\nGenerating random sample {i}/{N_RANDOM_SAMPLES}...')
     
     random_sample = generate_promiscuity_controlled_samples(
         go_gene_df=real_2024,
@@ -354,15 +359,15 @@ print('NOTEBOOK 1.5 COMPLETE')
 print('=' * 80)
 
 print('\nGenerated Control Datasets:')
-print('  Permuted datasets (1.4): 1 permutation per year (shuffle GO labels)')
-print('  Random datasets (1.5): 1 random sample per year (promiscuity-controlled)')
-print('  Total: 4 control datasets + 2 real datasets = 6 datasets')
+print('  Permuted datasets (1.4): N permutations per year (shuffle GO labels)')
+print(f'  Random datasets (1.5): {N_RANDOM_SAMPLES} random sample(s) per year (promiscuity-controlled)')
+print(f'  Total: {2 + 2 * N_RANDOM_SAMPLES} control+real datasets (plus permutations generated separately)')
 
 print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv')
-print('  output/random_samples/all_GO_positive_growth_2016/random_001.csv')
-print('  output/random_samples/all_GO_positive_growth_2024/random_001.csv')
+print('  output/permutations/all_GO_positive_growth_2016/perm_###.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_###.csv')
+print('  output/random_samples/all_GO_positive_growth_2016/random_###.csv')
+print('  output/random_samples/all_GO_positive_growth_2024/random_###.csv')
 
 print('\nNext Steps:')
 print('  Run script 2 to compute DWPC for all datasets')

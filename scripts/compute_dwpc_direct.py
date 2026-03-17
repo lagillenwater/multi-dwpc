@@ -32,7 +32,6 @@
 # - Full control over damping parameter
 
 # %%
-import os
 import sys
 import time
 from pathlib import Path
@@ -115,8 +114,8 @@ print(bp_nodes.head())
 
 # %%
 # Define metapaths to compute
-# Use all BP->G metapaths (length <= 3) from the metapath stats file,
-# excluding the direct BPpG path, then reverse to G->BP for direct computation.
+# Use all BP->G metapaths from the metapath stats file,
+# excluding direct BPpG, then reverse to G->BP for direct computation.
 metapath_stats = pd.read_csv(DATA_DIR / "metapath-dwpc-stats.tsv", sep="\t")
 bp_to_g = metapath_stats[
     metapath_stats["metapath"].str.startswith("BP")

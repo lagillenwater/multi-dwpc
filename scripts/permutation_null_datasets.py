@@ -58,6 +58,10 @@ from src.random_sampling import permute_go_labels
 
 print(f'Repo root: {repo_root}')
 print('Environment setup complete')
+N_PERMUTATIONS = int(os.getenv('N_PERMUTATIONS', '1'))
+if N_PERMUTATIONS < 1:
+    raise ValueError('N_PERMUTATIONS must be >= 1')
+print(f'N_PERMUTATIONS={N_PERMUTATIONS}')
 
 # %%
 # Load All GO Positive Growth filtered data (both years)
@@ -87,16 +91,16 @@ print('\nData validation passed')
 # %% [markdown]
 # ## Generate Permutations for 2016
 #
-# Create 1 permuted dataset by shuffling GO labels among genes.
+# Create N permuted datasets by shuffling GO labels among genes.
 
 # %%
-# Generate 1 permutation for 2016
-print('\nGenerating 1 permutation for 2016...')
+# Generate N permutations for 2016
+print(f'\nGenerating {N_PERMUTATIONS} permutation(s) for 2016...')
 print('=' * 80)
 
 permuted_2016 = permute_go_labels(
     go_gene_df=real_2016,
-    n_permutations=1,
+    n_permutations=N_PERMUTATIONS,
     go_id_col='go_id',
     gene_id_col='entrez_gene_id',
     random_state=42
@@ -116,16 +120,16 @@ print('\n2016 permutations complete')
 # %% [markdown]
 # ## Generate Permutations for 2024
 #
-# Create 1 permuted dataset for 2024 data.
+# Create N permuted datasets for 2024 data.
 
 # %%
-# Generate 1 permutation for 2024
-print('\nGenerating 1 permutation for 2024...')
+# Generate N permutations for 2024
+print(f'\nGenerating {N_PERMUTATIONS} permutation(s) for 2024...')
 print('=' * 80)
 
 permuted_2024 = permute_go_labels(
     go_gene_df=real_2024,
-    n_permutations=1,
+    n_permutations=N_PERMUTATIONS,
     go_id_col='go_id',
     gene_id_col='entrez_gene_id',
     random_state=42
@@ -252,7 +256,7 @@ perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
 perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
 
 print(f'\n2016 Real: {len(real_2016):,} associations')
-for i in range(1, 2):
+for i in range(1, N_PERMUTATIONS + 1):
     perm = pd.read_csv(perm_dir_2016 / f'perm_{i:03d}.csv')
     if len(perm) == len(real_2016):
         print(f'  Permutation {i}: {len(perm):,} associations')
@@ -260,7 +264,7 @@ for i in range(1, 2):
         print(f'  Permutation {i}: {len(perm):,} associations (expected {len(real_2016):,})')
 
 print(f'\n2024 Real: {len(real_2024):,} associations')
-for i in range(1, 2):
+for i in range(1, N_PERMUTATIONS + 1):
     perm = pd.read_csv(perm_dir_2024 / f'perm_{i:03d}.csv')
     if len(perm) == len(real_2024):
         print(f'  Permutation {i}: {len(perm):,} associations')
@@ -274,13 +278,13 @@ print('NOTEBOOK 1.4 COMPLETE')
 print('=' * 80)
 
 print('\nGenerated Permuted Datasets:')
-print('  2016: 1 permutation')
-print('  2024: 1 permutation')
-print('  Total: 2 permuted datasets + 2 real datasets = 4 datasets')
+print(f'  2016: {N_PERMUTATIONS} permutation(s)')
+print(f'  2024: {N_PERMUTATIONS} permutation(s)')
+print(f'  Total: {2 * N_PERMUTATIONS} permuted datasets + 2 real datasets = {2 * N_PERMUTATIONS + 2} datasets')
 
 print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_001.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_001.csv')
+print('  output/permutations/all_GO_positive_growth_2016/perm_###.csv')
+print('  output/permutations/all_GO_positive_growth_2024/perm_###.csv')
 
 print('\nValidation Results:')
 print('  GO term sizes preserved')

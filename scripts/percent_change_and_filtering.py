@@ -57,9 +57,51 @@ from src.filtering import (
 print(f"Repo root: {repo_root}")
 
 # %% papermill={"duration": 0.017992, "end_time": "2025-12-05T22:40:21.339007", "exception": false, "start_time": "2025-12-05T22:40:21.321015", "status": "completed"}
-com_go_terms_hetio_upd_go_bp_2024 = pd.read_csv(
-    repo_root / 'output/intermediate/common_go_terms.csv'
-)
+common_terms_path = repo_root / 'output/intermediate/common_go_terms.csv'
+genes_2016_path = repo_root / 'output/intermediate/hetio_bppg_2016.csv'
+genes_2024_path = repo_root / 'output/intermediate/upd_go_bp_2024.csv'
+
+if common_terms_path.exists():
+    com_go_terms_hetio_upd_go_bp_2024 = pd.read_csv(common_terms_path)
+else:
+    print(f"Missing {common_terms_path}; rebuilding from gene-level files.")
+    missing_inputs = [
+        str(path) for path in (genes_2016_path, genes_2024_path) if not path.exists()
+    ]
+    if missing_inputs:
+        raise FileNotFoundError(
+            "Cannot rebuild common_go_terms.csv because required inputs are missing:\n"
+            + "\n".join(missing_inputs)
+            + "\nRun `poe load-data` first."
+        )
+
+    genes_2016_for_common = pd.read_csv(genes_2016_path, usecols=['go_id'])
+    genes_2024_for_common = pd.read_csv(genes_2024_path, usecols=['go_id'])
+
+    hetio_freq = (
+        genes_2016_for_common
+        .groupby('go_id')
+        .size()
+        .reset_index(name='no_of_genes_in_hetio_GO_2016')
+    )
+    upd_freq = (
+        genes_2024_for_common
+        .groupby('go_id')
+        .size()
+        .reset_index(name='no_of_genes_in_GO_2024')
+    )
+    com_go_terms_hetio_upd_go_bp_2024 = pd.merge(
+        hetio_freq,
+        upd_freq,
+        on='go_id',
+        how='inner'
+    )
+    common_terms_path.parent.mkdir(parents=True, exist_ok=True)
+    com_go_terms_hetio_upd_go_bp_2024.to_csv(common_terms_path, index=False)
+    print(
+        "Rebuilt and saved common_go_terms.csv: "
+        f"{len(com_go_terms_hetio_upd_go_bp_2024)} GO terms"
+    )
 
 print(f'Loaded {len(com_go_terms_hetio_upd_go_bp_2024)} GO terms')
 
@@ -80,8 +122,8 @@ print(f'Loaded {len(com_go_terms_hetio_upd_go_bp_2024)} GO terms')
 print("Loading gene-level data for classification...")
 print("=" * 60)
 
-genes_2016 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_2016.csv')
-genes_2024 = pd.read_csv(repo_root / 'output/intermediate/upd_go_bp_2024.csv')
+genes_2016 = pd.read_csv(genes_2016_path)
+genes_2024 = pd.read_csv(genes_2024_path)
 
 print(f"2016 GO-gene pairs: {len(genes_2016):,}")
 print(f"2024 GO-gene pairs: {len(genes_2024):,}")
