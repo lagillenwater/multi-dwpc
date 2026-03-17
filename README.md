@@ -266,10 +266,18 @@ metapath-summary artifact per replicate under:
 For HPC, the intended order is:
 
 1. generate the year control datasets
-2. warm the shared DWPC cache once
+2. warm the shared DWPC cache across metapaths
 3. build the dataset manifest
 4. submit the dataset array
 5. run year variance and rank-stability
+
+Recommended warmup sequence:
+
+```bash
+mkdir -p output/dwpc_direct/all_GO_positive_growth
+python scripts/compute_dwpc_direct.py --list-metapaths > output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt
+sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt)-1)) hpc/year_dwpc_cache_warmup_array.sbatch
+```
 
 The dataset array assumes a warm cache and uses read-only cache access.
 

@@ -240,7 +240,9 @@ def parse_args() -> argparse.Namespace:
         help="Read cached DWPC matrices from disk but do not write new cache files.",
     )
     parser.add_argument("--list-datasets", action="store_true", help="List dataset names in deterministic order and exit.")
+    parser.add_argument("--list-metapaths", action="store_true", help="List year metapaths in deterministic order and exit.")
     parser.add_argument("--dataset-name", default=None, help="Process exactly one named dataset.")
+    parser.add_argument("--warmup-metapath", default=None, help="Warm exactly one metapath cache entry, then exit.")
     parser.add_argument(
         "--warmup-cache",
         action="store_true",
@@ -257,6 +259,12 @@ def main() -> None:
     results_dir = output_dir / "results"
     summaries_dir = output_dir / "replicate_summaries"
     manifest_path = output_dir / "replicate_manifest.csv"
+
+    metapaths = _load_metapaths(data_dir)
+    if args.list_metapaths:
+        for metapath in metapaths:
+            print(metapath)
+        return
 
     datasets = _discover_datasets(REPO_ROOT, intermediate_dir)
     if args.list_datasets:
@@ -288,7 +296,6 @@ def main() -> None:
         status = "EXISTS" if Path(ds["path"]).exists() else "MISSING"
         print(f"  {ds['name']}: {status}")
 
-    metapaths = _load_metapaths(data_dir)
     print(f"Computing {len(metapaths)} metapaths")
 
     hetmat = HetMat(
@@ -302,13 +309,24 @@ def main() -> None:
     gene_id_to_idx = dict(zip(gene_nodes["identifier"], gene_nodes["position"]))
     bp_id_to_idx = dict(zip(bp_nodes["identifier"], bp_nodes["position"]))
 
+    if args.warmup_metapath:
+        if args.warmup_metapath not in metapaths:
+            available = "\n  - ".join(metapaths)
+            raise ValueError(
+                f"Unknown metapath for warmup: {args.warmup_metapath}\nAvailable metapaths:\n  - {available}"
+            )
+        metapaths = [args.warmup_metapath]
+
     print("Precomputing DWPC matrices...")
     precompute_start = time.perf_counter()
     hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
     print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
 
-    if args.warmup_cache:
-        print("Cache warmup complete; exiting without dataset processing.")
+    if args.warmup_cache or args.warmup_metapath:
+        if args.warmup_metapath:
+            print(f"Cache warmup complete for metapath {args.warmup_metapath}; exiting without dataset processing.")
+        else:
+            print("Cache warmup complete; exiting without dataset processing.")
         return
 
     all_summaries = []

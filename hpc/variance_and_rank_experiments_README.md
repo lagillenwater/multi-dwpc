@@ -213,10 +213,12 @@ sbatch --array=0-19 hpc/year_permutations_array.sbatch
 sbatch --array=0-19 hpc/year_random_controls_array.sbatch
 ```
 
-#### Step 2: warm the shared DWPC cache
+#### Step 2: warm the shared DWPC cache across metapaths
 
 ```bash
-sbatch hpc/year_dwpc_cache_warmup.sbatch
+mkdir -p output/dwpc_direct/all_GO_positive_growth
+python scripts/compute_dwpc_direct.py --list-metapaths > output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt
+sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt)-1)) hpc/year_dwpc_cache_warmup_array.sbatch
 ```
 
 #### Step 3: compute per-replicate DWPC and summary artifacts
@@ -229,7 +231,7 @@ sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_
 
 Notes:
 
-- warmup builds the shared `data/dwpc_cache/` once
+- the metapath warmup array builds the shared `data/dwpc_cache/` one metapath at a time
 - the dataset array assumes that cache already exists
 - array tasks use read-only cache access and conservative worker defaults
 

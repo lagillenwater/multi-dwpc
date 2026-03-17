@@ -9,8 +9,10 @@
 
 set -euo pipefail
 
-# Warm the shared cache once, then create the manifest and submit the array:
-#   sbatch hpc/year_dwpc_cache_warmup.sbatch
+# Warm the shared cache once across metapaths, then create the dataset manifest and submit the array:
+#   mkdir -p output/dwpc_direct/all_GO_positive_growth
+#   python scripts/compute_dwpc_direct.py --list-metapaths > output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt
+#   sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/metapath_manifest.txt)-1)) hpc/year_dwpc_cache_warmup_array.sbatch
 #   python3 scripts/compute_dwpc_direct.py --list-datasets > output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt
 #   sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt)-1)) hpc/year_dwpc_array.sbatch
 # Optional: export AUTO_AGGREGATE=1 to submit year-null-variance-exp after the array completes.
