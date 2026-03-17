@@ -55,6 +55,7 @@ Run `poe --help` to see all available tasks:
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
 | `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
+| `warmup-dwpc-cache` | Precompute and cache year DWPC metapath matrices only |
 | `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
 | `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
@@ -251,6 +252,7 @@ Generate null replicate artifacts:
 ```bash
 N_PERMUTATIONS=20 poe gen-permutation
 N_RANDOM_SAMPLES=20 poe gen-random
+poe warmup-dwpc-cache
 poe compute-dwpc-direct
 ```
 
@@ -260,6 +262,16 @@ metapath-summary artifact per replicate under:
 - `output/dwpc_direct/all_GO_positive_growth/results/`
 - `output/dwpc_direct/all_GO_positive_growth/replicate_summaries/`
 - `output/dwpc_direct/all_GO_positive_growth/replicate_manifest.csv`
+
+For HPC, the intended order is:
+
+1. generate the year control datasets
+2. warm the shared DWPC cache once
+3. build the dataset manifest
+4. submit the dataset array
+5. run year variance and rank-stability
+
+The dataset array assumes a warm cache and uses read-only cache access.
 
 Run the downstream analyses:
 
@@ -335,7 +347,7 @@ Key outputs:
 
 The full mirrored LV/year workflow, including HPC submission order, is documented in:
 
-- [`docs/variance_and_rank_experiments_README.md`](docs/variance_and_rank_experiments_README.md)
+- [`hpc/variance_and_rank_experiments_README.md`](hpc/variance_and_rank_experiments_README.md)
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

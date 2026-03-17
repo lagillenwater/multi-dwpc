@@ -234,8 +234,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Output directory.")
     parser.add_argument("--damping", type=float, default=DEFAULT_DAMPING, help="DWPC damping exponent.")
     parser.add_argument("--n-workers", type=int, default=DEFAULT_N_WORKERS, help="Parallel workers for matrix precompute.")
+    parser.add_argument(
+        "--read-only-cache",
+        action="store_true",
+        help="Read cached DWPC matrices from disk but do not write new cache files.",
+    )
     parser.add_argument("--list-datasets", action="store_true", help="List dataset names in deterministic order and exit.")
     parser.add_argument("--dataset-name", default=None, help="Process exactly one named dataset.")
+    parser.add_argument(
+        "--warmup-cache",
+        action="store_true",
+        help="Precompute and cache all year metapath DWPC matrices, then exit without processing datasets.",
+    )
     return parser.parse_args()
 
 
@@ -281,7 +291,12 @@ def main() -> None:
     metapaths = _load_metapaths(data_dir)
     print(f"Computing {len(metapaths)} metapaths")
 
-    hetmat = HetMat(data_dir, damping=float(args.damping), use_disk_cache=True)
+    hetmat = HetMat(
+        data_dir,
+        damping=float(args.damping),
+        use_disk_cache=True,
+        write_disk_cache=not args.read_only_cache,
+    )
     gene_nodes = hetmat.get_nodes("Gene")
     bp_nodes = hetmat.get_nodes("Biological Process")
     gene_id_to_idx = dict(zip(gene_nodes["identifier"], gene_nodes["position"]))
@@ -291,6 +306,10 @@ def main() -> None:
     precompute_start = time.perf_counter()
     hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
     print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
+
+    if args.warmup_cache:
+        print("Cache warmup complete; exiting without dataset processing.")
+        return
 
     all_summaries = []
     manifest_rows = []

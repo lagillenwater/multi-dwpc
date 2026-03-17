@@ -9,10 +9,12 @@
 
 set -euo pipefail
 
-# Create the manifest, then submit with array size based on its line count:
+# Warm the shared cache once, then create the manifest and submit the array:
+#   sbatch hpc/year_dwpc_cache_warmup.sbatch
 #   python3 scripts/compute_dwpc_direct.py --list-datasets > output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt
 #   sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt)-1)) hpc/year_dwpc_array.sbatch
 # Optional: export AUTO_AGGREGATE=1 to submit year-null-variance-exp after the array completes.
+# This array assumes the shared DWPC cache is already warm.
 
 REPO_ROOT="${REPO_ROOT:-$SLURM_SUBMIT_DIR}"
 OUTPUT_DIR="${YEAR_DWPC_OUTPUT_DIR:-output/dwpc_direct/all_GO_positive_growth}"
@@ -46,4 +48,5 @@ fi
 $PYTHON_EXE scripts/compute_dwpc_direct.py \
   --output-dir "$OUTPUT_DIR" \
   --dataset-name "$DATASET_NAME" \
-  --n-workers "${YEAR_DWPC_N_WORKERS:-1}"
+  --read-only-cache \
+  --n-workers "${YEAR_DWPC_N_WORKERS:-2}"

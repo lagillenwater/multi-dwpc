@@ -99,7 +99,13 @@ This writes:
 - `output/random_samples/all_GO_positive_growth_2016/random_###.csv`
 - `output/random_samples/all_GO_positive_growth_2024/random_###.csv`
 
-#### Step 2: compute per-replicate DWPC outputs and metapath summaries
+#### Step 2: warm the shared DWPC cache
+
+```bash
+poe warmup-dwpc-cache
+```
+
+#### Step 3: compute per-replicate DWPC outputs and metapath summaries
 
 ```bash
 poe compute-dwpc-direct
@@ -111,13 +117,13 @@ This now writes both pair-level DWPC files and per-replicate summary files:
 - `output/dwpc_direct/all_GO_positive_growth/replicate_summaries/summary_*.csv`
 - `output/dwpc_direct/all_GO_positive_growth/replicate_manifest.csv`
 
-#### Step 3: variance
+#### Step 4: variance
 
 ```bash
 poe year-null-variance-exp
 ```
 
-#### Step 4: rank stability
+#### Step 5: rank stability
 
 ```bash
 poe year-rank-stability-exp
@@ -203,11 +209,17 @@ This ranks metapaths by `diff` for each `(control, B, seed, LV, target set)` and
 #### Step 1: generate controls
 
 ```bash
-sbatch --array=0-2 hpc/year_permutations_array.sbatch
-sbatch --array=0-2 hpc/year_random_controls_array.sbatch
+sbatch --array=0-19 hpc/year_permutations_array.sbatch
+sbatch --array=0-19 hpc/year_random_controls_array.sbatch
 ```
 
-#### Step 2: compute per-replicate DWPC and summary artifacts
+#### Step 2: warm the shared DWPC cache
+
+```bash
+sbatch hpc/year_dwpc_cache_warmup.sbatch
+```
+
+#### Step 3: compute per-replicate DWPC and summary artifacts
 
 ```bash
 mkdir -p output/dwpc_direct/all_GO_positive_growth
@@ -215,7 +227,13 @@ python scripts/compute_dwpc_direct.py --list-datasets > output/dwpc_direct/all_G
 sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt)-1)) hpc/year_dwpc_array.sbatch
 ```
 
-#### Step 3: aggregate variance and rank stability
+Notes:
+
+- warmup builds the shared `data/dwpc_cache/` once
+- the dataset array assumes that cache already exists
+- array tasks use read-only cache access and conservative worker defaults
+
+#### Step 4: aggregate variance and rank stability
 
 ```bash
 sbatch hpc/year_null_variance.sbatch
