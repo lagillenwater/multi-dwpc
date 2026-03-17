@@ -87,6 +87,9 @@ else:
 
 data_dir = repo_root / "data"
 output_dir = repo_root / "output" / "intermediate"
+hetio_2016_out = output_dir / "hetio_bppg_2016.csv"
+upd_2024_out = output_dir / "upd_go_bp_2024.csv"
+common_terms_out = output_dir / "common_go_terms.csv"
 data_dir.mkdir(exist_ok=True)
 output_dir.mkdir(parents=True, exist_ok=True)
 print(f"Data directory: {data_dir.resolve()}")
@@ -152,6 +155,11 @@ print(f"PASSED: Unique genes ({gene_count}) and GO terms ({go_count})")
 
 print("\nAll tests PASSED")
 
+# Persist 2016 associations immediately so downstream stages have a stable input
+# even if later 2024 processing is interrupted.
+hetio_BPpG_df.to_csv(hetio_2016_out, index=False)
+print(f"Saved {hetio_2016_out.name}: {len(hetio_BPpG_df)} rows")
+
 # %% [markdown] papermill={"duration": 0.003343, "end_time": "2025-12-05T20:29:41.830511", "exception": false, "start_time": "2025-12-05T20:29:41.827168", "status": "completed"}
 # ### Count the number of genes associated with each GO (BP) term
 # This section counts how many genes are associated with each GO term in Hetio (2016) and displays the resulting DataFrame.
@@ -160,7 +168,8 @@ print("\nAll tests PASSED")
 hetio_bp_g_freq_df = hetio_BPpG_df['go_id'].value_counts().reset_index()
 hetio_bp_g_freq_df.columns = ['go_id', 'no_of_genes_in_hetio_GO_2016']
 
-print(hetio_bp_g_freq_df)
+print(hetio_bp_g_freq_df.head())
+print(f"2016 GO terms counted: {len(hetio_bp_g_freq_df)}")
 
 # %% [markdown] papermill={"duration": 0.003509, "end_time": "2025-12-05T20:29:41.862267", "exception": false, "start_time": "2025-12-05T20:29:41.858758", "status": "completed"}
 # ### Read updated Biological Process (BP) GO terms (2024)
@@ -169,7 +178,18 @@ print(hetio_bp_g_freq_df)
 # %% papermill={"duration": 2.538711, "end_time": "2025-12-05T20:29:44.404314", "exception": false, "start_time": "2025-12-05T20:29:41.865603", "status": "completed"}
 # Load 2024 GO annotations with error handling
 try:
-    upd_go_2024_raw = pd.read_csv(GO_2024_URL, sep='\t')
+    upd_go_2024_raw = pd.read_csv(
+        GO_2024_URL,
+        sep='\t',
+        usecols=['go_id', 'go_name', 'go_domain', 'gene_ids', 'gene_symbols'],
+        dtype={
+            'go_id': 'string',
+            'go_name': 'string',
+            'go_domain': 'string',
+            'gene_ids': 'string',
+            'gene_symbols': 'string',
+        },
+    )
 except Exception as e:
     raise RuntimeError(f"Failed to fetch GO 2024 annotations: {e}")
 
@@ -233,6 +253,11 @@ upd_go_bp_2024_freq_df = upd_go_bp_2024_freq_df[
 ]
 print(f"After filtering to Hetionet terms: {len(upd_go_bp_2024_df)} pairs "
       f"({len(upd_go_bp_2024_freq_df)} terms)")
+
+# Persist 2024 associations before common-gene harmonization so users retain
+# a usable intermediate if later steps fail.
+upd_go_bp_2024_df.to_csv(upd_2024_out, index=False)
+print(f"Saved {upd_2024_out.name}: {len(upd_go_bp_2024_df)} rows (pre common-gene filter)")
 
 upd_go_bp_2024_df.head()
 
@@ -302,15 +327,15 @@ common_terms_df
 print('Saving intermediate outputs...')
 
 # Save 2016 BP-Gene associations
-hetio_BPpG_df.to_csv(output_dir / 'hetio_bppg_2016.csv', index=False)
-print(f'Saved hetio_bppg_2016.csv: {len(hetio_BPpG_df)} rows')
+hetio_BPpG_df.to_csv(hetio_2016_out, index=False)
+print(f'Saved {hetio_2016_out.name}: {len(hetio_BPpG_df)} rows')
 
 # Save 2024 BP-Gene associations
-upd_go_bp_2024_df.to_csv(output_dir / 'upd_go_bp_2024.csv', index=False)
-print(f'Saved upd_go_bp_2024.csv: {len(upd_go_bp_2024_df)} rows')
+upd_go_bp_2024_df.to_csv(upd_2024_out, index=False)
+print(f'Saved {upd_2024_out.name}: {len(upd_go_bp_2024_df)} rows')
 
 # Save common GO terms with both 2016 and 2024 counts
-common_terms_df.to_csv(output_dir / 'common_go_terms.csv', index=False)
-print(f'Saved common_go_terms.csv: {len(common_terms_df)} GO terms')
+common_terms_df.to_csv(common_terms_out, index=False)
+print(f'Saved {common_terms_out.name}: {len(common_terms_df)} GO terms')
 
 print('\n Data loading complete!')
