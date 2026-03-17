@@ -60,10 +60,16 @@ Run `poe --help` to see all available tasks:
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
 | `benchmark-dwpc` | Benchmark direct vs API computation |
 | `year-null-variance-exp` | Year-based null variance analysis across perm/random replicates |
-| `lv-null-variance-exp` | LV null variance sweep across fixed replicate counts |
-| `lv-rank-stability-exp` | LV metapath/path rank-stability sweep |
-| `lv-null-variance-exp-all-metapaths` | LV null variance sweep across all metapaths |
-| `lv-rank-stability-exp-all-metapaths` | LV rank-stability sweep across all metapaths |
+| `year-rank-stability-exp` | Year-based metapath rank-stability analysis across perm/random replicates |
+| `lv-prepare-exp` | Prepare shared LV inputs for explicit null-replicate experiments |
+| `lv-gen-permutation` | Generate explicit LV permuted replicate artifacts |
+| `lv-gen-random` | Generate explicit LV random replicate artifacts |
+| `lv-compute-replicate-summaries` | Compute one LV metapath-summary artifact per replicate |
+| `lv-null-variance-exp` | LV null variance analysis from explicit replicate summaries |
+| `lv-rank-stability-exp` | LV metapath rank-stability analysis from explicit replicate summaries |
+| `lv-prepare-exp-all-metapaths` | Prepare shared LV inputs across all metapaths |
+| `lv-null-variance-exp-all-metapaths` | LV null variance analysis for all-metapath prepared workspace |
+| `lv-rank-stability-exp-all-metapaths` | LV rank-stability analysis for all-metapath prepared workspace |
 | `pipeline-year-exp` | Run staged year-comparison experiment pipeline |
 | `pipeline-production` | Run full production pipeline |
 | `pipeline-publication` | Run full publication pipeline |
@@ -91,6 +97,7 @@ Located in `scripts/`:
 10. **pipeline_production.py** - Full production pipeline runner
 11. **pipeline_year_experiment.py** - Staged year-comparison experiment runner
 12. **year_null_variance_experiment.py** - Year null-variance analysis runner
+13. **year_rank_stability_experiment.py** - Year metapath rank-stability analysis runner
 
 ### Dataset naming
 
@@ -225,75 +232,6 @@ Outputs are written to `output/benchmark_plots/`, including:
 - `benchmark_summary_by_metapath.csv`
 - `benchmark_speedup_summary.csv`
 
-### LV null-variance experiment
-
-Run a compact LV experiment to measure variance of `diff_perm` and `diff_rand`
-across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
-
-```bash
-poe lv-null-variance-exp
-```
-
-For a full-metapath run (no per-target metapath cap):
-
-```bash
-poe lv-null-variance-exp-all-metapaths
-```
-
-Required environment variable:
-
-```bash
-export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
-```
-
-Outputs are written under:
-
-- `output/lv_null_variance_exp/null_variance_experiment/all_runs_wide.csv`
-- `output/lv_null_variance_exp/null_variance_experiment/all_runs_long.csv`
-- `output/lv_null_variance_exp/null_variance_experiment/feature_variance_summary.csv`
-- `output/lv_null_variance_exp/null_variance_experiment/overall_variance_summary.csv`
-- `output/lv_null_variance_exp/null_variance_experiment/variance_overall_by_b.png`
-- `output/lv_null_variance_exp/null_variance_experiment/sd_overall_by_b.png`
-- `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_permuted.png`
-- `output/lv_null_variance_exp/null_variance_experiment/sd_by_b_per_feature_random.png`
-
-### LV rank-stability experiment
-
-Run a compact LV experiment to measure metapath-rank and path-instance stability
-across fixed null replicate counts (`B = 1,2,5,10,20,50`) and multiple seeds:
-
-```bash
-poe lv-rank-stability-exp
-```
-
-For a full-metapath run (no per-target metapath cap):
-
-```bash
-poe lv-rank-stability-exp-all-metapaths
-```
-
-By default, this experiment ranks top pairs for path extraction using
-`pair_rank_metric=contrast_min` (conservative null contrast), not raw DWPC.
-
-Required environment variable:
-
-```bash
-export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
-```
-
-Outputs are written under:
-
-- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_runs.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/top_pairs_runs.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/top_paths_runs.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_stability_by_b.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/path_selection_stability_by_b.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/path_rank_variability_by_b.csv`
-- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_spearman_vs_b.png`
-- `output/lv_rank_stability_exp/rank_stability_experiment/metapath_topk_jaccard_vs_b.png`
-- `output/lv_rank_stability_exp/rank_stability_experiment/path_selection_jaccard_vs_b.png`
-- `output/lv_rank_stability_exp/rank_stability_experiment/path_rank_sd_vs_b.png`
-
 ### Year experiment pipeline
 
 Run the staged year comparison pipeline (2016 vs 2024) with null generation,
@@ -303,25 +241,101 @@ direct DWPC computation, and downstream metapath analyses:
 poe pipeline-year-exp
 ```
 
-### Year null-variance plots
+### Unified year experiment workflow
 
-To generate LV-style variance plots for the year experiment, first generate
-multiple null replicates, then compute DWPC and run:
+The year workflow follows the same explicit-replicate pattern as LV, but on the
+`GO term x gene` bipartite graph.
+
+Generate null replicate artifacts:
 
 ```bash
 N_PERMUTATIONS=20 poe gen-permutation
 N_RANDOM_SAMPLES=20 poe gen-random
 poe compute-dwpc-direct
-poe year-null-variance-exp
 ```
+
+`compute-dwpc-direct` now writes both pair-level DWPC outputs and one
+metapath-summary artifact per replicate under:
+
+- `output/dwpc_direct/all_GO_positive_growth/results/`
+- `output/dwpc_direct/all_GO_positive_growth/replicate_summaries/`
+- `output/dwpc_direct/all_GO_positive_growth/replicate_manifest.csv`
+
+Run the downstream analyses:
+
+```bash
+poe year-null-variance-exp
+poe year-rank-stability-exp
+```
+
+Use `20` null replicates by default for both year and LV so the workflows stay parallel. Increase that explicitly for final production runs if you need tighter stability estimates.
 
 Outputs are written under:
 
-- `output/year_null_variance_exp/year_null_variance_experiment/all_runs_long.csv`
-- `output/year_null_variance_exp/year_null_variance_experiment/feature_variance_summary.csv`
-- `output/year_null_variance_exp/year_null_variance_experiment/overall_variance_summary.csv`
-- `output/year_null_variance_exp/year_null_variance_experiment/variance_overall_by_group.png`
-- `output/year_null_variance_exp/year_null_variance_experiment/sd_overall_by_group.png`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/all_runs_long.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/metapath_rank_table.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/pairwise_metrics.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/go_term_stability_summary.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/overall_stability_summary.csv`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/spearman_overall_by_group.png`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/topk_jaccard_overall_by_group.png`
+
+### Unified LV experiment workflow
+
+The LV experiment now mirrors the year experiment:
+
+1. prepare shared inputs
+2. generate explicit null replicate artifacts
+3. compute one metapath-summary artifact per replicate
+4. run variance analysis
+5. run rank-stability analysis
+
+Prepare once:
+
+```bash
+export LV_LOADINGS_PATH=data/lv_loadings/multiplier_model_z.tsv.gz
+poe lv-prepare-exp
+```
+
+Generate explicit LV null artifacts:
+
+```bash
+LV_N_REPLICATES=20 poe lv-gen-permutation
+LV_N_REPLICATES=20 poe lv-gen-random
+```
+
+Compute one summary file per replicate artifact:
+
+```bash
+poe lv-compute-replicate-summaries
+```
+
+Run the two downstream analyses:
+
+```bash
+poe lv-null-variance-exp
+poe lv-rank-stability-exp
+```
+
+All-metapath preparation:
+
+```bash
+LV_OUTPUT_DIR=output/lv_experiment_all_metapaths poe lv-prepare-exp-all-metapaths
+```
+
+Key outputs:
+
+- `output/lv_experiment/replicate_manifest.csv`
+- `output/lv_experiment/replicate_artifacts/`
+- `output/lv_experiment/replicate_summaries/`
+- `output/lv_experiment/lv_null_variance_experiment/feature_variance_summary.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/overall_stability_summary.csv`
+
+### Experiment runbook
+
+The full mirrored LV/year workflow, including HPC submission order, is documented in:
+
+- [`docs/variance_and_rank_experiments_README.md`](docs/variance_and_rank_experiments_README.md)
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.

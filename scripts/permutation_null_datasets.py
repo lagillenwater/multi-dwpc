@@ -1,296 +1,96 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.18.1
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
+#!/usr/bin/env python3
+"""Generate degree-preserving year permutation datasets."""
 
-# %% [markdown]
-# # Generate Permuted GO-Label Datasets
-#
-# Generate permuted GO-gene associations for null distribution analysis.
-#
-# ## Inputs
-# - `output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv` (2016)
-# - `output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv` (2024)
-#
-# ## Outputs
-# - `output/permutations/all_GO_positive_growth_2016/perm_001.csv`
-# - `output/permutations/all_GO_positive_growth_2024/perm_001.csv`
-#
-# ## Description
-# This notebook generates 1 permuted GO-gene dataset for each year by shuffling
-# GO labels among genes while preserving:
-# - Gene degree distribution (same genes, different GO labels)
-# - Number of genes per GO term
-# - Total number of associations
-#
-# This approach tests whether specific GO-gene associations drive connectivity
-# or if any random labeling would produce similar results.
+from __future__ import annotations
 
-# %%
-import pandas as pd
-import numpy as np
+import os
 import sys
 from pathlib import Path
-import os
 
-# Setup repo root for consistent paths
-# Works whether notebook is run from repo root or notebooks/ subdirectory
-if Path.cwd().name == "notebooks":
-    repo_root = Path("..").resolve()
+import pandas as pd
+
+if Path.cwd().name == "scripts":
+    REPO_ROOT = Path("..").resolve()
 else:
-    repo_root = Path.cwd()
+    REPO_ROOT = Path.cwd()
 
-sys.path.insert(0, str(repo_root))
-from src.random_sampling import permute_go_labels
+sys.path.insert(0, str(REPO_ROOT))
+from src.bipartite_nulls import degree_preserving_permutations  # noqa: E402
 
-# Create output directories
-(repo_root / 'output/permutations/all_GO_positive_growth_2016').mkdir(parents=True, exist_ok=True)
-(repo_root / 'output/permutations/all_GO_positive_growth_2024').mkdir(parents=True, exist_ok=True)
 
-print(f'Repo root: {repo_root}')
-print('Environment setup complete')
-N_PERMUTATIONS = int(os.getenv('N_PERMUTATIONS', '1'))
-if N_PERMUTATIONS < 1:
-    raise ValueError('N_PERMUTATIONS must be >= 1')
-print(f'N_PERMUTATIONS={N_PERMUTATIONS}')
+def _replicate_ids() -> list[int]:
+    raw = os.getenv("PERMUTATION_IDS", "").strip()
+    if raw:
+        ids = [int(tok.strip()) for tok in raw.split(",") if tok.strip()]
+    else:
+        n = int(os.getenv("N_PERMUTATIONS", "1"))
+        ids = list(range(1, n + 1))
+    if not ids:
+        raise ValueError("No permutation replicate ids configured")
+    return ids
 
-# %%
-# Load All GO Positive Growth filtered data (both years)
-real_2016 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv')
-real_2024 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv')
 
-print('All GO Positive Growth - Real Data Loaded')
-print('=' * 80)
-print(f'2016: {len(real_2016):,} GO-gene pairs')
-print(f'      {real_2016["go_id"].nunique()} unique GO terms')
-print(f'      {real_2016["entrez_gene_id"].nunique()} unique genes')
+def _load_year_df(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required = {"go_id", "entrez_gene_id"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in {path}: {sorted(missing)}")
+    if len(df[["go_id", "entrez_gene_id"]].drop_duplicates()) != len(df):
+        raise ValueError(f"Expected binary GO-gene edge list in {path}; found duplicate GO-gene rows")
+    return df
 
-print(f'\n2024: {len(real_2024):,} GO-gene pairs')
-print(f'      {real_2024["go_id"].nunique()} unique GO terms')
-print(f'      {real_2024["entrez_gene_id"].nunique()} unique genes')
 
-# Verify required columns exist
-required_cols = ['go_id', 'entrez_gene_id']
-for col in required_cols:
-    if col not in real_2016.columns:
-        raise ValueError(f'Missing required column in 2016 data: {col}')
-    if col not in real_2024.columns:
-        raise ValueError(f'Missing required column in 2024 data: {col}')
+def _validate(real_df: pd.DataFrame, perm_df: pd.DataFrame, year: int, rep_id: int) -> None:
+    real_sizes = real_df.groupby("go_id").size().sort_index()
+    perm_sizes = perm_df.groupby("go_id").size().sort_index()
+    if not real_sizes.equals(perm_sizes):
+        raise ValueError(f"GO term sizes changed for year={year}, replicate={rep_id}")
 
-print('\nData validation passed')
+    real_deg = real_df.groupby("entrez_gene_id")["go_id"].nunique().sort_index()
+    perm_deg = perm_df.groupby("entrez_gene_id")["go_id"].nunique().sort_index()
+    if not real_deg.equals(perm_deg):
+        raise ValueError(f"Gene annotation degrees changed for year={year}, replicate={rep_id}")
 
-# %% [markdown]
-# ## Generate Permutations for 2016
-#
-# Create N permuted datasets by shuffling GO labels among genes.
+    if len(perm_df[["go_id", "entrez_gene_id"]].drop_duplicates()) != len(perm_df):
+        raise ValueError(f"Duplicate GO-gene edges introduced for year={year}, replicate={rep_id}")
 
-# %%
-# Generate N permutations for 2016
-print(f'\nGenerating {N_PERMUTATIONS} permutation(s) for 2016...')
-print('=' * 80)
 
-permuted_2016 = permute_go_labels(
-    go_gene_df=real_2016,
-    n_permutations=N_PERMUTATIONS,
-    go_id_col='go_id',
-    gene_id_col='entrez_gene_id',
-    random_state=42
-)
+def _generate_for_year(real_df: pd.DataFrame, year: int, out_dir: Path, replicate_ids: list[int]) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for rep_id in replicate_ids:
+        perm_df = degree_preserving_permutations(
+            edge_df=real_df,
+            source_col="go_id",
+            target_col="entrez_gene_id",
+            n_permutations=1,
+            random_state=42 + int(rep_id) - 1,
+            n_swap_attempts_per_edge=10,
+        )[0]
+        _validate(real_df, perm_df, year=year, rep_id=rep_id)
+        path = out_dir / f"perm_{rep_id:03d}.csv"
+        perm_df.to_csv(path, index=False)
+        print(f"[saved] {path}")
 
-# Save each permutation
-perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
-for i, perm_df in enumerate(permuted_2016, start=1):
-    output_path = perm_dir_2016 / f'perm_{i:03d}.csv'
-    perm_df.to_csv(output_path, index=False)
-    print(f'  Saved: perm_{i:03d}.csv ({len(perm_df):,} pairs, '
-          f'{perm_df["go_id"].nunique()} GO terms, '
-          f'{perm_df["entrez_gene_id"].nunique()} genes)')
 
-print('\n2016 permutations complete')
+def main() -> None:
+    replicate_ids = _replicate_ids()
+    real_2016 = _load_year_df(REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv")
+    real_2024 = _load_year_df(REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv")
 
-# %% [markdown]
-# ## Generate Permutations for 2024
-#
-# Create N permuted datasets for 2024 data.
-
-# %%
-# Generate N permutations for 2024
-print(f'\nGenerating {N_PERMUTATIONS} permutation(s) for 2024...')
-print('=' * 80)
-
-permuted_2024 = permute_go_labels(
-    go_gene_df=real_2024,
-    n_permutations=N_PERMUTATIONS,
-    go_id_col='go_id',
-    gene_id_col='entrez_gene_id',
-    random_state=42
-)
-
-# Save each permutation
-perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
-for i, perm_df in enumerate(permuted_2024, start=1):
-    output_path = perm_dir_2024 / f'perm_{i:03d}.csv'
-    perm_df.to_csv(output_path, index=False)
-    print(f'  Saved: perm_{i:03d}.csv ({len(perm_df):,} pairs, '
-          f'{perm_df["go_id"].nunique()} GO terms, '
-          f'{perm_df["entrez_gene_id"].nunique()} genes)')
-
-print('\n2024 permutations complete')
-
-# %% [markdown]
-# ## Validation
-#
-# Verify that permutations preserve expected properties:
-# 1. GO term sizes (same number of genes per term)
-# 2. Gene sets (same genes, only labels shuffled)
-# 3. Total number of associations
-
-# %%
-# Validation: Check GO term sizes preserved
-print('\n' + '=' * 80)
-print('VALIDATION: GO Term Sizes')
-print('=' * 80)
-
-perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
-perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
-
-print('\n2016 Permutations:')
-perm_files_2016 = sorted(perm_dir_2016.glob('perm_*.csv'))
-for perm_path in perm_files_2016:
-    perm_2016 = pd.read_csv(perm_path)
-    real_sizes = real_2016.groupby('go_id').size().sort_index()
-    perm_sizes = perm_2016.groupby('go_id').size().sort_index()
-
-    stem_parts_2016 = perm_path.stem.split('_')
-    perm_label_2016 = (
-        stem_parts_2016[1].lstrip('0')
-        if len(stem_parts_2016) > 1 else perm_path.stem
+    _generate_for_year(
+        real_df=real_2016,
+        year=2016,
+        out_dir=REPO_ROOT / "output/permutations/all_GO_positive_growth_2016",
+        replicate_ids=replicate_ids,
     )
-    if not perm_label_2016:
-        perm_label_2016 = '0'
-
-    if (real_sizes == perm_sizes).all():
-        print(f'  Permutation {perm_label_2016}: GO term sizes preserved')
-    else:
-        mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {perm_label_2016}: '
-              f'{mismatches} GO term size mismatches!')
-
-print('\n2024 Permutations:')
-perm_files_2024 = sorted(perm_dir_2024.glob('perm_*.csv'))
-for perm_path in perm_files_2024:
-    perm_2024 = pd.read_csv(perm_path)
-    real_sizes = real_2024.groupby('go_id').size().sort_index()
-    perm_sizes = perm_2024.groupby('go_id').size().sort_index()
-
-    stem_parts_2024 = perm_path.stem.split('_')
-    perm_label_2024 = (
-        stem_parts_2024[1].lstrip('0')
-        if len(stem_parts_2024) > 1 else perm_path.stem
+    _generate_for_year(
+        real_df=real_2024,
+        year=2024,
+        out_dir=REPO_ROOT / "output/permutations/all_GO_positive_growth_2024",
+        replicate_ids=replicate_ids,
     )
-    if not perm_label_2024:
-        perm_label_2024 = '0'
 
-    if (real_sizes == perm_sizes).all():
-        print(f'  Permutation {perm_label_2024}: GO term sizes preserved')
-    else:
-        mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {perm_label_2024}: '
-              f'{mismatches} GO term size mismatches!')
 
-# %%
-# Validation: Check genes unchanged (only labels shuffled)
-print('\n' + '=' * 80)
-print('VALIDATION: Gene Sets')
-print('=' * 80)
-
-perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
-perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
-
-print('\n2016:')
-perm1_2016 = pd.read_csv(perm_dir_2016 / 'perm_001.csv')
-real_genes_2016 = set(real_2016['entrez_gene_id'])
-perm_genes_2016 = set(perm1_2016['entrez_gene_id'])
-
-if real_genes_2016 == perm_genes_2016:
-    print(f'  Gene IDs preserved ({len(real_genes_2016)} genes)')
-    print('    Only GO labels shuffled (correct behavior)')
-else:
-    print(f'  Gene IDs differ between real and permuted!')
-    print(f'    Real: {len(real_genes_2016)} genes')
-    print(f'    Permuted: {len(perm_genes_2016)} genes')
-    print(f'    Missing: {len(real_genes_2016 - perm_genes_2016)}')
-    print(f'    Extra: {len(perm_genes_2016 - real_genes_2016)}')
-
-print('\n2024:')
-perm1_2024 = pd.read_csv(perm_dir_2024 / 'perm_001.csv')
-real_genes_2024 = set(real_2024['entrez_gene_id'])
-perm_genes_2024 = set(perm1_2024['entrez_gene_id'])
-
-if real_genes_2024 == perm_genes_2024:
-    print(f'  Gene IDs preserved ({len(real_genes_2024)} genes)')
-    print('    Only GO labels shuffled (correct behavior)')
-else:
-    print(f'  Gene IDs differ between real and permuted!')
-    print(f'    Real: {len(real_genes_2024)} genes')
-    print(f'    Permuted: {len(perm_genes_2024)} genes')
-    print(f'    Missing: {len(real_genes_2024 - perm_genes_2024)}')
-    print(f'    Extra: {len(perm_genes_2024 - real_genes_2024)}')
-
-# %%
-# Validation: Check total associations preserved
-print('\n' + '=' * 80)
-print('VALIDATION: Total Associations')
-print('=' * 80)
-
-perm_dir_2016 = repo_root / 'output/permutations/all_GO_positive_growth_2016'
-perm_dir_2024 = repo_root / 'output/permutations/all_GO_positive_growth_2024'
-
-print(f'\n2016 Real: {len(real_2016):,} associations')
-for i in range(1, N_PERMUTATIONS + 1):
-    perm = pd.read_csv(perm_dir_2016 / f'perm_{i:03d}.csv')
-    if len(perm) == len(real_2016):
-        print(f'  Permutation {i}: {len(perm):,} associations')
-    else:
-        print(f'  Permutation {i}: {len(perm):,} associations (expected {len(real_2016):,})')
-
-print(f'\n2024 Real: {len(real_2024):,} associations')
-for i in range(1, N_PERMUTATIONS + 1):
-    perm = pd.read_csv(perm_dir_2024 / f'perm_{i:03d}.csv')
-    if len(perm) == len(real_2024):
-        print(f'  Permutation {i}: {len(perm):,} associations')
-    else:
-        print(f'  Permutation {i}: {len(perm):,} associations (expected {len(real_2024):,})')
-
-# %%
-# Summary
-print('\n' + '=' * 80)
-print('NOTEBOOK 1.4 COMPLETE')
-print('=' * 80)
-
-print('\nGenerated Permuted Datasets:')
-print(f'  2016: {N_PERMUTATIONS} permutation(s)')
-print(f'  2024: {N_PERMUTATIONS} permutation(s)')
-print(f'  Total: {2 * N_PERMUTATIONS} permuted datasets + 2 real datasets = {2 * N_PERMUTATIONS + 2} datasets')
-
-print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_###.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_###.csv')
-
-print('\nValidation Results:')
-print('  GO term sizes preserved')
-print('  Gene sets unchanged (only labels shuffled)')
-print('  Total associations preserved')
-
-print('\nNext Steps:')
-print('  1. Run script 2 to compute DWPC for all datasets')
-print('  2. poe compute-dwpc-direct')
+if __name__ == "__main__":
+    main()

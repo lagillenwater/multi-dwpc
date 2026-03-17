@@ -12,9 +12,15 @@ Major update 2025-01-11:
 - Added permutation-based null distribution functions
 """
 
-import pandas as pd
-import numpy as np
 import hashlib
+import numpy as np
+import pandas as pd
+
+from src.bipartite_nulls import (
+    calculate_target_membership_counts,
+    degree_preserving_permutations,
+    generate_promiscuity_matched_samples,
+)
 
 
 def generate_random_gene_samples(go_gene_df, all_genes, go_id_col='go_id',
@@ -245,18 +251,20 @@ def generate_random_gene_samples_v2(go_gene_df, all_genes,
 def permute_go_labels(go_gene_df, n_permutations=100,
                      go_id_col='go_id',
                      gene_id_col='entrez_gene_id',
-                     random_state=42):
+                     random_state=42,
+                     n_swap_attempts_per_edge=10):
     """
-    Generate permuted GO-gene associations for null distribution.
+    Generate degree-preserving permuted GO-gene associations.
 
-    This approach permutes gene assignments among GO terms while preserving:
-    - GO term metadata (go_name, etc.)
-    - Gene degree distribution (same genes, shuffled labels)
-    - Number of genes per GO term
+    This approach randomizes the GO-gene bipartite graph via valid double-edge
+    swaps while preserving:
+    - GO term degree exactly
+    - Gene annotation degree exactly
     - Total number of associations
+    - Binary GO-gene edge structure (no duplicate edges)
+    - GO term metadata (go_name, etc.)
 
-    This is the RECOMMENDED approach for mixed-effects models as it
-    preserves biological structure while breaking GO-gene associations.
+    This is a graph-level permutation null for GO-gene membership.
 
     Parameters
     ----------
@@ -278,17 +286,9 @@ def permute_go_labels(go_gene_df, n_permutations=100,
         List of permuted dataframes, one per permutation
         Each has same structure as input go_gene_df
 
-    Notes
-    -----
-    Algorithm:
-    1. Extract GO term metadata (go_id, go_name, etc.)
-    2. For each permutation:
-       a. Shuffle gene IDs among all GO terms
-       b. Preserve GO term sizes
-       c. Merge with GO metadata
-
-    This preserves gene-level characteristics (degree, other annotations)
-    while testing whether specific GO-gene associations matter.
+    n_swap_attempts_per_edge : int
+        Number of attempted double-edge swaps per existing edge. Higher values
+        increase mixing at the cost of runtime.
 
     Examples
     --------
@@ -304,61 +304,14 @@ def permute_go_labels(go_gene_df, n_permutations=100,
         # Save for DWPC computation
         perm_df.to_csv(f'permutation_{i:03d}.csv', index=False)
     """
-    go_term_sizes = go_gene_df.groupby(go_id_col).size().to_dict()
-    unique_go_ids = list(go_term_sizes.keys())
-
-    # Extract GO term metadata to preserve other columns
-    metadata_cols = [col for col in go_gene_df.columns if col != gene_id_col]
-    go_metadata = go_gene_df[metadata_cols].drop_duplicates(subset=[go_id_col])
-
-    # Verify each GO term has unique metadata
-    if len(go_metadata) != len(unique_go_ids):
-        raise ValueError(
-            f"GO term metadata is not unique: expected {len(unique_go_ids)} "
-            f"GO terms but found {len(go_metadata)} unique metadata rows. "
-            f"Each GO term must have consistent metadata."
-        )
-
-    # Extract all genes
-    all_genes = go_gene_df[gene_id_col].values
-
-    permuted_dataframes = []
-
-    for perm_idx in range(n_permutations):
-        perm_seed = random_state + perm_idx
-        rng = np.random.RandomState(perm_seed)
-
-        # Shuffle genes
-        shuffled_genes = rng.permutation(all_genes)
-
-        # Assign shuffled genes to GO terms while preserving sizes
-        assignments = []
-        gene_idx = 0
-
-        for go_id in unique_go_ids:
-            n_genes = go_term_sizes[go_id]
-            assigned_genes = shuffled_genes[gene_idx:gene_idx + n_genes]
-
-            for gene in assigned_genes:
-                assignments.append({
-                    go_id_col: go_id,
-                    gene_id_col: gene
-                })
-
-            gene_idx += n_genes
-
-        # Create dataframe from gene assignments
-        perm_df = pd.DataFrame(assignments)
-
-        # Merge with GO metadata to restore other columns
-        perm_df = perm_df.merge(go_metadata, on=go_id_col, how='left')
-
-        # Reorder columns to match original
-        perm_df = perm_df[go_gene_df.columns]
-
-        permuted_dataframes.append(perm_df)
-
-    return permuted_dataframes
+    return degree_preserving_permutations(
+        edge_df=go_gene_df,
+        source_col=go_id_col,
+        target_col=gene_id_col,
+        n_permutations=n_permutations,
+        random_state=random_state,
+        n_swap_attempts_per_edge=n_swap_attempts_per_edge,
+    )
 
 
 def calculate_gene_promiscuity(go_gene_df, go_id_col='go_id',
@@ -383,13 +336,11 @@ def calculate_gene_promiscuity(go_gene_df, go_id_col='go_id',
         - gene_id_col: Gene ID
         - 'promiscuity': Number of GO terms the gene belongs to
     """
-    gene_promiscuity = go_gene_df.groupby(
-        gene_id_col
-    )[go_id_col].nunique().reset_index()
-
-    gene_promiscuity.columns = [gene_id_col, 'promiscuity']
-
-    return gene_promiscuity
+    return calculate_target_membership_counts(
+        edge_df=go_gene_df,
+        source_col=go_id_col,
+        target_col=gene_id_col,
+    ).rename(columns={gene_id_col: gene_id_col})
 
 
 def _sample_single_gene(go_id, real_gene, real_prom, candidate_pool,
@@ -488,47 +439,18 @@ def generate_promiscuity_controlled_samples(go_gene_df, all_go_annotations,
     Uses hash-based seeding for reproducibility independent of iteration
     order (see REPOSITORY_REVIEW.md Section 6.1).
     """
-    promiscuity_df = calculate_gene_promiscuity(
-        all_go_annotations, go_id_col, gene_id_col
-    )
-
-    df_with_prom = go_gene_df.merge(
-        promiscuity_df, on=gene_id_col, how='left'
-    )
-    df_with_prom['promiscuity'] = df_with_prom['promiscuity'].fillna(1)
-
-    go_gene_sets = go_gene_df.groupby(go_id_col)[gene_id_col].apply(
-        set
-    ).to_dict()
-
-    all_results = []
-
-    grouped = df_with_prom.groupby(go_id_col)
-    for go_id, go_group in grouped:
-        genes_in_term = go_gene_sets[go_id]
-        candidate_pool = promiscuity_df[
-            ~promiscuity_df[gene_id_col].isin(genes_in_term)
-        ].copy()
-
-        sampled = go_group.apply(
-            lambda row: _sample_single_gene(
-                go_id, row[gene_id_col], row['promiscuity'],
-                candidate_pool, promiscuity_tolerance, random_state,
-                gene_id_col
-            ),
-            axis=1
-        )
-
-        go_results = pd.DataFrame({
-            go_id_col: go_id,
-            'pseudo_gene_id': sampled.apply(lambda x: x['gene_id']),
-            'real_promiscuity': go_group['promiscuity'].values,
-            'sampled_promiscuity': sampled.apply(lambda x: x['promiscuity'])
-        })
-
-        all_results.append(go_results)
-
-    return pd.concat(all_results, ignore_index=True)
+    out = generate_promiscuity_matched_samples(
+        edge_df=go_gene_df,
+        all_annotations_df=all_go_annotations,
+        source_col=go_id_col,
+        target_col=gene_id_col,
+        target_universe=sorted(all_go_annotations[gene_id_col].unique().tolist()),
+        promiscuity_tolerance=promiscuity_tolerance,
+        random_state=random_state,
+        include_match_metadata=True,
+    ).copy()
+    out["pseudo_gene_id"] = out[gene_id_col]
+    return out
 
 
 def validate_random_samples(real_df, random_df, gene_degrees=None,

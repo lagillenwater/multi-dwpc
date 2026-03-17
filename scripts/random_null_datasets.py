@@ -1,374 +1,118 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.18.1
-#   kernelspec:
-#     display_name: Python 3
-#     language: python
-#     name: python3
-# ---
+#!/usr/bin/env python3
+"""Generate promiscuity-matched year random-control datasets."""
 
-# %% [markdown]
-# # Promiscuity-Controlled Random Gene Sampling
-#
-# Generate random gene samples controlling for gene promiscuity (number of GO term annotations).
-#
-# ## Inputs
-# - `output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv` (2016 filtered)
-# - `output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv` (2024 filtered)
-# - `output/intermediate/hetio_bppg_2016_stable.csv` (all 2016 stable genes for promiscuity)
-# - `output/intermediate/upd_go_bp_2024_added.csv` (all 2024 added genes for promiscuity)
-#
-# ## Outputs
-# - `output/random_samples/all_GO_positive_growth_2016/random_001.csv`
-# - `output/random_samples/all_GO_positive_growth_2024/random_001.csv`
-#
-# ## Description
-# This notebook generates 1 random gene sample per year that controls for gene promiscuity.
-# For each real gene in a GO term, we sample a random gene from OTHER GO terms
-# that has a similar number of GO annotations (promiscuity).
-#
-# This approach ensures:
-# 1. Same number of genes per GO term
-# 2. Genes are sampled from other GO terms (not unannotated)
-# 3. Promiscuity distribution is matched (within tolerance)
-# 4. Multiple samples for robust statistical testing (matching permutation approach)
-#
-# **Note:** Neo4j ID mapping is deferred to notebook 2 when Docker stack is running.
+from __future__ import annotations
 
-# %%
-import pandas as pd
-import numpy as np
-import sys
 import os
+import sys
 from pathlib import Path
 
-# Setup repo root for consistent paths
-# Works whether notebook is run from repo root or notebooks/ subdirectory
-if Path.cwd().name == "notebooks":
-    repo_root = Path("..").resolve()
+import pandas as pd
+
+if Path.cwd().name == "scripts":
+    REPO_ROOT = Path("..").resolve()
 else:
-    repo_root = Path.cwd()
+    REPO_ROOT = Path.cwd()
 
-sys.path.insert(0, str(repo_root))
-from src.random_sampling import (
-    generate_promiscuity_controlled_samples,
-    calculate_gene_promiscuity
-)
+sys.path.insert(0, str(REPO_ROOT))
+from src.bipartite_nulls import generate_promiscuity_matched_samples  # noqa: E402
 
-(repo_root / 'output/random_samples/all_GO_positive_growth_2016').mkdir(
-    parents=True, exist_ok=True
-)
-(repo_root / 'output/random_samples/all_GO_positive_growth_2024').mkdir(
-    parents=True, exist_ok=True
-)
 
-print(f'Repo root: {repo_root}')
-print('Environment setup complete')
-N_RANDOM_SAMPLES = int(os.getenv('N_RANDOM_SAMPLES', '1'))
-if N_RANDOM_SAMPLES < 1:
-    raise ValueError('N_RANDOM_SAMPLES must be >= 1')
-print(f'N_RANDOM_SAMPLES={N_RANDOM_SAMPLES}')
+PROMISCUITY_TOLERANCE = 2
 
-# %% [markdown]
-# ## Load Data
-#
-# Load filtered datasets and original GO annotations for promiscuity calculation.
 
-# %%
-# Load filtered datasets from notebook 1.3
-real_2016 = pd.read_csv(
-    repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv'
-)
-real_2024 = pd.read_csv(
-    repo_root / 'output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv'
-)
+def _replicate_ids() -> list[int]:
+    raw = os.getenv("RANDOM_SAMPLE_IDS", "").strip()
+    if raw:
+        ids = [int(tok.strip()) for tok in raw.split(",") if tok.strip()]
+    else:
+        n = int(os.getenv("N_RANDOM_SAMPLES", "1"))
+        ids = list(range(1, n + 1))
+    if not ids:
+        raise ValueError("No random replicate ids configured")
+    return ids
 
-print('Filtered GO-Gene Associations Loaded')
-print('=' * 80)
-print(f'2016: {len(real_2016):,} GO-gene pairs')
-print(f'      {real_2016["go_id"].nunique()} unique GO terms')
-print(f'      {real_2016["entrez_gene_id"].nunique()} unique genes')
 
-print(f'\n2024: {len(real_2024):,} GO-gene pairs')
-print(f'      {real_2024["go_id"].nunique()} unique GO terms')
-print(f'      {real_2024["entrez_gene_id"].nunique()} unique genes')
+def _load_real_df(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required = {"go_id", "entrez_gene_id"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in {path}: {sorted(missing)}")
+    if len(df[["go_id", "entrez_gene_id"]].drop_duplicates()) != len(df):
+        raise ValueError(f"Expected binary GO-gene edge list in {path}; found duplicate GO-gene rows")
+    return df
 
-# %%
-# Load ALL BP-Gene associations for promiscuity calculation
-# We need the full dataset to accurately count how many terms each gene belongs to
 
-# For 2016: Use the stable genes from notebook 1.1
-all_bpg_2016 = pd.read_csv(repo_root / 'output/intermediate/hetio_bppg_2016_stable.csv')
+def _load_all_annotations(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    return df[["go_id", "entrez_gene_id"]].drop_duplicates().reset_index(drop=True)
 
-# Keep only needed columns
-all_bpg_2016 = all_bpg_2016[['go_id', 'entrez_gene_id']].drop_duplicates()
 
-print(f'All 2016 BP-Gene associations (stable genes): {len(all_bpg_2016):,}')
-print(f'  {all_bpg_2016["go_id"].nunique()} GO terms')
-print(f'  {all_bpg_2016["entrez_gene_id"].nunique()} genes')
+def _validate(real_df: pd.DataFrame, rand_df: pd.DataFrame, all_df: pd.DataFrame, year: int, rep_id: int) -> None:
+    real_sizes = real_df.groupby("go_id").size().sort_index()
+    rand_sizes = rand_df.groupby("go_id").size().sort_index()
+    if not real_sizes.equals(rand_sizes):
+        raise ValueError(f"GO term sizes changed for year={year}, replicate={rep_id}")
 
-# %%
-# For 2024: Use the added genes from notebook 1.1
-all_bpg_2024 = pd.read_csv(repo_root / 'output/intermediate/upd_go_bp_2024_added.csv')
+    real_sets = real_df.groupby("go_id")["entrez_gene_id"].apply(set).to_dict()
+    rand_sets = rand_df.groupby("go_id")["entrez_gene_id"].apply(set).to_dict()
+    overlap = sum(len(real_sets[go_id] & rand_sets.get(go_id, set())) for go_id in real_sets)
+    if overlap != 0:
+        raise ValueError(f"Random control overlaps with real genes for year={year}, replicate={rep_id}")
 
-# Keep only needed columns
-all_bpg_2024 = all_bpg_2024[['go_id', 'entrez_gene_id']].drop_duplicates()
+    if len(rand_df[["go_id", "entrez_gene_id"]].drop_duplicates()) != len(rand_df):
+        raise ValueError(f"Duplicate GO-gene edges introduced for year={year}, replicate={rep_id}")
 
-print(f'All 2024 BP-Gene associations (added genes): {len(all_bpg_2024):,}')
-print(f'  {all_bpg_2024["go_id"].nunique()} GO terms')
-print(f'  {all_bpg_2024["entrez_gene_id"].nunique()} genes')
+    annotated = set(all_df["entrez_gene_id"].astype(str))
+    random_genes = set(rand_df["entrez_gene_id"].astype(str))
+    if not random_genes.issubset(annotated):
+        raise ValueError(f"Unannotated genes appeared in random control for year={year}, replicate={rep_id}")
 
-# %% [markdown]
-# ## Calculate Gene Promiscuity
-#
-# Count how many GO terms each gene belongs to across the full dataset.
 
-# %%
-# Calculate promiscuity for 2016
-promiscuity_2016 = calculate_gene_promiscuity(
-    all_bpg_2016,
-    go_id_col='go_id',
-    gene_id_col='entrez_gene_id'
-)
+def _generate_for_year(real_df: pd.DataFrame, all_df: pd.DataFrame, year: int, out_dir: Path, replicate_ids: list[int]) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target_universe = sorted(all_df["entrez_gene_id"].unique().tolist())
+    for rep_id in replicate_ids:
+        rand_df = generate_promiscuity_matched_samples(
+            edge_df=real_df,
+            all_annotations_df=all_df,
+            source_col="go_id",
+            target_col="entrez_gene_id",
+            target_universe=target_universe,
+            promiscuity_tolerance=PROMISCUITY_TOLERANCE,
+            random_state=42 + int(rep_id),
+            include_match_metadata=True,
+        )
+        rand_df["entrez_gene_id"] = rand_df["entrez_gene_id"].astype(real_df["entrez_gene_id"].dtype)
+        _validate(real_df, rand_df, all_df, year=year, rep_id=rep_id)
+        path = out_dir / f"random_{rep_id:03d}.csv"
+        rand_df.to_csv(path, index=False)
+        print(f"[saved] {path}")
 
-print('2016 Gene Promiscuity Statistics')
-print('=' * 80)
-print(promiscuity_2016['promiscuity'].describe())
 
-print(f'\nMost promiscuous genes (2016):')
-top_2016 = promiscuity_2016.nlargest(10, 'promiscuity')
-for _, row in top_2016.iterrows():
-    print(f"  Gene {row['entrez_gene_id']}: "
-          f"{row['promiscuity']} GO terms")
+def main() -> None:
+    replicate_ids = _replicate_ids()
+    real_2016 = _load_real_df(REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv")
+    real_2024 = _load_real_df(REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv")
+    all_2016 = _load_all_annotations(REPO_ROOT / "output/intermediate/hetio_bppg_2016_stable.csv")
+    all_2024 = _load_all_annotations(REPO_ROOT / "output/intermediate/upd_go_bp_2024_added.csv")
 
-# %%
-# Calculate promiscuity for 2024
-promiscuity_2024 = calculate_gene_promiscuity(
-    all_bpg_2024,
-    go_id_col='go_id',
-    gene_id_col='entrez_gene_id'
-)
-
-print('2024 Gene Promiscuity Statistics')
-print('=' * 80)
-print(promiscuity_2024['promiscuity'].describe())
-
-print(f'\nMost promiscuous genes (2024):')
-top_2024 = promiscuity_2024.nlargest(10, 'promiscuity')
-for _, row in top_2024.iterrows():
-    print(f"  Gene {row['entrez_gene_id']}: "
-          f"{row['promiscuity']} GO terms")
-
-# %% [markdown]
-# ## Generate Random Samples for 2016
-#
-# Generate N independent random samples with fixed random seeds.
-
-# %%
-print(f'Generating {N_RANDOM_SAMPLES} promiscuity-controlled random sample(s) for 2016...')
-print('=' * 80)
-
-random_samples_2016 = []
-
-for i in range(1, N_RANDOM_SAMPLES + 1):
-    print(f'\nGenerating random sample {i}/{N_RANDOM_SAMPLES}...')
-    
-    random_sample = generate_promiscuity_controlled_samples(
-        go_gene_df=real_2016,
-        all_go_annotations=all_bpg_2016,
-        go_id_col='go_id',
-        gene_id_col='entrez_gene_id',
-        promiscuity_tolerance=2,
-        random_state=42 + i
+    _generate_for_year(
+        real_df=real_2016,
+        all_df=all_2016,
+        year=2016,
+        out_dir=REPO_ROOT / "output/random_samples/all_GO_positive_growth_2016",
+        replicate_ids=replicate_ids,
     )
-    
-    random_samples_2016.append(random_sample)
-    
-    print(f'  Generated {len(random_sample):,} pairs, '
-          f'{random_sample["go_id"].nunique()} GO terms, '
-          f'{random_sample["pseudo_gene_id"].nunique()} unique genes')
-    print(f'  Real promiscuity: mean={random_sample["real_promiscuity"].mean():.2f}')
-    print(f'  Random promiscuity: mean={random_sample["sampled_promiscuity"].mean():.2f}')
-
-print('\n2016 random sample complete')
-
-# %% [markdown]
-# ## Generate Random Samples for 2024
-#
-# Generate N independent random samples for 2024 data.
-
-# %%
-print(f'Generating {N_RANDOM_SAMPLES} promiscuity-controlled random sample(s) for 2024...')
-print('=' * 80)
-
-random_samples_2024 = []
-
-for i in range(1, N_RANDOM_SAMPLES + 1):
-    print(f'\nGenerating random sample {i}/{N_RANDOM_SAMPLES}...')
-    
-    random_sample = generate_promiscuity_controlled_samples(
-        go_gene_df=real_2024,
-        all_go_annotations=all_bpg_2024,
-        go_id_col='go_id',
-        gene_id_col='entrez_gene_id',
-        promiscuity_tolerance=2,
-        random_state=42 + i
+    _generate_for_year(
+        real_df=real_2024,
+        all_df=all_2024,
+        year=2024,
+        out_dir=REPO_ROOT / "output/random_samples/all_GO_positive_growth_2024",
+        replicate_ids=replicate_ids,
     )
-    
-    random_samples_2024.append(random_sample)
-    
-    print(f'  Generated {len(random_sample):,} pairs, '
-          f'{random_sample["go_id"].nunique()} GO terms, '
-          f'{random_sample["pseudo_gene_id"].nunique()} unique genes')
-    print(f'  Real promiscuity: mean={random_sample["real_promiscuity"].mean():.2f}')
-    print(f'  Random promiscuity: mean={random_sample["sampled_promiscuity"].mean():.2f}')
 
-print('\n2024 random sample complete')
 
-# %% [markdown]
-# ## Validation
-#
-# Verify that random samples have expected properties.
-
-# %%
-print('\n' + '=' * 80)
-print('VALIDATION: Sample Sizes')
-print('=' * 80)
-
-# Validate all 2016 samples
-for i, random_2016 in enumerate(random_samples_2016, start=1):
-    real_2016_sizes = real_2016.groupby('go_id').size()
-    random_2016_sizes = random_2016.groupby('go_id').size()
-    
-    if (real_2016_sizes == random_2016_sizes).all():
-        print(f'2016 Sample {i}: Sample sizes match (PASS)')
-    else:
-        print(f'2016 Sample {i}: Sample sizes differ (FAIL)')
-
-# Validate all 2024 samples
-for i, random_2024 in enumerate(random_samples_2024, start=1):
-    real_2024_sizes = real_2024.groupby('go_id').size()
-    random_2024_sizes = random_2024.groupby('go_id').size()
-    
-    if (real_2024_sizes == random_2024_sizes).all():
-        print(f'2024 Sample {i}: Sample sizes match (PASS)')
-    else:
-        print(f'2024 Sample {i}: Sample sizes differ (FAIL)')
-
-# %%
-print('\n' + '=' * 80)
-print('VALIDATION: No Overlap with Real Genes per GO Term')
-print('=' * 80)
-
-# Check all 2016 samples
-for i, random_2016 in enumerate(random_samples_2016, start=1):
-    overlap_count = 0
-    for go_id in real_2016['go_id'].unique():
-        real_genes = set(
-            real_2016[real_2016['go_id'] == go_id]['entrez_gene_id']
-        )
-        random_genes = set(
-            random_2016[random_2016['go_id'] == go_id]['pseudo_gene_id']
-        )
-        overlap = len(real_genes & random_genes)
-        overlap_count += overlap
-    
-    if overlap_count == 0:
-        print(f'2016 Sample {i}: No overlap (PASS)')
-    else:
-        print(f'2016 Sample {i}: Found {overlap_count} overlaps (FAIL)')
-
-# Check all 2024 samples
-for i, random_2024 in enumerate(random_samples_2024, start=1):
-    overlap_count = 0
-    for go_id in real_2024['go_id'].unique():
-        real_genes = set(
-            real_2024[real_2024['go_id'] == go_id]['entrez_gene_id']
-        )
-        random_genes = set(
-            random_2024[random_2024['go_id'] == go_id]['pseudo_gene_id']
-        )
-        overlap = len(real_genes & random_genes)
-        overlap_count += overlap
-    
-    if overlap_count == 0:
-        print(f'2024 Sample {i}: No overlap (PASS)')
-    else:
-        print(f'2024 Sample {i}: Found {overlap_count} overlaps (FAIL)')
-
-# %%
-print('\n' + '=' * 80)
-print('VALIDATION: All Random Genes Are Annotated')
-print('=' * 80)
-
-all_annotated_2016 = set(all_bpg_2016['entrez_gene_id'])
-all_annotated_2024 = set(all_bpg_2024['entrez_gene_id'])
-
-# Check all 2016 samples
-for i, random_2016 in enumerate(random_samples_2016, start=1):
-    random_genes = set(random_2016['pseudo_gene_id'])
-    unannotated = random_genes - all_annotated_2016
-    
-    if len(unannotated) == 0:
-        print(f'2016 Sample {i}: All genes annotated (PASS)')
-    else:
-        print(f'2016 Sample {i}: Found {len(unannotated)} unannotated (FAIL)')
-
-# Check all 2024 samples
-for i, random_2024 in enumerate(random_samples_2024, start=1):
-    random_genes = set(random_2024['pseudo_gene_id'])
-    unannotated = random_genes - all_annotated_2024
-    
-    if len(unannotated) == 0:
-        print(f'2024 Sample {i}: All genes annotated (PASS)')
-    else:
-        print(f'2024 Sample {i}: Found {len(unannotated)} unannotated (FAIL)')
-
-# %% [markdown]
-# ## Save Outputs
-
-# %%
-print('\nSaving random samples...')
-
-random_dir_2016 = repo_root / 'output/random_samples/all_GO_positive_growth_2016'
-random_dir_2024 = repo_root / 'output/random_samples/all_GO_positive_growth_2024'
-
-# Save 2016 samples
-for i, random_sample in enumerate(random_samples_2016, start=1):
-    output_path = random_dir_2016 / f'random_{i:03d}.csv'
-    random_out = random_sample.copy()
-    random_out['entrez_gene_id'] = random_out['pseudo_gene_id']
-    random_out.to_csv(output_path, index=False)
-    print(f'  Saved random_{i:03d}.csv: {len(random_sample):,} pairs')
-
-# Save 2024 samples
-for i, random_sample in enumerate(random_samples_2024, start=1):
-    output_path = random_dir_2024 / f'random_{i:03d}.csv'
-    random_out = random_sample.copy()
-    random_out['entrez_gene_id'] = random_out['pseudo_gene_id']
-    random_out.to_csv(output_path, index=False)
-    print(f'  Saved random_{i:03d}.csv: {len(random_sample):,} pairs')
-
-print('\n' + '=' * 80)
-print('NOTEBOOK 1.5 COMPLETE')
-print('=' * 80)
-
-print('\nGenerated Control Datasets:')
-print('  Permuted datasets (1.4): N permutations per year (shuffle GO labels)')
-print(f'  Random datasets (1.5): {N_RANDOM_SAMPLES} random sample(s) per year (promiscuity-controlled)')
-print(f'  Total: {2 + 2 * N_RANDOM_SAMPLES} control+real datasets (plus permutations generated separately)')
-
-print('\nOutput Files:')
-print('  output/permutations/all_GO_positive_growth_2016/perm_###.csv')
-print('  output/permutations/all_GO_positive_growth_2024/perm_###.csv')
-print('  output/random_samples/all_GO_positive_growth_2016/random_###.csv')
-print('  output/random_samples/all_GO_positive_growth_2024/random_###.csv')
-
-print('\nNext Steps:')
-print('  Run script 2 to compute DWPC for all datasets')
-print('  poe compute-dwpc-direct')
+if __name__ == "__main__":
+    main()
