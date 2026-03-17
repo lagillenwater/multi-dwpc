@@ -63,6 +63,7 @@ import urllib.request
 # Constants
 HETIONET_GENE_MIN = 2
 HETIONET_GENE_MAX = 1000
+GO_2024_CHUNKSIZE = 100_000
 HETIONET_URL = (
     "https://github.com/dhimmel/hetionet/raw/"
     "76550e6c93fbe92124edc71725e8c7dd4ca8b1f5/hetnet/json/hetionet-v1.0.json.bz2"
@@ -176,9 +177,20 @@ print(f"2016 GO terms counted: {len(hetio_bp_g_freq_df)}")
 # This section loads the updated 2024 GO annotations from a remote TSV file, expands gene IDs and gene symbols into individual rows, cleans the data, and displays the first few rows. It then prints the total number of GO term-gene pairs and focuses on the Biological Process (BP) domain.
 
 # %% papermill={"duration": 2.538711, "end_time": "2025-12-05T20:29:44.404314", "exception": false, "start_time": "2025-12-05T20:29:41.865603", "status": "completed"}
-# Load 2024 GO annotations with error handling
+# Load 2024 GO annotations with chunked parsing to avoid large memory spikes.
+hetio_genes = set(hetio_BPpG_df['entrez_gene_id'].unique())
+hetio_go_terms = set(hetio_BPpG_df['go_id'].unique())
+bp_frames = []
+total_input_rows = 0
+total_bp_rows = 0
+total_exploded_rows = 0
+
+print(
+    "Loading 2024 GO annotations in chunks "
+    f"(chunksize={GO_2024_CHUNKSIZE:,})..."
+)
 try:
-    upd_go_2024_raw = pd.read_csv(
+    reader = pd.read_csv(
         GO_2024_URL,
         sep='\t',
         usecols=['go_id', 'go_name', 'go_domain', 'gene_ids', 'gene_symbols'],
@@ -189,42 +201,58 @@ try:
             'gene_ids': 'string',
             'gene_symbols': 'string',
         },
+        chunksize=GO_2024_CHUNKSIZE,
     )
 except Exception as e:
     raise RuntimeError(f"Failed to fetch GO 2024 annotations: {e}")
 
-# Expand gene_ids and gene_symbols into individual rows
-exp_df = upd_go_2024_raw.assign(
-    gene_id=upd_go_2024_raw['gene_ids'].str.split('|'),
-    gene_symbol=upd_go_2024_raw['gene_symbols'].str.split('|')
-)
-upd_go_2024_df = exp_df.explode(['gene_id', 'gene_symbol'])
+for chunk_idx, chunk in enumerate(reader, start=1):
+    total_input_rows += len(chunk)
+    chunk = chunk[chunk['go_domain'] == 'biological_process'].copy()
+    if chunk.empty:
+        continue
 
-# Clean data
-upd_go_2024_df['gene_id'] = upd_go_2024_df['gene_id'].str.strip()
-upd_go_2024_df['gene_symbol'] = upd_go_2024_df['gene_symbol'].str.strip()
-upd_go_2024_df = upd_go_2024_df[upd_go_2024_df['gene_id'] != '...']
-upd_go_2024_df['gene_id'] = upd_go_2024_df['gene_id'].astype(int)
+    total_bp_rows += len(chunk)
+    expanded = chunk.assign(
+        gene_id=chunk['gene_ids'].str.split('|'),
+        gene_symbol=chunk['gene_symbols'].str.split('|')
+    ).explode(['gene_id', 'gene_symbol'])
 
-print(f"Loaded {len(upd_go_2024_df)} total GO term-gene pairs")
+    expanded['gene_id'] = expanded['gene_id'].astype('string').str.strip()
+    expanded['gene_symbol'] = expanded['gene_symbol'].astype('string').str.strip()
+    expanded = expanded[expanded['gene_id'].notna() & (expanded['gene_id'] != '...')]
+    expanded['entrez_gene_id'] = pd.to_numeric(expanded['gene_id'], errors='coerce')
+    expanded = expanded.dropna(subset=['entrez_gene_id'])
+    expanded['entrez_gene_id'] = expanded['entrez_gene_id'].astype(np.int64)
 
-# Filter 1: Biological Process only
-upd_go_bp_2024_df = upd_go_2024_df[
-    upd_go_2024_df['go_domain'] == 'biological_process'
-].copy()
-upd_go_bp_2024_df = upd_go_bp_2024_df[['go_id', 'go_name', 'gene_id', 'gene_symbol']]
-upd_go_bp_2024_df.rename(columns={'gene_id': 'entrez_gene_id'}, inplace=True)
-print(f"After filtering to Biological Process: {len(upd_go_bp_2024_df)} pairs")
+    # Keep only the Hetionet-aligned universe early to reduce memory.
+    expanded = expanded[
+        expanded['entrez_gene_id'].isin(hetio_genes)
+        & expanded['go_id'].isin(hetio_go_terms)
+    ]
+    if expanded.empty:
+        continue
 
-# Filter 2: Genes present in Hetionet 2016 GpBP
-hetio_genes = set(hetio_BPpG_df['entrez_gene_id'].unique())
-genes_before = upd_go_bp_2024_df['entrez_gene_id'].nunique()
-upd_go_bp_2024_df = upd_go_bp_2024_df[
-    upd_go_bp_2024_df['entrez_gene_id'].isin(hetio_genes)
-]
-genes_after = upd_go_bp_2024_df['entrez_gene_id'].nunique()
-print(f"After filtering to Hetionet genes: {len(upd_go_bp_2024_df)} pairs "
-      f"({genes_after}/{genes_before} genes)")
+    total_exploded_rows += len(expanded)
+    bp_frames.append(expanded[['go_id', 'go_name', 'entrez_gene_id', 'gene_symbol']].copy())
+
+    if chunk_idx % 10 == 0:
+        print(
+            f"  processed chunks: {chunk_idx}, "
+            f"input rows: {total_input_rows:,}, "
+            f"kept BP gene rows: {total_exploded_rows:,}"
+        )
+
+if not bp_frames:
+    raise RuntimeError(
+        "Failed to construct 2024 BP gene table after chunked parsing. "
+        "Check GO annotation source availability and format."
+    )
+
+upd_go_bp_2024_df = pd.concat(bp_frames, ignore_index=True)
+print(f"Loaded {total_input_rows:,} total annotation rows from source")
+print(f"Biological-process rows before explode: {total_bp_rows:,}")
+print(f"After explode + Hetionet filters: {len(upd_go_bp_2024_df):,} pairs")
 
 # Filter 3: Terms with 2-1000 genes (Hetionet criterion)
 upd_go_bp_2024_freq_df = (
@@ -242,17 +270,6 @@ upd_go_bp_2024_df = upd_go_bp_2024_df[
 ]
 print(f"After filtering to {HETIONET_GENE_MIN}-{HETIONET_GENE_MAX} genes: "
       f"{len(upd_go_bp_2024_df)} pairs ({len(upd_go_bp_2024_freq_df)} terms)")
-
-# Filter 4: Terms present in Hetionet
-hetio_go_terms = set(hetio_BPpG_df['go_id'].unique())
-upd_go_bp_2024_df = upd_go_bp_2024_df[
-    upd_go_bp_2024_df['go_id'].isin(hetio_go_terms)
-]
-upd_go_bp_2024_freq_df = upd_go_bp_2024_freq_df[
-    upd_go_bp_2024_freq_df['go_id'].isin(hetio_go_terms)
-]
-print(f"After filtering to Hetionet terms: {len(upd_go_bp_2024_df)} pairs "
-      f"({len(upd_go_bp_2024_freq_df)} terms)")
 
 # Persist 2024 associations before common-gene harmonization so users retain
 # a usable intermediate if later steps fail.
