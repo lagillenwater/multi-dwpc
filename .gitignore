@@ -62,3 +62,6 @@ planning/
 # Connectivity search backend data
 connectivity-search-backend/data/postgres/
 .DS_Store
+
+# hpc
+slurm*

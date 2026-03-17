@@ -203,13 +203,14 @@ This ranks metapaths by `diff` for each `(control, B, seed, LV, target set)` and
 #### Step 1: generate controls
 
 ```bash
-sbatch --array=0-19 hpc/year_permutations_array.sbatch
-sbatch --array=0-19 hpc/year_random_controls_array.sbatch
+sbatch --array=0-2 hpc/year_permutations_array.sbatch
+sbatch --array=0-2 hpc/year_random_controls_array.sbatch
 ```
 
 #### Step 2: compute per-replicate DWPC and summary artifacts
 
 ```bash
+mkdir -p output/dwpc_direct/all_GO_positive_growth
 python scripts/compute_dwpc_direct.py --list-datasets > output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt
 sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/dataset_manifest.txt)-1)) hpc/year_dwpc_array.sbatch
 ```
