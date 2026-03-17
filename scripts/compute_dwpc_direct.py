@@ -20,7 +20,7 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from dwpc_direct import HetMat, reverse_metapath_abbrev  # noqa: E402
+from dwpc_direct import HetMat, load_metapath_stats, reverse_metapath_abbrev  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "dwpc_direct" / "all_GO_positive_growth"
 DEFAULT_DATA_DIR = REPO_ROOT / "data"
@@ -31,7 +31,7 @@ BASE_NAME = "all_GO_positive_growth"
 
 
 def _load_metapaths(data_dir: Path) -> list[str]:
-    metapath_stats = pd.read_csv(data_dir / "metapath-dwpc-stats.tsv", sep="\t")
+    metapath_stats = load_metapath_stats(data_dir)
     bp_to_g = metapath_stats[
         metapath_stats["metapath"].str.startswith("BP")
         & metapath_stats["metapath"].str.endswith("G")
