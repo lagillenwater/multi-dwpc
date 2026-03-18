@@ -63,6 +63,7 @@ test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
 benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
 benchmark-dwpc-plots = "python scripts/plot_dwpc_benchmark.py"
 year-null-variance-exp = { shell = "python3 scripts/year_null_variance_experiment.py --results-dir ${YEAR_NULL_VAR_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_NULL_VAR_OUTPUT_DIR:-output/year_null_variance_exp}" }
+year-null-variance-plots = { shell = "python3 scripts/plot_year_null_variance_results.py --analysis-dir ${YEAR_NULL_VAR_ANALYSIS_DIR:-output/year_null_variance_exp/year_null_variance_experiment}" }
 year-rank-stability-exp = { shell = "python3 scripts/year_rank_stability_experiment.py --results-dir ${YEAR_RANK_STAB_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_RANK_STAB_OUTPUT_DIR:-output/year_rank_stability_exp} --top-k-metapaths ${YEAR_RANK_STAB_TOP_K:-10}" }
 lv-prepare-exp = { shell = "python3 scripts/lv_prepare_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --lv-loadings ${LV_LOADINGS_PATH} --resume --metapath-limit-per-target ${LV_METAPATH_LIMIT:-2}" }
 lv-prepare-exp-all-metapaths = { shell = "python3 scripts/lv_prepare_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --lv-loadings ${LV_LOADINGS_PATH} --resume --all-metapaths" }
@@ -70,6 +71,7 @@ lv-gen-permutation = { shell = "python3 scripts/lv_generate_control_replicates.p
 lv-gen-random = { shell = "python3 scripts/lv_generate_control_replicates.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --control random --n-replicates ${LV_N_REPLICATES:-20}" }
 lv-compute-replicate-summaries = { shell = "python3 scripts/lv_compute_replicate_summaries.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment}" }
 lv-null-variance-exp = { shell = "python3 scripts/lv_null_variance_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --b-values ${LV_NULL_VAR_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_NULL_VAR_SEEDS:-11,22,33,44,55}" }
+lv-null-variance-plots = { shell = "python3 scripts/plot_lv_null_variance_results.py --analysis-dir ${LV_NULL_VAR_ANALYSIS_DIR:-output/lv_experiment/lv_null_variance_experiment}" }
 lv-rank-stability-exp = { shell = "python3 scripts/lv_rank_stability_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --b-values ${LV_RANK_STAB_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_RANK_STAB_SEEDS:-11,22,33,44,55} --top-k-metapaths ${LV_RANK_STAB_TOP_K:-10}" }
 lv-null-variance-exp-all-metapaths = { shell = "python3 scripts/lv_null_variance_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --b-values ${LV_NULL_VAR_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_NULL_VAR_SEEDS:-11,22,33,44,55}" }
 lv-rank-stability-exp-all-metapaths = { shell = "python3 scripts/lv_rank_stability_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --b-values ${LV_RANK_STAB_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_RANK_STAB_SEEDS:-11,22,33,44,55} --top-k-metapaths ${LV_RANK_STAB_TOP_K:-10}" }

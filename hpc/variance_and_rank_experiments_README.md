@@ -123,6 +123,12 @@ This now writes both pair-level DWPC files and per-replicate summary files:
 poe year-null-variance-exp
 ```
 
+Optional post-processing plots from the saved variance CSVs:
+
+```bash
+poe year-null-variance-plots
+```
+
 #### Step 5: rank stability
 
 ```bash
@@ -183,6 +189,12 @@ This writes one summary file per artifact under:
 
 ```bash
 poe lv-null-variance-exp
+```
+
+Optional post-processing plots from the saved variance CSVs:
+
+```bash
+poe lv-null-variance-plots
 ```
 
 This keeps the original LV analysis semantics:
@@ -313,6 +325,8 @@ sbatch hpc/lv_rank_stability_aggregate.sbatch
 - `output/lv_experiment/lv_null_variance_experiment/overall_variance_summary.csv`
 - `output/lv_experiment/lv_null_variance_experiment/variance_overall_by_group.png`
 - `output/lv_experiment/lv_null_variance_experiment/sd_overall_by_group.png`
+- `output/lv_experiment/lv_null_variance_experiment/variance_points_with_mean_trend_by_b.png`
+- `output/lv_experiment/lv_null_variance_experiment/sd_points_with_mean_trend_by_b.png`
 
 ### LV rank stability
 
@@ -336,6 +350,8 @@ sbatch hpc/lv_rank_stability_aggregate.sbatch
 - `output/year_null_variance_exp/year_null_variance_experiment/overall_variance_summary.csv`
 - `output/year_null_variance_exp/year_null_variance_experiment/variance_overall_by_group.png`
 - `output/year_null_variance_exp/year_null_variance_experiment/sd_overall_by_group.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/variance_points_with_mean_trend_by_year.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/sd_points_with_mean_trend_by_year.png`
 
 ### Year rank stability
 
