@@ -254,6 +254,7 @@ sbatch hpc/lv_prepare.sbatch
 #### Step 2: warm the shared DWPC cache across metapaths
 
 ```bash
+mkdir -p output/lv_experiment
 python scripts/lv_prepare_experiment.py --output-dir output/lv_experiment --list-metapaths > output/lv_experiment/metapath_manifest.txt
 sbatch --array=0-$(($(wc -l < output/lv_experiment/metapath_manifest.txt)-1)) hpc/lv_dwpc_cache_warmup_array.sbatch
 ```

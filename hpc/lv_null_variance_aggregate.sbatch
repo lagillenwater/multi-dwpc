@@ -19,5 +19,5 @@ conda activate multi_dwpc
 
 $PYTHON_EXE scripts/lv_null_variance_experiment.py \
   --output-dir "$OUTPUT_DIR" \
-  --b-values "${LV_NULL_VAR_B_VALUES:-1,2,5,10,20,50}" \
+  --b-values "${LV_NULL_VAR_B_VALUES:-1,2,5,10,20}" \
   --seeds "${LV_NULL_VAR_SEEDS:-11,22,33,44,55}"
