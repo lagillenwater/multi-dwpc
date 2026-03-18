@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot LV null-variance summaries from existing aggregate CSV outputs."""
+"""Plot LV rank-stability rho summaries from existing aggregate CSV outputs."""
 
 from __future__ import annotations
 
@@ -42,28 +42,49 @@ def _color_map(ids: list[str]) -> dict[str, str]:
     return colors
 
 
-def _entity_mean(feature_df: pd.DataFrame, metric_col: str) -> pd.DataFrame:
+def _load_entity_df(analysis_dir: Path) -> pd.DataFrame:
+    summary_path = analysis_dir / "lv_stability_summary.csv"
+    if summary_path.exists():
+        return _load_csv(
+            summary_path,
+            required_columns=["control", "b", "lv_id", "target_set_id", "mean_spearman_rho"],
+        )
+
+    legacy_path = analysis_dir / "metapath_pairwise_metrics.csv"
+    legacy_df = _load_csv(
+        legacy_path,
+        required_columns=["b", "lv_id", "target_set_id", "spearman_rho"],
+    )
+    legacy_df = (
+        legacy_df.groupby(["b", "lv_id", "target_set_id"], as_index=False)
+        .agg(
+            n_pairs=("spearman_rho", "size"),
+            mean_spearman_rho=("spearman_rho", "mean"),
+            median_spearman_rho=("spearman_rho", "median"),
+        )
+        .sort_values(["lv_id", "target_set_id", "b"])
+        .reset_index(drop=True)
+    )
+    legacy_df.insert(0, "control", "combined")
+    return legacy_df
+
+
+def _mean_by_lv(entity_df: pd.DataFrame) -> pd.DataFrame:
     return (
-        feature_df.groupby(["control", "b", "lv_id"], as_index=False)[metric_col]
+        entity_df.groupby(["control", "b", "lv_id"], as_index=False)["mean_spearman_rho"]
         .mean()
-        .rename(columns={metric_col: f"mean_{metric_col}"})
+        .rename(columns={"mean_spearman_rho": "mean_rho_by_lv"})
         .sort_values(["control", "lv_id", "b"])
     )
 
 
-def _plot_metric(
-    feature_df: pd.DataFrame,
-    metric_col: str,
-    y_label: str,
-    title: str,
-    output_path: Path,
-) -> None:
-    controls = sorted(feature_df["control"].dropna().astype(str).unique().tolist())
-    lv_ids = sorted(feature_df["lv_id"].dropna().astype(str).unique().tolist())
+def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
+    controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
+    lv_ids = sorted(entity_df["lv_id"].dropna().astype(str).unique().tolist())
     if not controls or not lv_ids:
-        raise ValueError("LV feature summary must contain control and lv_id values")
+        raise ValueError("LV stability summary must contain control and lv_id values")
 
-    mean_df = _entity_mean(feature_df, metric_col)
+    mean_df = _mean_by_lv(entity_df)
     colors = _color_map(lv_ids)
     fig, axes = plt.subplots(1, len(controls), figsize=(7.0 * len(controls), 5.2), sharey=True)
     if len(controls) == 1:
@@ -71,7 +92,7 @@ def _plot_metric(
 
     rng = np.random.default_rng(42)
     for ax, control in zip(axes, controls):
-        control_points = feature_df[feature_df["control"].astype(str) == control].copy()
+        control_points = entity_df[entity_df["control"].astype(str) == control].copy()
         control_mean = mean_df[mean_df["control"].astype(str) == control].copy()
         for lv_id in lv_ids:
             points = control_points[control_points["lv_id"].astype(str) == lv_id].copy()
@@ -81,7 +102,7 @@ def _plot_metric(
             jitter = rng.uniform(-0.14, 0.14, size=len(points))
             ax.scatter(
                 b_values + jitter,
-                points[metric_col].astype(float),
+                points["mean_spearman_rho"].astype(float),
                 s=28,
                 alpha=0.30,
                 color=colors[lv_id],
@@ -90,7 +111,7 @@ def _plot_metric(
             line = control_mean[control_mean["lv_id"].astype(str) == lv_id].copy().sort_values("b")
             ax.plot(
                 line["b"].astype(float),
-                line[f"mean_{metric_col}"].astype(float),
+                line["mean_rho_by_lv"].astype(float),
                 marker="o",
                 linewidth=2.2,
                 markersize=6.5,
@@ -100,9 +121,9 @@ def _plot_metric(
         ax.set_xlabel("Null replicate count (B)")
         ax.set_title(control)
         ax.grid(alpha=0.25)
-    axes[0].set_ylabel(y_label)
+    axes[0].set_ylabel("Mean Spearman rho across seed pairs")
     axes[-1].legend(title="LV", loc="best")
-    fig.suptitle(title)
+    fig.suptitle("LV rank-stability rho by B")
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -112,8 +133,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--analysis-dir",
-        default="output/lv_experiment/lv_null_variance_experiment",
-        help="Directory containing feature_variance_summary.csv",
+        default="output/lv_experiment/lv_rank_stability_experiment",
+        help="Directory containing lv_stability_summary.csv",
     )
     return parser.parse_args()
 
@@ -121,29 +142,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     analysis_dir = Path(args.analysis_dir)
-
-    feature_df = _load_csv(
-        analysis_dir / "feature_variance_summary.csv",
-        required_columns=["control", "lv_id", "b", "diff_std", "diff_var"],
-    )
-
-    _plot_metric(
-        feature_df=feature_df,
-        metric_col="diff_std",
-        y_label="SD(diff) across seeds",
-        title="LV null SD by B",
-        output_path=analysis_dir / "sd_points_with_mean_trend_by_b.png",
-    )
-    _plot_metric(
-        feature_df=feature_df,
-        metric_col="diff_var",
-        y_label="Variance(diff) across seeds",
-        title="LV null variance by B",
-        output_path=analysis_dir / "variance_points_with_mean_trend_by_b.png",
-    )
-
-    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.png'}")
-    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.png'}")
+    entity_df = _load_entity_df(analysis_dir)
+    out_path = analysis_dir / "rho_points_with_mean_trend_by_b.png"
+    _plot_rho(entity_df, out_path)
+    print(f"Saved plot: {out_path}")
 
 
 if __name__ == "__main__":

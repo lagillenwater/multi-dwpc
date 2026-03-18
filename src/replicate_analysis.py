@@ -150,6 +150,14 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(union)
 
 
+def _spearman_from_ranks(x: pd.Series, y: pd.Series) -> float:
+    if len(x) < 2 or len(y) < 2:
+        return np.nan
+    x_rank = x.rank(method="average")
+    y_rank = y.rank(method="average")
+    return float(x_rank.corr(y_rank, method="pearson"))
+
+
 def summarize_rank_stability(
     rank_df: pd.DataFrame,
     outer_keys: list[str],
@@ -190,7 +198,7 @@ def summarize_rank_stability(
                     "replicate_a": rep_a,
                     "replicate_b": rep_b,
                     "n_common_features": int(len(common)),
-                    "spearman_rho": float(x.corr(y, method="spearman")),
+                    "spearman_rho": _spearman_from_ranks(x, y),
                     "topk_jaccard": _jaccard(top_a, top_b),
                 }
             )

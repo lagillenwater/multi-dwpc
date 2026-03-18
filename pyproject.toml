@@ -62,9 +62,11 @@ divergence-score-analysis = "python scripts/divergence_score_analysis.py"
 test-dwpc-accuracy = "python scripts/test_dwpc_accuracy.py"
 benchmark-dwpc = "python scripts/benchmark_dwpc_methods.py"
 benchmark-dwpc-plots = "python scripts/plot_dwpc_benchmark.py"
-year-null-variance-exp = { shell = "python3 scripts/year_null_variance_experiment.py --results-dir ${YEAR_NULL_VAR_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_NULL_VAR_OUTPUT_DIR:-output/year_null_variance_exp}" }
+year-null-variance-exp = { shell = "python3 scripts/year_null_variance_experiment.py --results-dir ${YEAR_NULL_VAR_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_NULL_VAR_OUTPUT_DIR:-output/year_null_variance_exp} --b-values ${YEAR_NULL_VAR_B_VALUES:-1,2,5,10,20} --seeds ${YEAR_NULL_VAR_SEEDS:-11,22,33,44,55}" }
 year-null-variance-plots = { shell = "python3 scripts/plot_year_null_variance_results.py --analysis-dir ${YEAR_NULL_VAR_ANALYSIS_DIR:-output/year_null_variance_exp/year_null_variance_experiment}" }
-year-rank-stability-exp = { shell = "python3 scripts/year_rank_stability_experiment.py --results-dir ${YEAR_RANK_STAB_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_RANK_STAB_OUTPUT_DIR:-output/year_rank_stability_exp} --top-k-metapaths ${YEAR_RANK_STAB_TOP_K:-10}" }
+year-rank-stability-exp = { shell = "python3 scripts/year_rank_stability_experiment.py --results-dir ${YEAR_RANK_STAB_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results} --output-dir ${YEAR_RANK_STAB_OUTPUT_DIR:-output/year_rank_stability_exp} --b-values ${YEAR_RANK_STAB_B_VALUES:-1,2,5,10,20} --seeds ${YEAR_RANK_STAB_SEEDS:-11,22,33,44,55} --top-k-metapaths ${YEAR_RANK_STAB_TOP_K:-10}" }
+year-rank-stability-plots = { shell = "python3 scripts/plot_year_rank_stability_results.py --analysis-dir ${YEAR_RANK_STAB_ANALYSIS_DIR:-output/year_rank_stability_exp/year_rank_stability_experiment}" }
+track-year-top-metapaths = { shell = "python3 scripts/track_year_top_metapaths.py --analysis-dir ${YEAR_RANK_STAB_ANALYSIS_DIR:-output/year_rank_stability_exp/year_rank_stability_experiment} --reference-seed ${YEAR_TRACK_REF_SEED:-11} --top-n ${YEAR_TRACK_TOP_N:-5}" }
 lv-prepare-exp = { shell = "python3 scripts/lv_prepare_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --lv-loadings ${LV_LOADINGS_PATH} --resume --metapath-limit-per-target ${LV_METAPATH_LIMIT:-2}" }
 lv-prepare-exp-all-metapaths = { shell = "python3 scripts/lv_prepare_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --lv-loadings ${LV_LOADINGS_PATH} --resume --all-metapaths" }
 lv-gen-permutation = { shell = "python3 scripts/lv_generate_control_replicates.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --control permuted --n-replicates ${LV_N_REPLICATES:-20}" }
@@ -73,6 +75,10 @@ lv-compute-replicate-summaries = { shell = "python3 scripts/lv_compute_replicate
 lv-null-variance-exp = { shell = "python3 scripts/lv_null_variance_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --b-values ${LV_NULL_VAR_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_NULL_VAR_SEEDS:-11,22,33,44,55}" }
 lv-null-variance-plots = { shell = "python3 scripts/plot_lv_null_variance_results.py --analysis-dir ${LV_NULL_VAR_ANALYSIS_DIR:-output/lv_experiment/lv_null_variance_experiment}" }
 lv-rank-stability-exp = { shell = "python3 scripts/lv_rank_stability_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --b-values ${LV_RANK_STAB_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_RANK_STAB_SEEDS:-11,22,33,44,55} --top-k-metapaths ${LV_RANK_STAB_TOP_K:-10}" }
+lv-rank-stability-plots = { shell = "python3 scripts/plot_lv_rank_stability_results.py --analysis-dir ${LV_RANK_STAB_ANALYSIS_DIR:-output/lv_experiment/lv_rank_stability_experiment}" }
+lv-rank-seed-comparisons = { shell = "python3 scripts/plot_lv_rank_seed_comparisons.py --analysis-dir ${LV_RANK_STAB_ANALYSIS_DIR:-output/lv_experiment/lv_rank_stability_experiment} --reference-seed ${LV_RANK_REF_SEED:-11}" }
+lv-rank-top-paths = { shell = "python3 scripts/identify_lv_rank_top_paths.py --analysis-dir ${LV_RANK_STAB_ANALYSIS_DIR:-output/lv_experiment/lv_rank_stability_experiment} --workspace-dir ${LV_OUTPUT_DIR:-output/lv_experiment} --top-metapaths-per-run ${LV_RANK_TOP_METAPATHS:-2} --top-pairs ${LV_RANK_TOP_PAIRS:-10} --top-paths ${LV_RANK_TOP_PATHS:-5}" }
+track-lv-top-metapaths = { shell = "python3 scripts/track_lv_top_metapaths.py --analysis-dir ${LV_RANK_STAB_ANALYSIS_DIR:-output/lv_experiment/lv_rank_stability_experiment} --reference-seed ${LV_TRACK_REF_SEED:-11} --top-n ${LV_TRACK_TOP_N:-5}" }
 lv-null-variance-exp-all-metapaths = { shell = "python3 scripts/lv_null_variance_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --b-values ${LV_NULL_VAR_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_NULL_VAR_SEEDS:-11,22,33,44,55}" }
 lv-rank-stability-exp-all-metapaths = { shell = "python3 scripts/lv_rank_stability_experiment.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths} --b-values ${LV_RANK_STAB_B_VALUES:-1,2,5,10,20,50} --seeds ${LV_RANK_STAB_SEEDS:-11,22,33,44,55} --top-k-metapaths ${LV_RANK_STAB_TOP_K:-10}" }
 pipeline-year-exp = { shell = "python3 scripts/pipeline_year_experiment.py --stage pipeline --resume" }
@@ -88,6 +94,8 @@ convert-notebooks = { shell = "for nb in notebooks/1.*.ipynb; do jupytext --to p
 clean = { shell = "rm -rf data/ output/ gene_ontology/" }
 download-lv-loadings = { shell = "python3 scripts/download_lv_loadings.py --owner greenelab --repo phenoplier --ref main --source-path data/input/multiplier --exact-file multiplier_model_z.tsv.gz --output-dir ${LV_LOADINGS_DIR:-data/lv_loadings}" }
 top-bp-paths = "python scripts/top_bps_by_metapath.py"
+identify-year-top-paths = { shell = "python3 scripts/identify_year_top_paths.py --years ${TOP_PATH_YEARS:-2016 2024}" }
+identify-lv-top-paths = { shell = "python3 scripts/identify_lv_top_paths.py --output-dir ${LV_OUTPUT_DIR:-output/lv_experiment}" }
 plot-top-paths-network = "python scripts/plot_top_paths_networks.py"
 extract-top-paths-local = "python scripts/extract_top_paths_local.py"
 plot-path-instances-network = "python scripts/plot_path_instances_networks.py"

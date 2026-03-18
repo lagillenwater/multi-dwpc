@@ -25,4 +25,6 @@ conda activate multi_dwpc
 $PYTHON_EXE scripts/year_rank_stability_experiment.py \
   --results-dir "$RESULTS_DIR" \
   --output-dir "$OUTPUT_DIR" \
+  --b-values "${YEAR_RANK_STAB_B_VALUES:-1,2,5,10,20}" \
+  --seeds "${YEAR_RANK_STAB_SEEDS:-11,22,33,44,55}" \
   --top-k-metapaths "$TOP_K"

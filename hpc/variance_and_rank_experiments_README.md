@@ -135,6 +135,13 @@ poe year-null-variance-plots
 poe year-rank-stability-exp
 ```
 
+Optional post-processing plots from the saved rank-stability CSVs:
+
+```bash
+poe year-rank-stability-plots
+poe identify-year-top-paths
+```
+
 Use `20` null replicates by default for both year and LV so the workflows stay parallel. Increase that explicitly for final production runs if you need tighter stability estimates.
 
 ### LV
@@ -212,6 +219,15 @@ This keeps the original LV analysis semantics:
 poe lv-rank-stability-exp
 ```
 
+Optional post-processing plots and rank/path exports:
+
+```bash
+poe lv-rank-stability-plots
+poe lv-rank-seed-comparisons
+poe lv-rank-top-paths
+poe identify-lv-top-paths
+```
+
 This ranks metapaths by `diff` for each `(control, B, seed, LV, target set)` and compares rankings across seeds.
 
 ## HPC workflow
@@ -250,6 +266,18 @@ Notes:
 #### Step 4: aggregate variance and rank stability
 
 ```bash
+sbatch hpc/year_null_variance.sbatch
+sbatch hpc/year_rank_stability.sbatch
+```
+
+With explicit B/seed settings and top-5 focus:
+
+```bash
+export YEAR_NULL_VAR_B_VALUES=1,2,5,10,20
+export YEAR_NULL_VAR_SEEDS=11,22,33,44,55
+export YEAR_RANK_STAB_B_VALUES=1,2,5,10,20
+export YEAR_RANK_STAB_SEEDS=11,22,33,44,55
+export YEAR_RANK_STAB_TOP_K=5
 sbatch hpc/year_null_variance.sbatch
 sbatch hpc/year_rank_stability.sbatch
 ```
@@ -310,6 +338,31 @@ sbatch hpc/lv_null_variance_aggregate.sbatch
 sbatch hpc/lv_rank_stability_aggregate.sbatch
 ```
 
+With top-5 rank-stability focus:
+
+```bash
+export LV_RANK_STAB_TOP_K=5
+sbatch hpc/lv_null_variance_aggregate.sbatch
+sbatch hpc/lv_rank_stability_aggregate.sbatch
+```
+
+Post-processing after aggregates finish:
+
+```bash
+poe year-null-variance-plots
+poe year-rank-stability-plots
+poe lv-null-variance-plots
+poe lv-rank-stability-plots
+poe lv-rank-seed-comparisons
+```
+
+Track the same top 5 metapaths across seeds and B using seed 11 at max B:
+
+```bash
+poe track-year-top-metapaths
+poe track-lv-top-metapaths
+```
+
 ## Output locations
 
 ### LV shared workspace
@@ -337,6 +390,10 @@ sbatch hpc/lv_rank_stability_aggregate.sbatch
 - `output/lv_experiment/lv_rank_stability_experiment/overall_stability_summary.csv`
 - `output/lv_experiment/lv_rank_stability_experiment/spearman_overall_by_group.png`
 - `output/lv_experiment/lv_rank_stability_experiment/topk_jaccard_overall_by_group.png`
+- `output/lv_experiment/lv_rank_stability_experiment/rho_points_with_mean_trend_by_b.png`
+- `output/lv_experiment/lv_rank_stability_experiment/rank_scatter_ref_seed_11/`
+- `output/lv_experiment/lv_rank_stability_experiment/top_pairs_runs.csv`
+- `output/lv_experiment/lv_rank_stability_experiment/top_paths_runs.csv`
 
 ### Year shared workspace
 
@@ -350,8 +407,8 @@ sbatch hpc/lv_rank_stability_aggregate.sbatch
 - `output/year_null_variance_exp/year_null_variance_experiment/overall_variance_summary.csv`
 - `output/year_null_variance_exp/year_null_variance_experiment/variance_overall_by_group.png`
 - `output/year_null_variance_exp/year_null_variance_experiment/sd_overall_by_group.png`
-- `output/year_null_variance_exp/year_null_variance_experiment/variance_points_with_mean_trend_by_year.png`
-- `output/year_null_variance_exp/year_null_variance_experiment/sd_points_with_mean_trend_by_year.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/variance_points_with_mean_trend_by_b.png`
+- `output/year_null_variance_exp/year_null_variance_experiment/sd_points_with_mean_trend_by_b.png`
 
 ### Year rank stability
 
@@ -362,3 +419,4 @@ sbatch hpc/lv_rank_stability_aggregate.sbatch
 - `output/year_rank_stability_exp/year_rank_stability_experiment/overall_stability_summary.csv`
 - `output/year_rank_stability_exp/year_rank_stability_experiment/spearman_overall_by_group.png`
 - `output/year_rank_stability_exp/year_rank_stability_experiment/topk_jaccard_overall_by_group.png`
+- `output/year_rank_stability_exp/year_rank_stability_experiment/rho_points_with_mean_trend_by_b.png`

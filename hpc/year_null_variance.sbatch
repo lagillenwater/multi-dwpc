@@ -20,4 +20,6 @@ conda activate multi_dwpc
 
 $PYTHON_EXE scripts/year_null_variance_experiment.py \
   --results-dir "$RESULTS_DIR" \
-  --output-dir "$OUTPUT_DIR"
+  --output-dir "$OUTPUT_DIR" \
+  --b-values "${YEAR_NULL_VAR_B_VALUES:-1,2,5,10,20}" \
+  --seeds "${YEAR_NULL_VAR_SEEDS:-11,22,33,44,55}"
