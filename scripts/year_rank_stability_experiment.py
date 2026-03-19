@@ -17,6 +17,11 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
+YEAR_COLORS = {
+    "2016": "#1f77b4",
+    "2024": "#ff7f0e",
+}
+
 if Path.cwd().name == "scripts":
     REPO_ROOT = Path("..").resolve()
 else:
