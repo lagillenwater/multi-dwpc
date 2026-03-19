@@ -120,26 +120,29 @@ if [[ "$RUN_YEAR" == "1" ]]; then
   year_rank_job="$(submit_sbatch "" hpc/year_rank_stability.sbatch)"
   year_rank_plot_job="$(submit_wrap "$year_rank_job" "year-rank-plots" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
     "$PYTHON_EXE scripts/plot_year_rank_stability_results.py --analysis-dir \"$YEAR_RANK_ANALYSIS_DIR\"")"
+  year_seed_plot_job="$(submit_wrap "$year_rank_plot_job" "year-seed-scatter" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+    "$PYTHON_EXE scripts/plot_year_rank_seed_comparisons.py --analysis-dir \"$YEAR_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\"")"
 
   print_job "year null aggregate" "$year_null_job"
   print_job "year null plots" "$year_null_plot_job"
   print_job "year rank aggregate" "$year_rank_job"
   print_job "year rank plots" "$year_rank_plot_job"
+  print_job "year seed scatters" "$year_seed_plot_job"
 
   if [[ "$INCLUDE_TRACKING" == "1" ]]; then
     IFS=',' read -r -a year_track_values <<< "$TRACK_TOP_N_VALUES"
     for track_n in "${year_track_values[@]}"; do
       track_n="${track_n//[[:space:]]/}"
       [[ -z "$track_n" ]] && continue
-      year_track_job="$(submit_wrap "$year_rank_plot_job" "year-top-tracking-${track_n}" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+      year_track_job="$(submit_wrap "$year_seed_plot_job" "year-top-tracking-${track_n}" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
         "$PYTHON_EXE scripts/track_year_top_metapaths.py --analysis-dir \"$YEAR_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\" --top-n \"$track_n\"")"
       print_job "year top-${track_n} tracking" "$year_track_job"
     done
   fi
 
   if [[ "$INCLUDE_TOP_PATHS" == "1" ]]; then
-    year_paths_job="$(submit_wrap "$year_rank_plot_job" "year-top-paths" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
-      "$PYTHON_EXE scripts/identify_year_top_paths.py --years 2016 2024 --top-n \"$TRACK_TOP_N\" --pair-top-n 10 --top-paths 5")"
+    year_paths_job="$(submit_wrap "$year_seed_plot_job" "year-top-paths" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
+      "$PYTHON_EXE scripts/identify_year_top_paths.py --years 2016 2024 --top-n \"$TRACK_TOP_N\" --top-metapaths \"$TRACK_TOP_N\" --pair-top-n 10 --top-paths 5 --plot-path-instances")"
     print_job "year top paths" "$year_paths_job"
   fi
 

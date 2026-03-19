@@ -91,6 +91,20 @@ def select_top_bps(
     return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
 
 
+def select_top_metapaths(df: pd.DataFrame, top_metapaths: int | None) -> set[str] | None:
+    if top_metapaths is None:
+        return None
+    if df.empty:
+        return set()
+
+    ranked = (
+        df.groupby("metapath", as_index=False)["mean_dwpc"]
+        .max()
+        .sort_values(["mean_dwpc", "metapath"], ascending=[False, True])
+    )
+    return set(ranked.head(int(top_metapaths))["metapath"].astype(str))
+
+
 def collect_top_pairs(
     path: Path,
     top_bp_pairs: set[tuple[str, str]],
@@ -136,6 +150,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Top BP terms and top gene-BP pairs per metapath.")
     parser.add_argument("--years", nargs="+", default=["2016", "2024"])
     parser.add_argument("--top-n", type=int, default=5, help="Top BPs per metapath (default 5).")
+    parser.add_argument(
+        "--top-metapaths",
+        type=int,
+        default=None,
+        help="Optional cap on the number of metapaths retained per year.",
+    )
     parser.add_argument("--pair-top-n", type=int, default=10, help="Top gene-BP pairs per BP (default 10).")
     parser.add_argument("--top-quantile", type=float, default=None, help="Quantile threshold per metapath.")
     parser.add_argument("--top-z", type=float, default=None, help="Z-score threshold per metapath.")
@@ -163,6 +183,10 @@ def main() -> None:
         print(f"Processing {year} from {path}")
         mean_df = compute_mean_dwpc(path, chunksize=args.chunksize)
         top_bps = select_top_bps(mean_df, args.top_n, args.top_quantile, args.top_z)
+        selected_metapaths = select_top_metapaths(mean_df, args.top_metapaths)
+        if selected_metapaths is not None:
+            top_bps = top_bps[top_bps["metapath"].isin(selected_metapaths)].copy()
+            print(f"Retained {len(selected_metapaths):,} metapaths for {year}")
         top_bps["go_name"] = top_bps["go_id"].map(bp_map)
         top_bps["year"] = int(year)
 

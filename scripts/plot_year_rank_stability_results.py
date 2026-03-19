@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot year rank-stability rho summaries from existing aggregate CSV outputs."""
+"""Plot year rank-stability summaries from existing aggregate CSV outputs."""
 
 from __future__ import annotations
 
@@ -29,10 +29,12 @@ def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
         prefix = "mean_topk_jaccard_"
         if col.startswith(prefix):
             labels.append(col[len(prefix):])
+
     def _sort_key(label: str) -> tuple[int, int | str]:
         if label == "all":
             return (1, label)
         return (0, int(label))
+
     return sorted(set(labels), key=_sort_key)
 
 
@@ -123,14 +125,16 @@ def _plot_overlap_and_rank(entity_df: pd.DataFrame, output_path: Path) -> None:
     years = sorted(entity_df["year"].dropna().astype(int).unique().tolist())
     top_k_labels = _top_k_labels_from_columns(entity_df)
     if not controls or not years:
-        return
+        raise ValueError("Year stability summary must contain control and year values")
 
     metric_specs: list[tuple[str, str, str]] = []
     if "5" in top_k_labels:
         metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
     if "10" in top_k_labels:
         metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
-    metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
+    if "all" in top_k_labels:
+        metric_specs.append(("topall", "mean_topk_jaccard_all", "Mean top-all Jaccard across seeds"))
+    metric_specs.append(("rho", "mean_spearman_rho", "Mean Spearman rho across seeds"))
 
     plot_rows = []
     for metric_key, metric_col, metric_label in metric_specs:
@@ -165,8 +169,8 @@ def _plot_overlap_and_rank(entity_df: pd.DataFrame, output_path: Path) -> None:
                 & (plot_df["control"].astype(str) == control)
             ].copy()
             control_mean = mean_df[
-                (mean_df["control"].astype(str) == control)
-                & (mean_df["metric_key"].astype(str) == metric_key)
+                (mean_df["metric_key"].astype(str) == metric_key)
+                & (mean_df["control"].astype(str) == control)
             ].copy()
             for year in years:
                 color = YEAR_COLORS.get(str(year), "#333333")
@@ -228,6 +232,7 @@ def main() -> None:
     rho_path = analysis_dir / "rho_points_with_mean_trend_by_b.png"
     _plot_rho(entity_df, rho_path)
     print(f"Saved plot: {rho_path}")
+
     topk_path = analysis_dir / "topk_jaccard_overall_by_group.png"
     _plot_overlap_and_rank(entity_df, topk_path)
     print(f"Saved plot: {topk_path}")
