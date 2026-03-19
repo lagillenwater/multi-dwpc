@@ -32,12 +32,13 @@ POST_TIME="${POST_TIME:-04:00:00}"
 : "${LV_RANK_TOP_METAPATHS:=5}"
 : "${TRACK_REFERENCE_SEED:=11}"
 : "${TRACK_TOP_N:=5}"
+: "${TRACK_TOP_N_VALUES:=5,10,all}"
 
 export YEAR_NULL_VAR_B_VALUES YEAR_NULL_VAR_SEEDS
 export YEAR_RANK_STAB_B_VALUES YEAR_RANK_STAB_SEEDS YEAR_RANK_STAB_TOP_K
 export LV_NULL_VAR_B_VALUES LV_NULL_VAR_SEEDS
 export LV_RANK_STAB_B_VALUES LV_RANK_STAB_SEEDS LV_RANK_STAB_TOP_K LV_RANK_TOP_METAPATHS
-export TRACK_REFERENCE_SEED TRACK_TOP_N
+export TRACK_REFERENCE_SEED TRACK_TOP_N TRACK_TOP_N_VALUES
 
 cd "$REPO_ROOT"
 
@@ -126,9 +127,14 @@ if [[ "$RUN_YEAR" == "1" ]]; then
   print_job "year rank plots" "$year_rank_plot_job"
 
   if [[ "$INCLUDE_TRACKING" == "1" ]]; then
-    year_track_job="$(submit_wrap "$year_rank_plot_job" "year-top-tracking" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
-      "$PYTHON_EXE scripts/track_year_top_metapaths.py --analysis-dir \"$YEAR_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\" --top-n \"$TRACK_TOP_N\"")"
-    print_job "year top-5 tracking" "$year_track_job"
+    IFS=',' read -r -a year_track_values <<< "$TRACK_TOP_N_VALUES"
+    for track_n in "${year_track_values[@]}"; do
+      track_n="${track_n//[[:space:]]/}"
+      [[ -z "$track_n" ]] && continue
+      year_track_job="$(submit_wrap "$year_rank_plot_job" "year-top-tracking-${track_n}" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+        "$PYTHON_EXE scripts/track_year_top_metapaths.py --analysis-dir \"$YEAR_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\" --top-n \"$track_n\"")"
+      print_job "year top-${track_n} tracking" "$year_track_job"
+    done
   fi
 
   if [[ "$INCLUDE_TOP_PATHS" == "1" ]]; then
@@ -157,19 +163,21 @@ if [[ "$RUN_LV" == "1" ]]; then
   print_job "LV rank plots" "$lv_rank_plot_job"
   print_job "LV seed scatters" "$lv_seed_plot_job"
 
-  lv_rank_tail_job="$lv_seed_plot_job"
-
   if [[ "$INCLUDE_TRACKING" == "1" ]]; then
-    lv_track_job="$(submit_wrap "$lv_rank_tail_job" "lv-top-tracking" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
-      "$PYTHON_EXE scripts/track_lv_top_metapaths.py --analysis-dir \"$LV_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\" --top-n \"$TRACK_TOP_N\"")"
-    print_job "LV top-5 tracking" "$lv_track_job"
-    lv_rank_tail_job="$lv_track_job"
+    IFS=',' read -r -a lv_track_values <<< "$TRACK_TOP_N_VALUES"
+    for track_n in "${lv_track_values[@]}"; do
+      track_n="${track_n//[[:space:]]/}"
+      [[ -z "$track_n" ]] && continue
+      lv_track_job="$(submit_wrap "$lv_seed_plot_job" "lv-top-tracking-${track_n}" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+        "$PYTHON_EXE scripts/track_lv_top_metapaths.py --analysis-dir \"$LV_RANK_ANALYSIS_DIR\" --reference-seed \"$TRACK_REFERENCE_SEED\" --top-n \"$track_n\"")"
+      print_job "LV top-${track_n} tracking" "$lv_track_job"
+    done
   fi
 
   if [[ "$INCLUDE_TOP_PATHS" == "1" ]]; then
     lv_top_paths_job="$(submit_wrap "$lv_null_plot_job" "lv-top-paths" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
       "$PYTHON_EXE scripts/identify_lv_top_paths.py --output-dir \"$LV_WORKSPACE_DIR\" --top-metapaths \"$TRACK_TOP_N\" --top-pairs 10 --top-paths 5")"
-    lv_rank_paths_job="$(submit_wrap "$lv_rank_tail_job" "lv-rank-top-paths" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
+    lv_rank_paths_job="$(submit_wrap "$lv_seed_plot_job" "lv-rank-top-paths" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
       "$PYTHON_EXE scripts/identify_lv_rank_top_paths.py --analysis-dir \"$LV_RANK_ANALYSIS_DIR\" --workspace-dir \"$LV_WORKSPACE_DIR\" --top-metapaths-per-run \"$TRACK_TOP_N\" --top-pairs 10 --top-paths 5")"
     print_job "LV top paths" "$lv_top_paths_job"
     print_job "LV rank top paths" "$lv_rank_paths_job"

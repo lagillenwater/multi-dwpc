@@ -9,6 +9,10 @@ from pathlib import Path
 import pandas as pd
 
 
+def _is_all(value: str) -> bool:
+    return str(value).strip().lower() in {"all", "full"}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -17,7 +21,11 @@ def parse_args() -> argparse.Namespace:
         help="Directory containing metapath_rank_table.csv",
     )
     parser.add_argument("--reference-seed", type=int, default=11)
-    parser.add_argument("--top-n", type=int, default=5)
+    parser.add_argument(
+        "--top-n",
+        default="5",
+        help="Number of reference metapaths to track, or 'all' for the full ranked list.",
+    )
     parser.add_argument("--reference-b", type=int, default=None, help="Reference B; defaults to max available B")
     parser.add_argument("--control", default=None)
     parser.add_argument("--lv-id", default=None)
@@ -53,13 +61,15 @@ def main() -> None:
     if df.empty:
         raise ValueError("No rows remain after applying filters")
 
-    ref = (
-        df[(df["seed"] == int(args.reference_seed)) & (df["b"] == ref_b)]
-        .sort_values(["control", "lv_id", "target_set_id", "metapath_rank"])
-        .groupby(["control", "lv_id", "target_set_id"], group_keys=False)
-        .head(int(args.top_n))
-        [["control", "lv_id", "target_set_id", "metapath", "metapath_rank"]]
-        .rename(columns={"metapath_rank": "ref_rank"})
+    ref = df[(df["seed"] == int(args.reference_seed)) & (df["b"] == ref_b)].copy()
+    ref = ref.sort_values(["control", "lv_id", "target_set_id", "metapath_rank"])
+    if not _is_all(args.top_n):
+        ref = ref.groupby(["control", "lv_id", "target_set_id"], group_keys=False).head(int(args.top_n))
+        top_n_label = f"top{int(args.top_n)}"
+    else:
+        top_n_label = "topall"
+    ref = ref[["control", "lv_id", "target_set_id", "metapath", "metapath_rank"]].rename(
+        columns={"metapath_rank": "ref_rank"}
     )
     if ref.empty:
         raise ValueError(
@@ -72,7 +82,7 @@ def main() -> None:
         .reset_index(drop=True)
     )
 
-    suffix_parts = [f"seed{int(args.reference_seed)}", f"b{ref_b}", f"top{int(args.top_n)}"]
+    suffix_parts = [f"seed{int(args.reference_seed)}", f"b{ref_b}", top_n_label]
     if args.control:
         suffix_parts.append(str(args.control))
     if args.lv_id:
