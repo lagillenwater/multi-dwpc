@@ -36,10 +36,6 @@ def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
     return sorted(set(labels), key=_sort_key)
 
 
-def _format_top_k_label(label: str) -> str:
-    return "all" if str(label) == "all" else str(int(label))
-
-
 def _load_csv(path: Path, required_columns: list[str]) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Required input file not found: {path}")
@@ -59,19 +55,12 @@ def _mean_by_year(entity_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _mean_topk_by_year(entity_df: pd.DataFrame) -> pd.DataFrame:
-    top_k_labels = _top_k_labels_from_columns(entity_df)
-    rows = []
-    for label in top_k_labels:
-        metric_col = f"mean_topk_jaccard_{label}"
-        subset = (
-            entity_df.groupby(["control", "b", "year"], as_index=False)[metric_col]
-            .mean()
-            .rename(columns={metric_col: "mean_topk_by_year"})
-        )
-        subset["top_k"] = label
-        rows.append(subset)
-    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+def _mean_metric_by_year(plot_df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        plot_df.groupby(["metric_key", "control", "b", "year"], as_index=False)["metric_value"]
+        .mean()
+        .rename(columns={"metric_value": "mean_metric_value"})
+    )
 
 
 def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
@@ -127,39 +116,57 @@ def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
     plt.close(fig)
 
 
-def _plot_topk(entity_df: pd.DataFrame, output_path: Path) -> None:
+def _plot_overlap_and_rank(entity_df: pd.DataFrame, output_path: Path) -> None:
     entity_df = entity_df.copy()
     entity_df["year"] = entity_df["year"].astype(int)
     controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
     years = sorted(entity_df["year"].dropna().astype(int).unique().tolist())
     top_k_labels = _top_k_labels_from_columns(entity_df)
-    if not controls or not years or not top_k_labels:
+    if not controls or not years:
         return
 
-    mean_df = _mean_topk_by_year(entity_df)
+    metric_specs: list[tuple[str, str, str]] = []
+    if "5" in top_k_labels:
+        metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
+    if "10" in top_k_labels:
+        metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
+    metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
+
+    plot_rows = []
+    for metric_key, metric_col, metric_label in metric_specs:
+        subset = entity_df[["control", "b", "year", "go_id", metric_col]].copy()
+        subset = subset.rename(columns={metric_col: "metric_value"})
+        subset["metric_key"] = metric_key
+        subset["metric_label"] = metric_label
+        plot_rows.append(subset)
+    plot_df = pd.concat(plot_rows, ignore_index=True)
+
+    mean_df = _mean_metric_by_year(plot_df)
     fig, axes = plt.subplots(
-        len(top_k_labels),
+        len(metric_specs),
         len(controls),
-        figsize=(7.0 * len(controls), 4.8 * len(top_k_labels)),
+        figsize=(7.0 * len(controls), 4.8 * len(metric_specs)),
         sharex=True,
         sharey=True,
     )
     axes = np.asarray(axes, dtype=object)
     if axes.ndim == 1:
-        if len(top_k_labels) == 1:
+        if len(metric_specs) == 1:
             axes = axes[np.newaxis, :]
         else:
             axes = axes[:, np.newaxis]
 
     rng = np.random.default_rng(42)
-    for row_idx, top_k_label in enumerate(top_k_labels):
-        metric_col = f"mean_topk_jaccard_{top_k_label}"
+    for row_idx, (metric_key, _, metric_label) in enumerate(metric_specs):
         for col_idx, control in enumerate(controls):
             ax = axes[row_idx, col_idx]
-            control_points = entity_df[entity_df["control"].astype(str) == control].copy()
+            control_points = plot_df[
+                (plot_df["metric_key"].astype(str) == metric_key)
+                & (plot_df["control"].astype(str) == control)
+            ].copy()
             control_mean = mean_df[
                 (mean_df["control"].astype(str) == control)
-                & (mean_df["top_k"].astype(str) == str(top_k_label))
+                & (mean_df["metric_key"].astype(str) == metric_key)
             ].copy()
             for year in years:
                 color = YEAR_COLORS.get(str(year), "#333333")
@@ -170,7 +177,7 @@ def _plot_topk(entity_df: pd.DataFrame, output_path: Path) -> None:
                 jitter = rng.uniform(-0.14, 0.14, size=len(points))
                 ax.scatter(
                     b_values + jitter,
-                    points[metric_col].astype(float),
+                    points["metric_value"].astype(float),
                     s=28,
                     alpha=0.30,
                     color=color,
@@ -179,7 +186,7 @@ def _plot_topk(entity_df: pd.DataFrame, output_path: Path) -> None:
                 line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
                 ax.plot(
                     line["b"].astype(float),
-                    line["mean_topk_by_year"].astype(float),
+                    line["mean_metric_value"].astype(float),
                     marker="o",
                     linewidth=2.2,
                     markersize=6.5,
@@ -189,13 +196,13 @@ def _plot_topk(entity_df: pd.DataFrame, output_path: Path) -> None:
             if row_idx == 0:
                 ax.set_title(control)
             if col_idx == 0:
-                ax.set_ylabel(f"Mean top-{_format_top_k_label(top_k_label)} Jaccard across seeds")
-            if row_idx == len(top_k_labels) - 1:
+                ax.set_ylabel(metric_label)
+            if row_idx == len(metric_specs) - 1:
                 ax.set_xlabel("B")
             ax.set_ylim(0, 1.02)
             ax.grid(alpha=0.25)
     axes[0, -1].legend(title="Year", loc="best")
-    fig.suptitle("Year top-k overlap stability by B")
+    fig.suptitle("Year overlap and rank stability by B")
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -222,7 +229,7 @@ def main() -> None:
     _plot_rho(entity_df, rho_path)
     print(f"Saved plot: {rho_path}")
     topk_path = analysis_dir / "topk_jaccard_overall_by_group.png"
-    _plot_topk(entity_df, topk_path)
+    _plot_overlap_and_rank(entity_df, topk_path)
     print(f"Saved plot: {topk_path}")
 
 

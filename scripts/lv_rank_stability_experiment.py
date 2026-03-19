@@ -34,6 +34,22 @@ def _parse_int_list(arg: str) -> list[int]:
     return values
 
 
+def _parse_top_k_values(arg: str) -> list[int]:
+    values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
+    if not values:
+        raise ValueError("Expected at least one top-k value")
+    return values
+
+
+def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
+    labels = []
+    for col in df.columns:
+        prefix = "mean_topk_jaccard_"
+        if col.startswith(prefix):
+            labels.append(col[len(prefix):])
+    return sorted(set(labels), key=int)
+
+
 def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, out_path: Path) -> None:
     if overall_df.empty:
         return
@@ -55,13 +71,107 @@ def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str
     plt.close(fig)
 
 
+def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) -> None:
+    controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
+    lv_ids = sorted(entity_df["lv_id"].dropna().astype(str).unique().tolist())
+    top_k_labels = _top_k_labels_from_columns(entity_df)
+    if not controls or not lv_ids:
+        return
+
+    metric_specs: list[tuple[str, str, str]] = []
+    if "5" in top_k_labels:
+        metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
+    if "10" in top_k_labels:
+        metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
+    metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
+
+    plot_rows = []
+    for metric_key, metric_col, metric_label in metric_specs:
+        subset = entity_df[["control", "b", "lv_id", "target_set_id", metric_col]].copy()
+        subset = subset.rename(columns={metric_col: "metric_value"})
+        subset["metric_key"] = metric_key
+        subset["metric_label"] = metric_label
+        plot_rows.append(subset)
+    plot_df = pd.concat(plot_rows, ignore_index=True)
+    mean_df = (
+        plot_df.groupby(["metric_key", "control", "b", "lv_id"], as_index=False)["metric_value"]
+        .mean()
+        .rename(columns={"metric_value": "mean_metric_value"})
+    )
+
+    colors = _color_map(lv_ids)
+    fig, axes = plt.subplots(
+        len(metric_specs),
+        len(controls),
+        figsize=(7.0 * len(controls), 4.8 * len(metric_specs)),
+        sharex=True,
+        sharey=True,
+    )
+    axes = np.asarray(axes, dtype=object)
+    if axes.ndim == 1:
+        if len(metric_specs) == 1:
+            axes = axes[np.newaxis, :]
+        else:
+            axes = axes[:, np.newaxis]
+
+    rng = np.random.default_rng(42)
+    for row_idx, (metric_key, _, metric_label) in enumerate(metric_specs):
+        for col_idx, control in enumerate(controls):
+            ax = axes[row_idx, col_idx]
+            control_points = plot_df[
+                (plot_df["metric_key"].astype(str) == metric_key)
+                & (plot_df["control"].astype(str) == control)
+            ].copy()
+            control_mean = mean_df[
+                (mean_df["metric_key"].astype(str) == metric_key)
+                & (mean_df["control"].astype(str) == control)
+            ].copy()
+            for lv_id in lv_ids:
+                points = control_points[control_points["lv_id"].astype(str) == lv_id].copy()
+                if points.empty:
+                    continue
+                b_values = points["b"].astype(float).to_numpy()
+                jitter = rng.uniform(-0.14, 0.14, size=len(points))
+                ax.scatter(
+                    b_values + jitter,
+                    points["metric_value"].astype(float),
+                    s=28,
+                    alpha=0.30,
+                    color=colors[lv_id],
+                    edgecolors="none",
+                )
+                line = control_mean[control_mean["lv_id"].astype(str) == lv_id].copy().sort_values("b")
+                ax.plot(
+                    line["b"].astype(float),
+                    line["mean_metric_value"].astype(float),
+                    marker="o",
+                    linewidth=2.2,
+                    markersize=6.5,
+                    color=colors[lv_id],
+                    label=lv_id,
+                )
+            if row_idx == 0:
+                ax.set_title(control)
+            if col_idx == 0:
+                ax.set_ylabel(metric_label)
+            if row_idx == len(metric_specs) - 1:
+                ax.set_xlabel("B")
+            ax.set_ylim(0, 1.02)
+            ax.grid(alpha=0.25)
+    axes[0, -1].legend(title="LV", loc="best")
+    fig.suptitle("LV overlap and rank stability by B")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="output/lv_experiment")
     parser.add_argument("--analysis-output-dir", default=None)
     parser.add_argument("--b-values", default="1,2,5,10,20,50")
     parser.add_argument("--seeds", default="11,22,33,44,55")
-    parser.add_argument("--top-k-metapaths", type=int, default=10)
+    parser.add_argument("--top-k-metapaths", default="5,10")
     return parser.parse_args()
 
 
@@ -86,7 +196,7 @@ def main() -> None:
         replicate_col="seed",
         feature_col="metapath",
         rank_col="metapath_rank",
-        top_k=args.top_k_metapaths,
+        top_k=_parse_top_k_values(args.top_k_metapaths),
     )
     if not entity_df.empty:
         entity_df = entity_df.rename(columns={"n_entities": "n_lv_target_sets"})
@@ -106,13 +216,7 @@ def main() -> None:
         title="LV metapath rank stability by B",
         out_path=exp_root / "spearman_overall_by_group.png",
     )
-    _plot_overall(
-        overall_df,
-        y_col="mean_topk_jaccard",
-        y_label=f"Mean top-{args.top_k_metapaths} Jaccard across seeds",
-        title="LV top-k overlap stability by B",
-        out_path=exp_root / "topk_jaccard_overall_by_group.png",
-    )
+    _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.png")
 
     print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
     print(f"Saved pairwise metrics: {exp_root / 'pairwise_metrics.csv'}")

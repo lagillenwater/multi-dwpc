@@ -21,4 +21,4 @@ $PYTHON_EXE scripts/lv_rank_stability_experiment.py \
   --output-dir "$OUTPUT_DIR" \
   --b-values "${LV_RANK_STAB_B_VALUES:-1,2,5,10,20}" \
   --seeds "${LV_RANK_STAB_SEEDS:-11,22,33,44,55}" \
-  --top-k-metapaths "${LV_RANK_STAB_TOP_K:-10}"
+  --top-k-metapaths "${LV_RANK_STAB_TOP_K:-5,10}"
