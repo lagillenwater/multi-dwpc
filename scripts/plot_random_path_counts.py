@@ -4,10 +4,10 @@ Sample random node pairs and plot exact simple-path counts by path length.
 
 The script builds an undirected graph from the HetMat sparse edge files, samples
 node pairs from the largest connected component, counts exact simple paths of
-lengths 2-6 between each pair, and writes both CSV outputs and a summary plot.
+lengths 2-5 between each pair, and writes both CSV outputs and a summary plot.
 
 By default, pair sampling excludes the top 50% highest-degree nodes to keep
-exact length-6 counting tractable. Set --degree-percentile-cap 100 to sample
+exact length-5 counting tractable. Set --degree-percentile-cap 100 to sample
 from the full node set.
 """
 
@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-length",
         type=int,
-        default=6,
+        default=5,
         help="Maximum exact path length to count.",
     )
     parser.add_argument(
