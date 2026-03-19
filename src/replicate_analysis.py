@@ -158,18 +158,49 @@ def _spearman_from_ranks(x: pd.Series, y: pd.Series) -> float:
     return float(x_rank.corr(y_rank, method="pearson"))
 
 
+def _normalize_top_k_specs(top_k: int | str | list[int | str] | tuple[int | str, ...]) -> list[tuple[str, int | None]]:
+    if isinstance(top_k, (int, str)):
+        raw_values = [top_k]
+    else:
+        raw_values = list(top_k)
+
+    specs: list[tuple[str, int | None]] = []
+    seen: set[str] = set()
+    for value in raw_values:
+        text = str(value).strip().lower()
+        if not text:
+            continue
+        if text in {"all", "full"}:
+            label = "all"
+            limit = None
+        else:
+            limit = int(value)
+            if limit < 1:
+                raise ValueError("top_k values must be positive integers or 'all'")
+            label = str(limit)
+        if label in seen:
+            continue
+        seen.add(label)
+        specs.append((label, limit))
+
+    if not specs:
+        raise ValueError("Expected at least one top_k value")
+    return specs
+
+
 def summarize_rank_stability(
     rank_df: pd.DataFrame,
     outer_keys: list[str],
     replicate_col: str,
     feature_col: str = "metapath",
     rank_col: str = "feature_rank",
-    top_k: int = 10,
+    top_k: int | str | list[int | str] | tuple[int | str, ...] = 10,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if rank_df.empty:
         empty = pd.DataFrame()
         return empty, empty, empty
 
+    top_k_specs = _normalize_top_k_specs(top_k)
     pairwise_rows = []
     for key, group in rank_df.groupby(outer_keys, dropna=False):
         if not isinstance(key, tuple):
@@ -190,8 +221,6 @@ def summarize_rank_stability(
                 continue
             x = pd.Series([ranks_a[m] for m in common], dtype=float)
             y = pd.Series([ranks_b[m] for m in common], dtype=float)
-            top_a = {m for m, r in ranks_a.items() if r <= int(top_k)}
-            top_b = {m for m, r in ranks_b.items() if r <= int(top_k)}
             row = {outer_keys[i]: key[i] for i in range(len(outer_keys))}
             row.update(
                 {
@@ -199,42 +228,65 @@ def summarize_rank_stability(
                     "replicate_b": rep_b,
                     "n_common_features": int(len(common)),
                     "spearman_rho": _spearman_from_ranks(x, y),
-                    "topk_jaccard": _jaccard(top_a, top_b),
                 }
             )
+            for label, limit in top_k_specs:
+                if limit is None:
+                    top_a = set(ranks_a)
+                    top_b = set(ranks_b)
+                else:
+                    top_a = {m for m, r in ranks_a.items() if r <= int(limit)}
+                    top_b = {m for m, r in ranks_b.items() if r <= int(limit)}
+                row[f"topk_jaccard_{label}"] = _jaccard(top_a, top_b)
+            if len(top_k_specs) == 1:
+                row["topk_jaccard"] = row[f"topk_jaccard_{top_k_specs[0][0]}"]
             pairwise_rows.append(row)
 
     pairwise_df = pd.DataFrame(pairwise_rows)
     if pairwise_df.empty:
         return pairwise_df, pd.DataFrame(), pd.DataFrame()
 
+    agg_dict: dict[str, tuple[str, str]] = {
+        "n_pairs": ("spearman_rho", "size"),
+        "mean_spearman_rho": ("spearman_rho", "mean"),
+        "median_spearman_rho": ("spearman_rho", "median"),
+    }
+    for label, _ in top_k_specs:
+        agg_dict[f"mean_topk_jaccard_{label}"] = (f"topk_jaccard_{label}", "mean")
+        agg_dict[f"median_topk_jaccard_{label}"] = (f"topk_jaccard_{label}", "median")
+
     entity_summary = (
         pairwise_df.groupby(outer_keys, as_index=False)
-        .agg(
-            n_pairs=("spearman_rho", "size"),
-            mean_spearman_rho=("spearman_rho", "mean"),
-            median_spearman_rho=("spearman_rho", "median"),
-            mean_topk_jaccard=("topk_jaccard", "mean"),
-            median_topk_jaccard=("topk_jaccard", "median"),
-        )
+        .agg(**agg_dict)
         .sort_values(outer_keys)
         .reset_index(drop=True)
     )
+    if len(top_k_specs) == 1:
+        label = top_k_specs[0][0]
+        entity_summary["mean_topk_jaccard"] = entity_summary[f"mean_topk_jaccard_{label}"]
+        entity_summary["median_topk_jaccard"] = entity_summary[f"median_topk_jaccard_{label}"]
 
     overall_keys = [key for key in outer_keys if key not in {"go_id", "lv_id", "target_set_id"}]
     if not overall_keys:
         overall_keys = outer_keys
+    overall_agg: dict[str, tuple[str, str]] = {
+        "n_entities": (outer_keys[-1], "size"),
+        "n_pairs": ("n_pairs", "sum"),
+        "mean_spearman_rho": ("mean_spearman_rho", "mean"),
+        "median_spearman_rho": ("median_spearman_rho", "median"),
+    }
+    for label, _ in top_k_specs:
+        overall_agg[f"mean_topk_jaccard_{label}"] = (f"mean_topk_jaccard_{label}", "mean")
+        overall_agg[f"median_topk_jaccard_{label}"] = (f"median_topk_jaccard_{label}", "median")
+
     overall_df = (
         entity_summary.groupby(overall_keys, as_index=False)
-        .agg(
-            n_entities=(outer_keys[-1], "size"),
-            n_pairs=("n_pairs", "sum"),
-            mean_spearman_rho=("mean_spearman_rho", "mean"),
-            median_spearman_rho=("median_spearman_rho", "median"),
-            mean_topk_jaccard=("mean_topk_jaccard", "mean"),
-            median_topk_jaccard=("median_topk_jaccard", "median"),
-        )
+        .agg(**overall_agg)
         .sort_values(overall_keys)
         .reset_index(drop=True)
     )
+    if len(top_k_specs) == 1:
+        label = top_k_specs[0][0]
+        overall_df["mean_topk_jaccard"] = overall_df[f"mean_topk_jaccard_{label}"]
+        overall_df["median_topk_jaccard"] = overall_df[f"median_topk_jaccard_{label}"]
     return pairwise_df, entity_summary, overall_df

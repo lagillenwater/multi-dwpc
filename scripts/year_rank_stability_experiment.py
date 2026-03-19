@@ -34,6 +34,34 @@ def _parse_int_list(arg: str) -> list[int]:
     return values
 
 
+def _parse_top_k_values(arg: str) -> list[int | str]:
+    values: list[int | str] = []
+    for tok in str(arg).split(","):
+        token = tok.strip()
+        if not token:
+            continue
+        if token.lower() in {"all", "full"}:
+            values.append("all")
+        else:
+            values.append(int(token))
+    if not values:
+        raise ValueError("Expected at least one top-k value")
+    return values
+
+
+def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
+    labels = []
+    for col in df.columns:
+        prefix = "mean_topk_jaccard_"
+        if col.startswith(prefix):
+            labels.append(col[len(prefix):])
+    def _sort_key(label: str) -> tuple[int, int | str]:
+        if label == "all":
+            return (1, label)
+        return (0, int(label))
+    return sorted(set(labels), key=_sort_key)
+
+
 def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, out_path: Path) -> None:
     years = sorted(overall_df["year"].dropna().astype(int).unique().tolist())
     b_values = sorted(overall_df["b"].dropna().astype(int).unique().tolist())
@@ -71,6 +99,100 @@ def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str
     plt.close(fig)
 
 
+def _format_top_k_label(label: str) -> str:
+    return "all" if str(label) == "all" else str(int(label))
+
+
+def _plot_topk_points(entity_df: pd.DataFrame, output_path: Path) -> None:
+    entity_df = entity_df.copy()
+    entity_df["year"] = entity_df["year"].astype(int)
+    controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
+    years = sorted(entity_df["year"].dropna().astype(int).unique().tolist())
+    top_k_labels = _top_k_labels_from_columns(entity_df)
+    if not controls or not years or not top_k_labels:
+        return
+
+    plot_rows = []
+    for label in top_k_labels:
+        metric_col = f"mean_topk_jaccard_{label}"
+        subset = entity_df[["control", "b", "year", "go_id", metric_col]].copy()
+        subset = subset.rename(columns={metric_col: "mean_topk_jaccard"})
+        subset["top_k"] = label
+        plot_rows.append(subset)
+    plot_df = pd.concat(plot_rows, ignore_index=True)
+
+    mean_df = (
+        plot_df.groupby(["top_k", "control", "b", "year"], as_index=False)["mean_topk_jaccard"]
+        .mean()
+        .rename(columns={"mean_topk_jaccard": "mean_topk_by_year"})
+    )
+
+    fig, axes = plt.subplots(
+        len(top_k_labels),
+        len(controls),
+        figsize=(7.0 * len(controls), 4.8 * len(top_k_labels)),
+        sharex=True,
+        sharey=True,
+    )
+    axes = np.asarray(axes, dtype=object)
+    if axes.ndim == 1:
+        if len(top_k_labels) == 1:
+            axes = axes[np.newaxis, :]
+        else:
+            axes = axes[:, np.newaxis]
+
+    rng = np.random.default_rng(42)
+    for row_idx, label in enumerate(top_k_labels):
+        for col_idx, control in enumerate(controls):
+            ax = axes[row_idx, col_idx]
+            control_points = plot_df[
+                (plot_df["top_k"].astype(str) == str(label))
+                & (plot_df["control"].astype(str) == control)
+            ].copy()
+            control_mean = mean_df[
+                (mean_df["top_k"].astype(str) == str(label))
+                & (mean_df["control"].astype(str) == control)
+            ].copy()
+            for year in years:
+                color = YEAR_COLORS.get(str(year), "#333333")
+                points = control_points[control_points["year"].astype(int) == int(year)].copy()
+                if points.empty:
+                    continue
+                b_values = points["b"].astype(float).to_numpy()
+                jitter = rng.uniform(-0.14, 0.14, size=len(points))
+                ax.scatter(
+                    b_values + jitter,
+                    points["mean_topk_jaccard"].astype(float),
+                    s=28,
+                    alpha=0.30,
+                    color=color,
+                    edgecolors="none",
+                )
+                line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
+                ax.plot(
+                    line["b"].astype(float),
+                    line["mean_topk_by_year"].astype(float),
+                    marker="o",
+                    linewidth=2.2,
+                    markersize=6.5,
+                    color=color,
+                    label=str(year),
+                )
+            if row_idx == 0:
+                ax.set_title(control)
+            if col_idx == 0:
+                ax.set_ylabel(f"Mean top-{_format_top_k_label(label)} Jaccard across seeds")
+            if row_idx == len(top_k_labels) - 1:
+                ax.set_xlabel("B")
+            ax.set_ylim(0, 1.02)
+            ax.grid(alpha=0.25)
+    axes[0, -1].legend(title="Year", loc="best")
+    fig.suptitle("Year top-k overlap stability by B")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results-dir", default="output/dwpc_direct/all_GO_positive_growth/results")
@@ -78,7 +200,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="output/year_rank_stability_exp")
     parser.add_argument("--b-values", default="1,2,5,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
-    parser.add_argument("--top-k-metapaths", type=int, default=10)
+    parser.add_argument("--top-k-metapaths", default="5,10,all")
     return parser.parse_args()
 
 
@@ -103,7 +225,7 @@ def main() -> None:
         replicate_col="seed",
         feature_col="metapath",
         rank_col="metapath_rank",
-        top_k=args.top_k_metapaths,
+        top_k=_parse_top_k_values(args.top_k_metapaths),
     )
     if not overall_df.empty:
         overall_df = overall_df.rename(columns={"n_entities": "n_go_terms"})
@@ -121,13 +243,7 @@ def main() -> None:
         title="Year metapath rank stability by B",
         out_path=exp_dir / "spearman_overall_by_group.png",
     )
-    _plot_overall(
-        overall_df,
-        y_col="mean_topk_jaccard",
-        y_label=f"Mean top-{args.top_k_metapaths} Jaccard across seeds",
-        title="Year top-k overlap stability by B",
-        out_path=exp_dir / "topk_jaccard_overall_by_group.png",
-    )
+    _plot_topk_points(go_summary_df, exp_dir / "topk_jaccard_overall_by_group.png")
 
     print(f"Saved rank table: {exp_dir / 'metapath_rank_table.csv'}")
     print(f"Saved pairwise metrics: {exp_dir / 'pairwise_metrics.csv'}")

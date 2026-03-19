@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$SLURM_SUBMIT_DIR}"
 RESULTS_DIR="${YEAR_RANK_STAB_RESULTS_DIR:-output/dwpc_direct/all_GO_positive_growth/results}"
 OUTPUT_DIR="${YEAR_RANK_STAB_OUTPUT_DIR:-output/year_rank_stability_exp}"
-TOP_K="${YEAR_RANK_STAB_TOP_K:-10}"
+TOP_K="${YEAR_RANK_STAB_TOP_K:-5,10,all}"
 PYTHON_EXE="${PYTHON_EXE:-python}"
 
 cd "$REPO_ROOT"
