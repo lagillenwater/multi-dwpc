@@ -34,9 +34,27 @@ export LV_RANK_STAB_B_VALUES LV_RANK_STAB_SEEDS LV_RANK_STAB_TOP_K LV_RANK_TOP_M
 export TRACK_REFERENCE_SEED TRACK_TOP_N TRACK_TOP_N_VALUES
 export INCLUDE_TRACKING INCLUDE_TOP_PATHS
 
-LV_WORKSPACE_DIR="${LV_WORKSPACE_DIR:-output/lv_experiment}"
-LV_NULL_ANALYSIS_DIR="${LV_NULL_ANALYSIS_DIR:-$LV_WORKSPACE_DIR/lv_null_variance_experiment}"
-LV_RANK_ANALYSIS_DIR="${LV_RANK_ANALYSIS_DIR:-$LV_WORKSPACE_DIR/lv_rank_stability_experiment}"
+if [[ -n "${LV_WORKSPACE_DIR:-}" && -n "${LV_OUTPUT_DIR:-}" && "$LV_WORKSPACE_DIR" != "$LV_OUTPUT_DIR" ]]; then
+  echo "LV_WORKSPACE_DIR and LV_OUTPUT_DIR disagree; set only one or make them match." >&2
+  exit 1
+fi
+
+if [[ -n "${LV_OUTPUT_DIR:-}" ]]; then
+  LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
+elif [[ -n "${LV_WORKSPACE_DIR:-}" ]]; then
+  LV_OUTPUT_DIR="$LV_WORKSPACE_DIR"
+elif [[ "${LV_ALL_METAPATHS:-0}" == "1" ]]; then
+  LV_OUTPUT_DIR="output/lv_experiment_all_metapaths"
+  LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
+else
+  LV_OUTPUT_DIR="output/lv_experiment"
+  LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
+fi
+
+export LV_OUTPUT_DIR LV_WORKSPACE_DIR
+
+LV_NULL_ANALYSIS_DIR="${LV_NULL_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_null_variance_experiment}"
+LV_RANK_ANALYSIS_DIR="${LV_RANK_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_rank_stability_experiment}"
 
 submit_sbatch() {
   local dependency="$1"
