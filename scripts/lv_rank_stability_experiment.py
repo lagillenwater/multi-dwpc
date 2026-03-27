@@ -169,7 +169,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="output/lv_experiment")
     parser.add_argument("--analysis-output-dir", default=None)
-    parser.add_argument("--b-values", default="1,2,5,10,20,50")
+    parser.add_argument("--b-values", default="1,2,5,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
     parser.add_argument("--top-k-metapaths", default="5,10")
     return parser.parse_args()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build per-group QC packets and tiered decisions for LV dual-null experiments."""
+"""Build exploratory LVQC packets for LV dual-null experiments."""
 
 from __future__ import annotations
 
@@ -158,9 +158,11 @@ def _descriptor_panel(
             "gene_promiscuity_median": float(gene_subset["promiscuity"].median()) if not gene_subset.empty else np.nan,
             "gene_promiscuity_iqr": _iqr(gene_subset["promiscuity"]),
             "gene_promiscuity_p90": _safe_p90(gene_subset["promiscuity"]),
+            "gene_promiscuity_max": float(gene_subset["promiscuity"].max()) if not gene_subset.empty else np.nan,
             "target_promiscuity_median": float(target_subset["promiscuity"].median()) if not target_subset.empty else np.nan,
             "target_promiscuity_iqr": _iqr(target_subset["promiscuity"]),
             "target_promiscuity_p90": _safe_p90(target_subset["promiscuity"]),
+            "target_promiscuity_max": float(target_subset["promiscuity"].max()) if not target_subset.empty else np.nan,
             "score_sparsity": float(np.isclose(real_subset["real_mean"].astype(float), 0.0, atol=1e-8).mean())
             if not real_subset.empty
             else np.nan,
@@ -390,9 +392,11 @@ def _calibration_envelope(descriptor_df: pd.DataFrame) -> pd.DataFrame:
         "gene_promiscuity_median",
         "gene_promiscuity_iqr",
         "gene_promiscuity_p90",
+        "gene_promiscuity_max",
         "target_promiscuity_median",
         "target_promiscuity_iqr",
         "target_promiscuity_p90",
+        "target_promiscuity_max",
         "score_sparsity",
     ]
     rows = []
@@ -644,206 +648,70 @@ def _between_null_rank_scatter_table(rank_df: pd.DataFrame) -> pd.DataFrame:
         )
     return pd.DataFrame(rows).sort_values(["lv_id", "target_set_id", "b", "metapath"]).reset_index(drop=True)
 
-
-def _control_pass(
-    entity_df: pd.DataFrame,
-    lv_id: str,
-    target_set_id: str,
-    control: str,
-    b: int,
-    rho_threshold: float,
-    rbo_threshold: float,
-) -> bool:
-    subset = entity_df[
-        (entity_df["lv_id"].astype(str) == str(lv_id))
-        & (entity_df["target_set_id"].astype(str) == str(target_set_id))
-        & (entity_df["control"].astype(str) == str(control))
-        & (entity_df["b"].astype(int) == int(b))
-    ].copy()
-    if subset.empty:
-        return False
-    row = subset.iloc[0]
-    checks = [float(row["mean_spearman_rho"]) >= float(rho_threshold)]
-    if "mean_rbo" in subset.columns:
-        checks.append(float(row["mean_rbo"]) >= float(rbo_threshold))
-    return all(checks)
-
-
-def _null_agreement_status(perm_ok: bool, rand_ok: bool) -> str:
-    if perm_ok and rand_ok:
-        return "both"
-    if perm_ok:
-        return "permuted_only"
-    if rand_ok:
-        return "random_only"
-    return "neither"
-
-
-def _null_interpretation(status: str) -> str:
-    mapping = {
-        "both": "Robust to both degree-preserving rewiring and composition-matched random sampling.",
-        "permuted_only": "Survives degree-preserving rewiring but not the broader composition-matched random background.",
-        "random_only": "Survives composition-matched random sampling but not degree-preserving rewiring.",
-        "neither": "Unstable under both nulls; do not make strong top-metapath claims.",
-    }
-    return mapping[status]
-
-
-def _descriptor_status(fail_count: int) -> str:
-    if int(fail_count) <= 0:
-        return "pass"
-    if int(fail_count) == 1:
-        return "warning"
-    return "fail"
-
-
-def _decision_table(
+def _metric_snapshot(
     descriptor_df: pd.DataFrame,
     random_qc_df: pd.DataFrame,
     perm_qc_df: pd.DataFrame,
-    entity_df: pd.DataFrame,
-    envelope_df: pd.DataFrame,
-    tier1_b: int,
-    tier2_b: int,
-    rho_threshold: float,
-    rbo_threshold: float,
-    random_mae_threshold: float,
-    random_within_tol_threshold: float,
-    perm_overlap_threshold: float,
+    within_df: pd.DataFrame,
+    between_df: pd.DataFrame,
+    score_gap_df: pd.DataFrame,
+    snapshot_b: int,
+    near_tie_threshold: float,
 ) -> pd.DataFrame:
-    envelope = envelope_df.set_index("variable").to_dict(orient="index")
-    merged = descriptor_df.merge(random_qc_df, on=["lv_id", "target_set_id"], how="left")
-    merged = merged.merge(perm_qc_df, on=["lv_id", "target_set_id"], how="left")
+    within_subset = within_df[within_df["b"].astype(int) == int(snapshot_b)].copy()
+    within_wide = (
+        within_subset.pivot(
+            index=["lv_id", "target_set_id"],
+            columns="control",
+            values=["mean_spearman_rho", "mean_rbo"],
+        )
+        .sort_index(axis=1)
+    )
+    within_wide.columns = [f"{metric}_{control}" for metric, control in within_wide.columns]
+    within_wide = within_wide.reset_index()
 
-    key_vars = list(envelope.keys())
-    count_vars = {"n_genes", "target_set_size", "n_candidate_metapaths"}
-    rows = []
-    for row in merged.itertuples(index=False):
-        fail_count = 0
-        for var in key_vars:
-            value = getattr(row, var)
-            stats = envelope[var]
-            if pd.isna(value):
-                fail_count += 1
-                continue
-            if var in count_vars:
-                low = min(stats["p05"], 0.5 * stats["median"])
-                high = max(stats["p95"], 2.0 * stats["median"])
-            else:
-                low = stats["p05"]
-                high = stats["p95"]
-            if value < low or value > high:
-                fail_count += 1
-        descriptor_status = _descriptor_status(fail_count)
-        descriptor_in_envelope = int(descriptor_status == "pass")
+    between_subset = between_df[between_df["b"].astype(int) == int(snapshot_b)].copy()
+    between_subset = between_subset.rename(
+        columns={
+            "mean_spearman_rho": "between_null_mean_spearman_rho",
+            "mean_rbo": "between_null_mean_rbo",
+        }
+    )
 
-        random_qc_pass = int(
-            float(getattr(row, "random_match_mae", np.nan)) <= float(random_mae_threshold)
-            and float(getattr(row, "random_within_tolerance_rate", np.nan)) >= float(random_within_tol_threshold)
+    score_subset = score_gap_df[score_gap_df["b"].astype(int) == int(snapshot_b)].copy()
+    near_tie_df = (
+        score_subset.assign(
+            near_tie=lambda df: df["standardized_score_gap"].astype(float) < float(near_tie_threshold)
         )
-        permuted_qc_pass = int(
-            float(getattr(row, "perm_source_degree_match_rate", np.nan)) >= 0.999
-            and float(getattr(row, "perm_target_degree_match_rate", np.nan)) >= 0.999
-            and float(getattr(row, "perm_edge_overlap_with_real_mean", np.nan)) <= float(perm_overlap_threshold)
+        .groupby(["lv_id", "target_set_id", "control"], as_index=False)
+        .agg(
+            mean_standardized_top10_gap=(
+                "standardized_score_gap",
+                lambda x: float(pd.Series(x).astype(float).head(10).mean()),
+            ),
+            near_tie_count_top10=("near_tie", lambda x: int(pd.Series(x).head(10).sum())),
+            near_tie_count_top20=("near_tie", lambda x: int(pd.Series(x).head(20).sum())),
         )
+    )
+    near_tie_wide = near_tie_df.pivot(
+        index=["lv_id", "target_set_id"],
+        columns="control",
+        values=["mean_standardized_top10_gap", "near_tie_count_top10", "near_tie_count_top20"],
+    )
+    near_tie_wide.columns = [f"{metric}_{control}" for metric, control in near_tie_wide.columns]
+    near_tie_wide = near_tie_wide.reset_index()
 
-        perm_tier1_ok = _control_pass(
-            entity_df,
-            row.lv_id,
-            row.target_set_id,
-            "permuted",
-            tier1_b,
-            rho_threshold,
-            rbo_threshold,
-        )
-        rand_tier1_ok = _control_pass(
-            entity_df,
-            row.lv_id,
-            row.target_set_id,
-            "random",
-            tier1_b,
-            rho_threshold,
-            rbo_threshold,
-        )
-        perm_tier2_ok = _control_pass(
-            entity_df,
-            row.lv_id,
-            row.target_set_id,
-            "permuted",
-            tier2_b,
-            rho_threshold,
-            rbo_threshold,
-        )
-        rand_tier2_ok = _control_pass(
-            entity_df,
-            row.lv_id,
-            row.target_set_id,
-            "random",
-            tier2_b,
-            rho_threshold,
-            rbo_threshold,
-        )
-        both_qc_pass = bool(random_qc_pass and permuted_qc_pass)
-        both_tier1_ok = bool(perm_tier1_ok and rand_tier1_ok)
-        both_tier2_ok = bool(perm_tier2_ok and rand_tier2_ok)
-        any_tier2_ok = bool(perm_tier2_ok or rand_tier2_ok)
-        warning_text = ""
-        if descriptor_status == "warning":
-            warning_text = "Descriptor profile is just outside the calibration envelope; monitor similar future groups."
-        elif descriptor_status == "fail":
-            warning_text = "Descriptor profile is outside the calibration envelope; treat production results as conditional on empirical stability."
-
-        if (not random_qc_pass and not permuted_qc_pass) or (
-            descriptor_status == "fail" and not any_tier2_ok
-        ):
-            tier = "Out Of Family"
-            recommended_b = "rerun_sensitivity"
-            status = _null_agreement_status(perm_tier2_ok, rand_tier2_ok)
-            action = "Run a dedicated sensitivity study for this subgroup family before production."
-        elif both_qc_pass and both_tier1_ok:
-            tier = "Production Ready"
-            recommended_b = str(int(tier1_b))
-            status = _null_agreement_status(perm_tier1_ok, rand_tier1_ok)
-            action = f"Run both nulls at B={int(tier1_b)} and report consensus metapaths as primary."
-            if warning_text:
-                action = f"{action} {warning_text}"
-        elif both_qc_pass and both_tier2_ok:
-            tier = "Production With Higher B"
-            recommended_b = str(int(tier2_b))
-            status = _null_agreement_status(perm_tier2_ok, rand_tier2_ok)
-            action = f"Run both nulls at B={int(tier2_b)} and treat the group as acceptable but higher-variance."
-            if warning_text:
-                action = f"{action} {warning_text}"
-        else:
-            tier = "Tune And Recheck"
-            recommended_b = "tune_then_rerun"
-            status = _null_agreement_status(perm_tier2_ok, rand_tier2_ok)
-            action = (
-                "Increase the null pool, review random-null promiscuity matching, "
-                "review permutation mixing, and rerun the pilot at B=1,2,5,10."
-            )
-            if warning_text:
-                action = f"{action} {warning_text}"
-
-        rows.append(
-            {
-                "group_id": row.group_id,
-                "lv_id": row.lv_id,
-                "target_set_id": row.target_set_id,
-                "descriptor_in_envelope": bool(descriptor_in_envelope),
-                "descriptor_status": descriptor_status,
-                "descriptor_fail_count": int(fail_count),
-                "descriptor_warning": bool(descriptor_status != "pass"),
-                "random_qc_pass": bool(random_qc_pass),
-                "permuted_qc_pass": bool(permuted_qc_pass),
-                "tier": tier,
-                "recommended_b": recommended_b,
-                "null_agreement_status": status,
-                "null_interpretation": _null_interpretation(status),
-                "recommended_action": action,
-            }
-        )
-    return pd.DataFrame(rows)
+    summary_df = descriptor_df.merge(random_qc_df, on=["lv_id", "target_set_id"], how="left")
+    summary_df = summary_df.merge(perm_qc_df, on=["lv_id", "target_set_id"], how="left")
+    summary_df = summary_df.merge(within_wide, on=["lv_id", "target_set_id"], how="left")
+    summary_df = summary_df.merge(
+        between_subset[["lv_id", "target_set_id", "between_null_mean_spearman_rho", "between_null_mean_rbo"]],
+        on=["lv_id", "target_set_id"],
+        how="left",
+    )
+    summary_df = summary_df.merge(near_tie_wide, on=["lv_id", "target_set_id"], how="left")
+    summary_df["snapshot_b"] = int(snapshot_b)
+    return summary_df.sort_values(["lv_id", "target_set_id"]).reset_index(drop=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -862,16 +730,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metapath-stats-path", default="data/metapath-dwpc-stats.tsv")
     parser.add_argument("--gap-b", type=int, default=5)
     parser.add_argument("--score-gap-max-k", type=int, default=20)
-    parser.add_argument("--tier1-b", type=int, default=5)
-    parser.add_argument("--tier2-b", type=int, default=10)
     parser.add_argument("--rbo-p", type=float, default=0.98)
     parser.add_argument("--diagnostic-b", type=int, default=5)
     parser.add_argument("--random-promiscuity-tolerance", type=int, default=2)
-    parser.add_argument("--rho-threshold", type=float, default=0.90)
-    parser.add_argument("--rbo-threshold", type=float, default=0.80)
-    parser.add_argument("--random-mae-threshold", type=float, default=1.0)
-    parser.add_argument("--random-within-tol-threshold", type=float, default=0.90)
-    parser.add_argument("--perm-overlap-threshold", type=float, default=0.70)
+    parser.add_argument("--near-tie-threshold", type=float, default=0.10)
     return parser.parse_args()
 
 
@@ -918,19 +780,15 @@ def main() -> None:
     between_scatter_df = _between_null_rank_scatter_table(rank_df)
     envelope_df = _calibration_envelope(descriptor_df)
     descriptor_deviation_df = _descriptor_deviation_table(descriptor_df, envelope_df)
-    decision_df = _decision_table(
+    metric_snapshot_df = _metric_snapshot(
         descriptor_df=descriptor_df,
         random_qc_df=random_qc_df,
         perm_qc_df=perm_qc_df,
-        entity_df=entity_df,
-        envelope_df=envelope_df,
-        tier1_b=int(args.tier1_b),
-        tier2_b=int(args.tier2_b),
-        rho_threshold=float(args.rho_threshold),
-        rbo_threshold=float(args.rbo_threshold),
-        random_mae_threshold=float(args.random_mae_threshold),
-        random_within_tol_threshold=float(args.random_within_tol_threshold),
-        perm_overlap_threshold=float(args.perm_overlap_threshold),
+        within_df=entity_df,
+        between_df=between_null_df,
+        score_gap_df=score_gap_df,
+        snapshot_b=int(args.gap_b),
+        near_tie_threshold=float(args.near_tie_threshold),
     )
 
     descriptor_df.to_csv(qc_output_dir / "descriptor_panel.csv", index=False)
@@ -945,12 +803,8 @@ def main() -> None:
     pairwise_diag_df.to_csv(qc_output_dir / "within_null_pairwise_diagnostics.csv", index=False)
     prefix_diag_df.to_csv(qc_output_dir / "within_null_prefix_overlap.csv", index=False)
     between_scatter_df.to_csv(qc_output_dir / "between_null_rank_scatter.csv", index=False)
-    decision_df.to_csv(qc_output_dir / "group_decision_table.csv", index=False)
-
-    merged = descriptor_df.merge(random_qc_df, on=["lv_id", "target_set_id"], how="left")
-    merged = merged.merge(perm_qc_df, on=["lv_id", "target_set_id"], how="left")
-    merged = merged.merge(decision_df, on=["group_id", "lv_id", "target_set_id"], how="left")
-    merged.to_csv(qc_output_dir / "group_qc_summary.csv", index=False)
+    metric_snapshot_df.to_csv(qc_output_dir / "lv_qc_metric_snapshot.csv", index=False)
+    metric_snapshot_df.to_csv(qc_output_dir / "lv_qc_summary.csv", index=False)
 
     print(f"Saved QC descriptor panel: {qc_output_dir / 'descriptor_panel.csv'}")
     print(f"Saved random-null QC: {qc_output_dir / 'random_match_qc.csv'}")
@@ -963,8 +817,8 @@ def main() -> None:
     print(f"Saved within-null pairwise diagnostics: {qc_output_dir / 'within_null_pairwise_diagnostics.csv'}")
     print(f"Saved within-null prefix overlap: {qc_output_dir / 'within_null_prefix_overlap.csv'}")
     print(f"Saved between-null rank scatter table: {qc_output_dir / 'between_null_rank_scatter.csv'}")
-    print(f"Saved decision table: {qc_output_dir / 'group_decision_table.csv'}")
-    print(f"Saved merged summary: {qc_output_dir / 'group_qc_summary.csv'}")
+    print(f"Saved LVQC metric snapshot: {qc_output_dir / 'lv_qc_metric_snapshot.csv'}")
+    print(f"Saved LVQC summary: {qc_output_dir / 'lv_qc_summary.csv'}")
 
 
 if __name__ == "__main__":

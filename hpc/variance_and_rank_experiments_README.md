@@ -171,8 +171,8 @@ LV_OUTPUT_DIR=output/lv_experiment_all_metapaths poe lv-prepare-exp-all-metapath
 #### Step 2: generate null replicate artifacts
 
 ```bash
-LV_N_REPLICATES=20 poe lv-gen-permutation
-LV_N_REPLICATES=20 poe lv-gen-random
+LV_N_REPLICATES=100 poe lv-gen-permutation
+LV_N_REPLICATES=100 poe lv-gen-random
 ```
 
 This writes explicit LV null edge lists under:
@@ -313,8 +313,8 @@ Notes:
 #### Step 4: generate controls
 
 ```bash
-sbatch --array=0-19 hpc/lv_permutations_array.sbatch
-sbatch --array=0-19 hpc/lv_random_controls_array.sbatch
+sbatch --array=0-99 hpc/lv_permutations_array.sbatch
+sbatch --array=0-99 hpc/lv_random_controls_array.sbatch
 ```
 
 #### Step 5: summarize artifacts
@@ -346,7 +346,7 @@ sbatch hpc/lv_null_variance_aggregate.sbatch
 sbatch hpc/lv_rank_stability_aggregate.sbatch
 ```
 
-#### Step 7: build per-group QC packets and decision tiers
+#### Step 7: build exploratory LVQC packets
 
 After the LV rank-stability aggregate finishes, build the dual-null QC packet:
 
@@ -354,7 +354,7 @@ After the LV rank-stability aggregate finishes, build the dual-null QC packet:
 sbatch hpc/lv_group_qc_aggregate.sbatch
 ```
 
-The QC script is most informative when the LV rank-stability aggregate includes both top-5 and top-10 overlap columns.
+The QC packet is descriptive only. It summarizes within-null seed stability, random-vs-permuted agreement, score separation, and downstream exploratory diagnostics.
 
 LV Slurm logs are written under:
 
@@ -364,11 +364,28 @@ Useful overrides:
 
 ```bash
 export LV_GROUP_QC_GAP_B=5
-export LV_GROUP_QC_TIER1_B=5
-export LV_GROUP_QC_TIER2_B=10
+export LV_GROUP_QC_SCORE_GAP_MAX_K=20
+export LV_GROUP_QC_DIAGNOSTIC_B=5
 export LV_RANDOM_PROM_TOL=2
 sbatch hpc/lv_group_qc_aggregate.sbatch
 ```
+
+#### Automated LV homeostasis rebuild
+
+```bash
+bash hpc/submit_lv_homeostasis_rebuild.sh
+```
+
+This wrapper runs the full LV chain end-to-end with:
+
+- `LV603 -> GO:0001780 (neutrophil homeostasis)`
+- `LV_N_REPLICATES=100`
+- `LV_NULL_VAR_B_VALUES=1,2,5,10,20`
+- `LV_RANK_STAB_B_VALUES=1,2,5,10,20`
+- outputs written under `output/lv_experiment_all_metapaths/`
+- exploratory LVQC outputs
+- score-separation plots
+- descriptor/outcome analysis and predictor-vs-QC plots
 
 Post-processing after aggregates finish:
 
@@ -380,6 +397,7 @@ poe lv-rank-stability-plots
 poe lv-rank-seed-comparisons
 poe lv-group-qc-plots
 poe lv-score-separation-plots
+poe lv-descriptor-outcome-analysis
 ```
 
 Track the same top 5 metapaths across seeds and B using seed 11 at max B:
@@ -431,9 +449,18 @@ poe track-lv-top-metapaths
 - `output/lv_experiment/lv_group_qc_experiment/descriptor_deviation.csv`
 - `output/lv_experiment/lv_group_qc_experiment/within_null_stability_summary.csv`
 - `output/lv_experiment/lv_group_qc_experiment/between_null_agreement.csv`
-- `output/lv_experiment/lv_group_qc_experiment/group_decision_table.csv`
-- `output/lv_experiment/lv_group_qc_experiment/group_qc_summary.csv`
+- `output/lv_experiment/lv_group_qc_experiment/score_separation_table.csv`
+- `output/lv_experiment/lv_group_qc_experiment/lv_qc_metric_snapshot.csv`
+- `output/lv_experiment/lv_group_qc_experiment/lv_qc_summary.csv`
 - `output/lv_experiment/lv_group_qc_experiment/lv_group_qc_dashboard.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_score_separation_raw.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_score_separation_standardized.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_descriptor_outcome_table.csv`
+- `output/lv_experiment/lv_group_qc_experiment/lv_qc_vs_predictors.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_qc_predictor_correlations.csv`
+- `output/lv_experiment/lv_group_qc_experiment/lv_qc_outliers.csv`
+- `output/lv_experiment/lv_group_qc_experiment/lv_ranked_score_curves.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_metapath_length_disagreement_summary.csv`
 
 ### Year shared workspace
 

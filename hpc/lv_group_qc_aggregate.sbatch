@@ -25,12 +25,7 @@ $PYTHON_EXE scripts/lv_group_qc_experiment.py \
   --analysis-dir "$ANALYSIS_DIR" \
   --qc-output-dir "$QC_OUTPUT_DIR" \
   --gap-b "${LV_GROUP_QC_GAP_B:-5}" \
-  --tier1-b "${LV_GROUP_QC_TIER1_B:-5}" \
-  --tier2-b "${LV_GROUP_QC_TIER2_B:-10}" \
+  --score-gap-max-k "${LV_GROUP_QC_SCORE_GAP_MAX_K:-20}" \
+  --diagnostic-b "${LV_GROUP_QC_DIAGNOSTIC_B:-5}" \
   --random-promiscuity-tolerance "${LV_RANDOM_PROM_TOL:-2}" \
-  --rho-threshold "${LV_GROUP_QC_RHO_THRESHOLD:-0.90}" \
-  --top5-threshold "${LV_GROUP_QC_TOP5_THRESHOLD:-0.80}" \
-  --top10-threshold "${LV_GROUP_QC_TOP10_THRESHOLD:-0.85}" \
-  --random-mae-threshold "${LV_GROUP_QC_RANDOM_MAE_THRESHOLD:-1.0}" \
-  --random-within-tol-threshold "${LV_GROUP_QC_RANDOM_WITHIN_TOL_THRESHOLD:-0.90}" \
-  --perm-overlap-threshold "${LV_GROUP_QC_PERM_OVERLAP_THRESHOLD:-0.70}"
+  --near-tie-threshold "${LV_GROUP_QC_NEAR_TIE_THRESHOLD:-0.10}"

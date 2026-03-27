@@ -14,10 +14,11 @@ from typing import Iterable
 import pandas as pd
 
 ## NB need to parameterize these to avoid hardcoding in the target-set construction function. 3-3-2026
-NEUTROPHIL_TARGET_SET = "neutrophil_bp"
+NEUTROPHIL_TARGET_SET = "neutrophil_homeostasis"
 ADIPOSE_TARGET_SET = "adipose_tissue"
 HYPOTHYROIDISM_TARGET_SET = "hypothyroidism"
 
+NEUTROPHIL_HOMEOSTASIS_ID = "GO:0001780"
 ADIPOSE_ID = "UBERON:0001013"
 BROWN_ADIPOSE_ID = "UBERON:0001348"
 HYPOTHYROIDISM_ID = "DOID:1459"
@@ -83,17 +84,17 @@ def _build_rows(
     ]
 
 
-def _build_neutrophil_bp_rows(bp_df: pd.DataFrame) -> pd.DataFrame:
-    neut_df = bp_df[
-        bp_df["name"].astype(str).str.contains("neutrophil", case=False, regex=False)
-    ].copy()
+def _build_neutrophil_homeostasis_rows(bp_df: pd.DataFrame) -> pd.DataFrame:
+    neut_df = bp_df[bp_df["identifier"].astype(str) == NEUTROPHIL_HOMEOSTASIS_ID].copy()
     if neut_df.empty:
-        raise ValueError("No neutrophil BP terms found in Biological Process.tsv")
+        raise ValueError(
+            f"Neutrophil homeostasis term {NEUTROPHIL_HOMEOSTASIS_ID} not found in Biological Process.tsv"
+        )
     return _build_rows(
         node_df=neut_df,
         node_type="Biological Process",
         target_set_id=NEUTROPHIL_TARGET_SET,
-        target_set_label="Neutrophil biological process terms",
+        target_set_label="Neutrophil homeostasis biological process term",
     )
 
 
@@ -211,7 +212,7 @@ def build_target_sets(
 
     targets_df = pd.concat(
         [
-            _build_neutrophil_bp_rows(bp_df),
+            _build_neutrophil_homeostasis_rows(bp_df),
             _build_adipose_rows(anatomy_df, include_brown_adipose),
             _build_hypothyroidism_rows(disease_df),
         ],

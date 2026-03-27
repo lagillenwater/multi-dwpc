@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a single dashboard figure for LV group QC results."""
+"""Create an exploratory LVQC dashboard."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ matplotlib.use("Agg")
 GROUP_COLORS = {
     "LV246 | adipose_tissue": "#1f77b4",
     "LV57 | hypothyroidism": "#ff7f0e",
-    "LV603 | neutrophil_bp": "#2ca02c",
+    "LV603 | neutrophil_homeostasis": "#2ca02c",
 }
 
 NULL_STYLES = {
@@ -314,7 +314,7 @@ def parse_args() -> argparse.Namespace:
         default="output/lv_experiment_all_metapaths/lv_group_qc_experiment",
         help="Directory containing LV group QC CSV outputs",
     )
-    parser.add_argument("--max-b", type=int, default=10)
+    parser.add_argument("--max-b", type=int, default=20)
     parser.add_argument("--diagnostic-b", type=int, default=5)
     parser.add_argument("--diagnostic-control", default="permuted")
     return parser.parse_args()
@@ -324,10 +324,7 @@ def main() -> None:
     args = parse_args()
     qc_dir = Path(args.qc_dir)
 
-    group_qc_df = _load_csv(
-        qc_dir / "group_qc_summary.csv",
-        ["lv_id", "target_set_id", "tier", "recommended_b", "descriptor_status"],
-    )
+    group_qc_df = _load_csv(qc_dir / "lv_qc_summary.csv", ["lv_id", "target_set_id"])
     within_df = _load_csv(
         qc_dir / "within_null_stability_summary.csv",
         ["control", "b", "lv_id", "target_set_id", "mean_spearman_rho"],

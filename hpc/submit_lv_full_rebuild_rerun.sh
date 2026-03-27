@@ -15,24 +15,26 @@ POST_CPUS="${POST_CPUS:-4}"
 POST_MEM="${POST_MEM:-24G}"
 POST_TIME="${POST_TIME:-04:00:00}"
 
-: "${LV_N_REPLICATES:=20}"
+: "${LV_N_REPLICATES:=100}"
 : "${LV_NULL_VAR_B_VALUES:=1,2,5,10,20}"
 : "${LV_NULL_VAR_SEEDS:=11,22,33,44,55}"
 : "${LV_RANK_STAB_B_VALUES:=1,2,5,10,20}"
 : "${LV_RANK_STAB_SEEDS:=11,22,33,44,55}"
-: "${LV_RANK_STAB_TOP_K:=5}"
+: "${LV_RANK_STAB_TOP_K:=5,10}"
 : "${LV_RANK_TOP_METAPATHS:=5}"
 : "${TRACK_REFERENCE_SEED:=11}"
 : "${TRACK_TOP_N:=5}"
 : "${TRACK_TOP_N_VALUES:=5,10,all}"
 : "${INCLUDE_TRACKING:=1}"
 : "${INCLUDE_TOP_PATHS:=0}"
+: "${INCLUDE_LV_QC:=1}"
+: "${INCLUDE_LV_DESCRIPTOR_ANALYSIS:=1}"
 
 export LV_N_REPLICATES
 export LV_NULL_VAR_B_VALUES LV_NULL_VAR_SEEDS
 export LV_RANK_STAB_B_VALUES LV_RANK_STAB_SEEDS LV_RANK_STAB_TOP_K LV_RANK_TOP_METAPATHS
 export TRACK_REFERENCE_SEED TRACK_TOP_N TRACK_TOP_N_VALUES
-export INCLUDE_TRACKING INCLUDE_TOP_PATHS
+export INCLUDE_TRACKING INCLUDE_TOP_PATHS INCLUDE_LV_QC INCLUDE_LV_DESCRIPTOR_ANALYSIS
 
 if [[ -n "${LV_WORKSPACE_DIR:-}" && -n "${LV_OUTPUT_DIR:-}" && "$LV_WORKSPACE_DIR" != "$LV_OUTPUT_DIR" ]]; then
   echo "LV_WORKSPACE_DIR and LV_OUTPUT_DIR disagree; set only one or make them match." >&2
@@ -53,8 +55,11 @@ fi
 
 export LV_OUTPUT_DIR LV_WORKSPACE_DIR
 
-LV_NULL_ANALYSIS_DIR="${LV_NULL_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_null_variance_experiment}"
-LV_RANK_ANALYSIS_DIR="${LV_RANK_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_rank_stability_experiment}"
+LV_NULL_ANALYSIS_DIR="${LV_NULL_ANALYSIS_DIR:-${LV_NULL_VAR_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_null_variance_experiment}}"
+LV_RANK_ANALYSIS_DIR="${LV_RANK_ANALYSIS_DIR:-${LV_RANK_STAB_ANALYSIS_DIR:-$LV_OUTPUT_DIR/lv_rank_stability_experiment}}"
+LV_GROUP_QC_OUTPUT_DIR="${LV_GROUP_QC_OUTPUT_DIR:-$LV_OUTPUT_DIR/lv_group_qc_experiment}"
+
+export LV_NULL_ANALYSIS_DIR LV_RANK_ANALYSIS_DIR LV_GROUP_QC_OUTPUT_DIR
 
 submit_sbatch() {
   local dependency="$1"
@@ -76,7 +81,7 @@ submit_wrap() {
   local command="$6"
   local wrapped
 
-  printf -v wrapped 'cd "%s" && module load anaconda && conda activate multi_dwpc && export MPLCONFIGDIR="${TMPDIR:-/tmp}/mpl_${SLURM_JOB_ID}" && mkdir -p "$MPLCONFIGDIR" && %s' \
+  printf -v wrapped 'cd "%s" && module load anaconda && source "$(conda info --base)/etc/profile.d/conda.sh" && conda activate multi_dwpc && export MPLCONFIGDIR="${TMPDIR:-/tmp}/mpl_${SLURM_JOB_ID}" && mkdir -p "$MPLCONFIGDIR" && %s' \
     "$REPO_ROOT" "$command"
 
   if [[ -n "$dependency" ]]; then
@@ -90,7 +95,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="slurm_%x_%j.out" \
+      --output="hpc/logs/%x_%j.out" \
       --wrap="bash -lc '$wrapped'"
   else
     sbatch \
@@ -102,7 +107,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="slurm_%x_%j.out" \
+      --output="hpc/logs/%x_%j.out" \
       --wrap="bash -lc '$wrapped'"
   fi
 }
@@ -176,6 +181,24 @@ controller_summary() {
   print_job "lv rank plots" "$lv_rank_plot_job"
   print_job "lv seed scatters" "$lv_seed_plot_job"
 
+  if [[ "$INCLUDE_LV_QC" == "1" ]]; then
+    local lv_qc_job lv_qc_plot_job lv_score_gap_plot_job lv_descriptor_job
+    lv_qc_job="$(submit_sbatch "$lv_rank_job" hpc/lv_group_qc_aggregate.sbatch)"
+    lv_qc_plot_job="$(submit_wrap "$lv_qc_job" "lvqc-dashboard" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+      "$PYTHON_EXE scripts/plot_lv_group_qc_results.py --qc-dir \"$LV_GROUP_QC_OUTPUT_DIR\" --max-b 20 --diagnostic-b \"${LV_GROUP_QC_DIAGNOSTIC_B:-5}\"")"
+    lv_score_gap_plot_job="$(submit_wrap "$lv_qc_job" "lvqc-score-separation" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
+      "$PYTHON_EXE scripts/plot_lv_score_separation.py --qc-dir \"$LV_GROUP_QC_OUTPUT_DIR\" --max-rank \"${LV_GROUP_QC_SCORE_GAP_MAX_K:-20}\"")"
+    print_job "lv group qc aggregate" "$lv_qc_job"
+    print_job "lvqc dashboard" "$lv_qc_plot_job"
+    print_job "lvqc score separation" "$lv_score_gap_plot_job"
+
+    if [[ "$INCLUDE_LV_DESCRIPTOR_ANALYSIS" == "1" ]]; then
+      lv_descriptor_job="$(submit_wrap "$lv_qc_job" "lvqc-descriptor-analysis" "$POST_CPUS" "$POST_MEM" "$POST_TIME" \
+        "$PYTHON_EXE scripts/lv_descriptor_outcome_analysis.py --qc-dir \"$LV_GROUP_QC_OUTPUT_DIR\" --workspace-dir \"$LV_WORKSPACE_DIR\" --analysis-dir \"$LV_RANK_ANALYSIS_DIR\" --snapshot-b \"${LV_GROUP_QC_GAP_B:-5}\"")"
+      print_job "lvqc predictor analysis" "$lv_descriptor_job"
+    fi
+  fi
+
   if [[ "$INCLUDE_TRACKING" == "1" ]]; then
     local track_n lv_track_job
     IFS=',' read -r -a track_values <<< "$TRACK_TOP_N_VALUES"
@@ -201,12 +224,15 @@ controller_summary() {
 
 submit_main() {
   cd "$REPO_ROOT"
+  mkdir -p hpc/logs "$LV_WORKSPACE_DIR"
 
   echo "Repo root: $REPO_ROOT"
   echo "LV workspace: $LV_WORKSPACE_DIR"
   echo "LV all metapaths: ${LV_ALL_METAPATHS:-0}"
   echo "LV metapath limit: ${LV_METAPATH_LIMIT:-2}"
   echo "LV replicate count: $LV_N_REPLICATES"
+  echo "Include LVQC: $INCLUDE_LV_QC"
+  echo "Include LV descriptor analysis: $INCLUDE_LV_DESCRIPTOR_ANALYSIS"
   echo "Include tracking: $INCLUDE_TRACKING"
   echo "Tracking sets: $TRACK_TOP_N_VALUES"
   echo "Include top paths: $INCLUDE_TOP_PATHS"
