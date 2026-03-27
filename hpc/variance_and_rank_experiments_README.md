@@ -378,6 +378,7 @@ poe year-rank-stability-plots
 poe lv-null-variance-plots
 poe lv-rank-stability-plots
 poe lv-rank-seed-comparisons
+poe lv-group-qc-plots
 ```
 
 Track the same top 5 metapaths across seeds and B using seed 11 at max B:
@@ -428,6 +429,9 @@ poe track-lv-top-metapaths
 - `output/lv_experiment/lv_group_qc_experiment/calibration_envelope.csv`
 - `output/lv_experiment/lv_group_qc_experiment/group_decision_table.csv`
 - `output/lv_experiment/lv_group_qc_experiment/group_qc_summary.csv`
+- `output/lv_experiment/lv_group_qc_experiment/group_decision_summary.png`
+- `output/lv_experiment/lv_group_qc_experiment/dual_null_stability_by_b.png`
+- `output/lv_experiment/lv_group_qc_experiment/null_match_qc_summary.png`
 
 ### Year shared workspace
 
