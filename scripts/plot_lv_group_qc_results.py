@@ -212,7 +212,7 @@ def main() -> None:
             between_axes[0].legend(handles, labels, fontsize=8, loc="lower right")
 
     fig.suptitle(
-        "LV Group QC Dashboard\n"
+        "LV QC\n"
         "Top: within-null seed stability | Bottom: random-vs-permuted agreement\n"
         "Spearman rho = whole-ranking agreement | RBO = top-weighted agreement",
         fontsize=18,

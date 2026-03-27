@@ -262,19 +262,20 @@ def _random_qc(output_dir: Path, requested_tolerance: int) -> pd.DataFrame:
 
 
 def _rbo_score(rank_a: list[str], rank_b: list[str], p: float) -> float:
-    """Compute finite-list rank-biased overlap for two ranked lists."""
+    """Compute extrapolated finite-list rank-biased overlap for two ranked lists."""
     if not rank_a or not rank_b:
         return np.nan
     depth = min(len(rank_a), len(rank_b))
     seen_a: set[str] = set()
     seen_b: set[str] = set()
     overlap_sum = 0.0
+    overlap_at_depth = 0.0
     for d in range(1, depth + 1):
         seen_a.add(rank_a[d - 1])
         seen_b.add(rank_b[d - 1])
-        overlap = len(seen_a & seen_b) / float(d)
-        overlap_sum += overlap * (p ** (d - 1))
-    return float((1.0 - p) * overlap_sum)
+        overlap_at_depth = len(seen_a & seen_b) / float(d)
+        overlap_sum += overlap_at_depth * (p ** (d - 1))
+    return float(((1.0 - p) * overlap_sum) + (overlap_at_depth * (p ** depth)))
 
 
 def _permuted_qc(output_dir: Path) -> pd.DataFrame:
