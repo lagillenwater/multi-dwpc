@@ -427,11 +427,12 @@ poe track-lv-top-metapaths
 - `output/lv_experiment/lv_group_qc_experiment/random_match_qc.csv`
 - `output/lv_experiment/lv_group_qc_experiment/permuted_null_qc.csv`
 - `output/lv_experiment/lv_group_qc_experiment/calibration_envelope.csv`
+- `output/lv_experiment/lv_group_qc_experiment/descriptor_deviation.csv`
+- `output/lv_experiment/lv_group_qc_experiment/within_null_stability_summary.csv`
+- `output/lv_experiment/lv_group_qc_experiment/between_null_agreement.csv`
 - `output/lv_experiment/lv_group_qc_experiment/group_decision_table.csv`
 - `output/lv_experiment/lv_group_qc_experiment/group_qc_summary.csv`
-- `output/lv_experiment/lv_group_qc_experiment/group_decision_summary.png`
-- `output/lv_experiment/lv_group_qc_experiment/dual_null_stability_by_b.png`
-- `output/lv_experiment/lv_group_qc_experiment/null_match_qc_summary.png`
+- `output/lv_experiment/lv_group_qc_experiment/lv_group_qc_dashboard.png`
 
 ### Year shared workspace
 

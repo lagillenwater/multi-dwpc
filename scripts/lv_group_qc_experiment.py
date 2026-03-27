@@ -18,6 +18,7 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.bipartite_nulls import calculate_target_membership_counts  # noqa: E402
+from src.replicate_analysis import rank_features, summarize_rank_stability  # noqa: E402
 
 
 def _parse_int_list(arg: str) -> list[int]:
@@ -369,6 +370,124 @@ def _calibration_envelope(descriptor_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _descriptor_deviation_table(
+    descriptor_df: pd.DataFrame,
+    envelope_df: pd.DataFrame,
+) -> pd.DataFrame:
+    key_vars = envelope_df["variable"].astype(str).tolist()
+    envelope = envelope_df.set_index("variable").to_dict(orient="index")
+    rows = []
+    for row in descriptor_df.itertuples(index=False):
+        for var in key_vars:
+            value = float(getattr(row, var))
+            median = float(envelope[var]["median"])
+            p05 = float(envelope[var]["p05"])
+            p95 = float(envelope[var]["p95"])
+            scale = p95 - p05
+            if abs(scale) < 1e-12:
+                deviation = np.nan
+            else:
+                deviation = (value - median) / scale
+            rows.append(
+                {
+                    "group_id": row.group_id,
+                    "lv_id": row.lv_id,
+                    "target_set_id": row.target_set_id,
+                    "variable": var,
+                    "value": value,
+                    "median": median,
+                    "p05": p05,
+                    "p95": p95,
+                    "deviation": deviation,
+                    "out_of_envelope": bool((value < p05) or (value > p95)),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _load_or_build_rank_df(analysis_dir: Path) -> pd.DataFrame:
+    rank_path = analysis_dir / "metapath_rank_table.csv"
+    if rank_path.exists():
+        return _load_csv(
+            rank_path,
+            ["control", "b", "seed", "lv_id", "target_set_id", "metapath", "metapath_rank"],
+        )
+    runs_df = _load_csv(
+        analysis_dir / "all_runs_long.csv",
+        ["control", "b", "seed", "lv_id", "target_set_id", "metapath", "diff"],
+    )
+    return rank_features(
+        runs_df,
+        rank_group_keys=["control", "b", "seed", "lv_id", "target_set_id"],
+        feature_col="metapath",
+        score_col="diff",
+        rank_col="metapath_rank",
+    )
+
+
+def _within_null_stability_summary(
+    analysis_dir: Path,
+    top_k_values: list[int],
+) -> pd.DataFrame:
+    rank_df = _load_or_build_rank_df(analysis_dir)
+    _, entity_df, _ = summarize_rank_stability(
+        rank_df,
+        outer_keys=["control", "b", "lv_id", "target_set_id"],
+        replicate_col="seed",
+        feature_col="metapath",
+        rank_col="metapath_rank",
+        top_k=top_k_values,
+    )
+    return entity_df.sort_values(["control", "lv_id", "target_set_id", "b"]).reset_index(drop=True)
+
+
+def _spearman_from_rank_arrays(rank_a: pd.Series, rank_b: pd.Series) -> float:
+    if len(rank_a) < 2 or len(rank_b) < 2:
+        return np.nan
+    return float(rank_a.rank(method="average").corr(rank_b.rank(method="average"), method="pearson"))
+
+
+def _between_null_agreement_summary(
+    analysis_dir: Path,
+    top_k_values: list[int],
+) -> pd.DataFrame:
+    rank_df = _load_or_build_rank_df(analysis_dir)
+    rows = []
+    for key, group in rank_df.groupby(["b", "lv_id", "target_set_id"], sort=True):
+        b, lv_id, target_set_id = key
+        control_means = (
+            group.groupby(["control", "metapath"], as_index=False)["metapath_rank"]
+            .mean()
+            .rename(columns={"metapath_rank": "mean_rank"})
+        )
+        if set(control_means["control"].astype(str)) != {"permuted", "random"}:
+            continue
+        perm_df = control_means[control_means["control"].astype(str) == "permuted"][["metapath", "mean_rank"]]
+        rand_df = control_means[control_means["control"].astype(str) == "random"][["metapath", "mean_rank"]]
+        merged = perm_df.merge(rand_df, on="metapath", suffixes=("_permuted", "_random"))
+        if len(merged) < 2:
+            continue
+        row = {
+            "b": int(b),
+            "lv_id": str(lv_id),
+            "target_set_id": str(target_set_id),
+            "mean_spearman_rho": _spearman_from_rank_arrays(
+                merged["mean_rank_permuted"],
+                merged["mean_rank_random"],
+            ),
+        }
+        for k in top_k_values:
+            top_perm = set(
+                merged.nsmallest(int(k), "mean_rank_permuted")["metapath"].astype(str).tolist()
+            )
+            top_rand = set(
+                merged.nsmallest(int(k), "mean_rank_random")["metapath"].astype(str).tolist()
+            )
+            row[f"mean_topk_jaccard_{int(k)}"] = _jaccard(top_perm, top_rand)
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values(["lv_id", "target_set_id", "b"]).reset_index(drop=True)
+
+
 def _control_pass(
     entity_df: pd.DataFrame,
     lv_id: str,
@@ -595,6 +714,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gap-b", type=int, default=5)
     parser.add_argument("--tier1-b", type=int, default=5)
     parser.add_argument("--tier2-b", type=int, default=10)
+    parser.add_argument("--top-k-values", default="5,10,15")
     parser.add_argument("--random-promiscuity-tolerance", type=int, default=2)
     parser.add_argument("--rho-threshold", type=float, default=0.90)
     parser.add_argument("--top5-threshold", type=float, default=0.80)
@@ -631,11 +751,17 @@ def main() -> None:
         requested_tolerance=int(args.random_promiscuity_tolerance),
     )
     perm_qc_df = _permuted_qc(output_dir=output_dir)
-    entity_df = _load_csv(
-        analysis_dir / "lv_stability_summary.csv",
-        ["control", "b", "lv_id", "target_set_id", "mean_spearman_rho"],
+    top_k_values = _parse_int_list(args.top_k_values)
+    entity_df = _within_null_stability_summary(
+        analysis_dir=analysis_dir,
+        top_k_values=top_k_values,
+    )
+    between_null_df = _between_null_agreement_summary(
+        analysis_dir=analysis_dir,
+        top_k_values=top_k_values,
     )
     envelope_df = _calibration_envelope(descriptor_df)
+    descriptor_deviation_df = _descriptor_deviation_table(descriptor_df, envelope_df)
     decision_df = _decision_table(
         descriptor_df=descriptor_df,
         random_qc_df=random_qc_df,
@@ -657,6 +783,9 @@ def main() -> None:
     random_qc_df.to_csv(qc_output_dir / "random_match_qc.csv", index=False)
     perm_qc_df.to_csv(qc_output_dir / "permuted_null_qc.csv", index=False)
     envelope_df.to_csv(qc_output_dir / "calibration_envelope.csv", index=False)
+    descriptor_deviation_df.to_csv(qc_output_dir / "descriptor_deviation.csv", index=False)
+    entity_df.to_csv(qc_output_dir / "within_null_stability_summary.csv", index=False)
+    between_null_df.to_csv(qc_output_dir / "between_null_agreement.csv", index=False)
     decision_df.to_csv(qc_output_dir / "group_decision_table.csv", index=False)
 
     merged = descriptor_df.merge(random_qc_df, on=["lv_id", "target_set_id"], how="left")
@@ -668,6 +797,9 @@ def main() -> None:
     print(f"Saved random-null QC: {qc_output_dir / 'random_match_qc.csv'}")
     print(f"Saved permuted-null QC: {qc_output_dir / 'permuted_null_qc.csv'}")
     print(f"Saved calibration envelope: {qc_output_dir / 'calibration_envelope.csv'}")
+    print(f"Saved descriptor deviation table: {qc_output_dir / 'descriptor_deviation.csv'}")
+    print(f"Saved within-null stability summary: {qc_output_dir / 'within_null_stability_summary.csv'}")
+    print(f"Saved between-null agreement summary: {qc_output_dir / 'between_null_agreement.csv'}")
     print(f"Saved decision table: {qc_output_dir / 'group_decision_table.csv'}")
     print(f"Saved merged summary: {qc_output_dir / 'group_qc_summary.csv'}")
 
