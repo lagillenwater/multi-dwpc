@@ -31,6 +31,12 @@ TIER_COLORS = {
     "Out Of Family": "#7f7f7f",
 }
 
+STATUS_COLORS = {
+    "fail": "#d95f5f",
+    "warning": "#f0ad4e",
+    "pass": "#2f9e44",
+}
+
 
 def _load_csv(path: Path, required_columns: list[str]) -> pd.DataFrame:
     if not path.exists():
@@ -62,35 +68,46 @@ def _ordered_groups(summary_df: pd.DataFrame) -> pd.DataFrame:
 
 def _plot_decision_summary(summary_df: pd.DataFrame, output_path: Path) -> None:
     summary_df = _ordered_groups(summary_df)
-    bool_cols = ["descriptor_in_envelope", "random_qc_pass", "permuted_qc_pass"]
-    bool_labels = ["Envelope", "Random", "Permuted"]
-    bool_matrix = summary_df[bool_cols].astype(int).to_numpy()
+    status_cols = ["descriptor_status", "random_qc_pass", "permuted_qc_pass"]
+    status_labels = ["Envelope", "Random", "Permuted"]
+    status_matrix = np.zeros((len(summary_df), len(status_cols)), dtype=int)
+    status_text = []
+    for row_idx, row in summary_df.iterrows():
+        local_text = []
+        descriptor_code = {"fail": 0, "warning": 1, "pass": 2}.get(str(row.get("descriptor_status", "pass")), 0)
+        status_matrix[row_idx, 0] = descriptor_code
+        local_text.append(str(row.get("descriptor_status", "pass")).upper())
+        for col_idx, col in enumerate(status_cols[1:], start=1):
+            passed = int(bool(row[col]))
+            status_matrix[row_idx, col_idx] = 2 if passed else 0
+            local_text.append("PASS" if passed else "FAIL")
+        status_text.append(local_text)
 
     fig = plt.figure(figsize=(12.5, max(4.5, 1.6 + 0.95 * len(summary_df))))
     gs = fig.add_gridspec(1, 2, width_ratios=[1.2, 2.2], wspace=0.06)
     ax_heat = fig.add_subplot(gs[0, 0])
     ax_text = fig.add_subplot(gs[0, 1], sharey=ax_heat)
 
-    cmap = ListedColormap(["#d95f5f", "#2f9e44"])
-    ax_heat.imshow(bool_matrix, aspect="auto", cmap=cmap, vmin=0, vmax=1)
-    for row_idx in range(bool_matrix.shape[0]):
-        for col_idx in range(bool_matrix.shape[1]):
+    cmap = ListedColormap([STATUS_COLORS["fail"], STATUS_COLORS["warning"], STATUS_COLORS["pass"]])
+    ax_heat.imshow(status_matrix, aspect="auto", cmap=cmap, vmin=0, vmax=2)
+    for row_idx in range(status_matrix.shape[0]):
+        for col_idx in range(status_matrix.shape[1]):
             ax_heat.text(
                 col_idx,
                 row_idx,
-                "PASS" if bool_matrix[row_idx, col_idx] else "FAIL",
+                status_text[row_idx][col_idx],
                 ha="center",
                 va="center",
                 color="white",
-                fontsize=9,
+                fontsize=8.5,
                 fontweight="bold",
             )
-    ax_heat.set_xticks(np.arange(len(bool_labels)))
-    ax_heat.set_xticklabels(bool_labels)
+    ax_heat.set_xticks(np.arange(len(status_labels)))
+    ax_heat.set_xticklabels(status_labels)
     ax_heat.set_yticks(np.arange(len(summary_df)))
     ax_heat.set_yticklabels(summary_df["group_label"].tolist())
     ax_heat.set_title("QC Gates")
-    ax_heat.set_xticks(np.arange(-0.5, len(bool_labels), 1), minor=True)
+    ax_heat.set_xticks(np.arange(-0.5, len(status_labels), 1), minor=True)
     ax_heat.set_yticks(np.arange(-0.5, len(summary_df), 1), minor=True)
     ax_heat.grid(which="minor", color="white", linewidth=1.5)
     ax_heat.tick_params(which="minor", bottom=False, left=False)
@@ -118,6 +135,17 @@ def _plot_decision_summary(summary_df: pd.DataFrame, output_path: Path) -> None:
             fontsize=12,
             fontweight="bold",
         )
+        if bool(row.get("descriptor_warning", False)):
+            ax_text.text(
+                1.38,
+                idx,
+                "descriptor warning",
+                va="center",
+                ha="left",
+                color="#8a6d3b",
+                fontsize=9.5,
+                style="italic",
+            )
         ax_text.text(
             1.82,
             idx,
@@ -211,11 +239,14 @@ def _plot_dual_null_stability(
                 ax.set_ylim(lower, 1.02)
             ax.grid(alpha=0.25, linestyle=":")
             if row_idx == 0:
-                tier = summary_df[
+                title_row = summary_df[
                     (summary_df["lv_id"].astype(str) == str(group["lv_id"]))
                     & (summary_df["target_set_id"].astype(str) == str(group["target_set_id"]))
-                ]["tier"].iloc[0]
-                ax.set_title(f"{group['group_label']}\n{tier}", color=TIER_COLORS.get(str(tier), "#222222"))
+                ].iloc[0]
+                title = f"{group['group_label']}\n{title_row['tier']}"
+                if bool(title_row.get("descriptor_warning", False)):
+                    title += "\nDescriptor warning"
+                ax.set_title(title, color=TIER_COLORS.get(str(title_row["tier"]), "#222222"))
             if col_idx == 0:
                 ax.set_ylabel(metric_label)
             if row_idx == len(specs) - 1:
@@ -267,7 +298,11 @@ def _plot_null_match_qc(summary_df: pd.DataFrame, output_path: Path) -> None:
     for ax, col, title, threshold, color in panels:
         vals = summary_df[col].astype(float).to_numpy()
         ax.hlines(y, np.nanmin(vals), vals, color=color, alpha=0.30, linewidth=2.5)
-        ax.scatter(vals, y, s=95, color=color, edgecolors="white", linewidths=1.0, zorder=3)
+        marker_colors = [
+            STATUS_COLORS["warning"] if bool(flag) else color
+            for flag in summary_df.get("descriptor_warning", pd.Series([False] * len(summary_df))).tolist()
+        ]
+        ax.scatter(vals, y, s=95, color=marker_colors, edgecolors="white", linewidths=1.0, zorder=3)
         for idx, value in enumerate(vals):
             ax.text(value, y[idx] + 0.12, f"{value:.3f}", fontsize=8, color=color, ha="center")
         if not pd.isna(threshold):

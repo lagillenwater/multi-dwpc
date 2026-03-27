@@ -416,6 +416,14 @@ def _null_interpretation(status: str) -> str:
     return mapping[status]
 
 
+def _descriptor_status(fail_count: int) -> str:
+    if int(fail_count) <= 0:
+        return "pass"
+    if int(fail_count) == 1:
+        return "warning"
+    return "fail"
+
+
 def _decision_table(
     descriptor_df: pd.DataFrame,
     random_qc_df: pd.DataFrame,
@@ -454,7 +462,8 @@ def _decision_table(
                 high = stats["p95"]
             if value < low or value > high:
                 fail_count += 1
-        descriptor_in_envelope = int(fail_count == 0)
+        descriptor_status = _descriptor_status(fail_count)
+        descriptor_in_envelope = int(descriptor_status == "pass")
 
         random_qc_pass = int(
             float(getattr(row, "random_match_mae", np.nan)) <= float(random_mae_threshold)
@@ -506,22 +515,37 @@ def _decision_table(
             top5_threshold,
             top10_threshold,
         )
+        both_qc_pass = bool(random_qc_pass and permuted_qc_pass)
+        both_tier1_ok = bool(perm_tier1_ok and rand_tier1_ok)
+        both_tier2_ok = bool(perm_tier2_ok and rand_tier2_ok)
+        any_tier2_ok = bool(perm_tier2_ok or rand_tier2_ok)
+        warning_text = ""
+        if descriptor_status == "warning":
+            warning_text = "Descriptor profile is just outside the calibration envelope; monitor similar future groups."
+        elif descriptor_status == "fail":
+            warning_text = "Descriptor profile is outside the calibration envelope; treat production results as conditional on empirical stability."
 
-        if fail_count >= 2 or (not random_qc_pass and not permuted_qc_pass):
+        if (not random_qc_pass and not permuted_qc_pass) or (
+            descriptor_status == "fail" and not any_tier2_ok
+        ):
             tier = "Out Of Family"
             recommended_b = "rerun_sensitivity"
             status = _null_agreement_status(perm_tier2_ok, rand_tier2_ok)
             action = "Run a dedicated sensitivity study for this subgroup family before production."
-        elif descriptor_in_envelope and random_qc_pass and permuted_qc_pass and perm_tier1_ok and rand_tier1_ok:
+        elif both_qc_pass and both_tier1_ok:
             tier = "Production Ready"
             recommended_b = str(int(tier1_b))
             status = _null_agreement_status(perm_tier1_ok, rand_tier1_ok)
             action = f"Run both nulls at B={int(tier1_b)} and report consensus metapaths as primary."
-        elif descriptor_in_envelope and random_qc_pass and permuted_qc_pass and perm_tier2_ok and rand_tier2_ok:
+            if warning_text:
+                action = f"{action} {warning_text}"
+        elif both_qc_pass and both_tier2_ok:
             tier = "Production With Higher B"
             recommended_b = str(int(tier2_b))
             status = _null_agreement_status(perm_tier2_ok, rand_tier2_ok)
             action = f"Run both nulls at B={int(tier2_b)} and treat the group as acceptable but higher-variance."
+            if warning_text:
+                action = f"{action} {warning_text}"
         else:
             tier = "Tune And Recheck"
             recommended_b = "tune_then_rerun"
@@ -530,6 +554,8 @@ def _decision_table(
                 "Increase the null pool, review random-null promiscuity matching, "
                 "review permutation mixing, and rerun the pilot at B=1,2,5,10."
             )
+            if warning_text:
+                action = f"{action} {warning_text}"
 
         rows.append(
             {
@@ -537,7 +563,9 @@ def _decision_table(
                 "lv_id": row.lv_id,
                 "target_set_id": row.target_set_id,
                 "descriptor_in_envelope": bool(descriptor_in_envelope),
+                "descriptor_status": descriptor_status,
                 "descriptor_fail_count": int(fail_count),
+                "descriptor_warning": bool(descriptor_status != "pass"),
                 "random_qc_pass": bool(random_qc_pass),
                 "permuted_qc_pass": bool(permuted_qc_pass),
                 "tier": tier,
