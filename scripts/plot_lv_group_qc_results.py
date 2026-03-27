@@ -72,6 +72,7 @@ def _plot_within_null_metric(
     metric_col: str,
     metric_label: str,
     group_order: list[str],
+    max_b: int | None,
 ) -> None:
     metric_vals: list[float] = []
     for group_label in group_order:
@@ -79,6 +80,8 @@ def _plot_within_null_metric(
         color = _group_color(group_label)
         for control in sorted(gdf["control"].astype(str).unique().tolist()):
             cdf = gdf[gdf["control"].astype(str) == control].copy().sort_values("b")
+            if max_b is not None:
+                cdf = cdf[cdf["b"].astype(int) <= int(max_b)].copy()
             if cdf.empty or metric_col not in cdf.columns:
                 continue
             metric_vals.extend(cdf[metric_col].astype(float).tolist())
@@ -104,6 +107,8 @@ def _plot_within_null_metric(
         lower = max(0.0, ymin - 0.15 * span)
         upper = min(1.02, ymax + 0.10 * span)
         ax.set_ylim(lower, upper)
+    if max_b is not None:
+        ax.set_xlim(0.5, float(max_b) + 0.5)
     ax.grid(alpha=0.22, linestyle=":")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -115,10 +120,13 @@ def _plot_between_null_metric(
     metric_col: str,
     metric_label: str,
     group_order: list[str],
+    max_b: int | None,
 ) -> None:
     metric_vals: list[float] = []
     for group_label in group_order:
         gdf = df[df["group_label"].astype(str) == group_label].copy().sort_values("b")
+        if max_b is not None:
+            gdf = gdf[gdf["b"].astype(int) <= int(max_b)].copy()
         if gdf.empty or metric_col not in gdf.columns:
             continue
         color = _group_color(group_label)
@@ -144,6 +152,8 @@ def _plot_between_null_metric(
         lower = max(0.0, ymin - 0.15 * span)
         upper = min(1.02, ymax + 0.10 * span)
         ax.set_ylim(lower, upper)
+    if max_b is not None:
+        ax.set_xlim(0.5, float(max_b) + 0.5)
     ax.grid(alpha=0.22, linestyle=":")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -304,6 +314,7 @@ def parse_args() -> argparse.Namespace:
         default="output/lv_experiment_all_metapaths/lv_group_qc_experiment",
         help="Directory containing LV group QC CSV outputs",
     )
+    parser.add_argument("--max-b", type=int, default=10)
     parser.add_argument("--diagnostic-b", type=int, default=5)
     parser.add_argument("--diagnostic-control", default="permuted")
     return parser.parse_args()
@@ -362,7 +373,14 @@ def main() -> None:
     within_grid = gs[0, :].subgridspec(1, 2, hspace=0.35, wspace=0.25)
     within_axes = [fig.add_subplot(within_grid[0, j]) for j in range(2)]
     for ax, (metric_col, metric_label) in zip(within_axes, within_specs):
-        _plot_within_null_metric(ax, within_df, metric_col, metric_label, group_order)
+        _plot_within_null_metric(
+            ax,
+            within_df,
+            metric_col,
+            metric_label,
+            group_order,
+            max_b=int(args.max_b) if args.max_b else None,
+        )
     for ax in within_axes[len(within_specs) :]:
         ax.axis("off")
     if within_axes:
@@ -373,7 +391,14 @@ def main() -> None:
     between_grid = gs[1, :].subgridspec(1, 2, hspace=0.35, wspace=0.25)
     between_axes = [fig.add_subplot(between_grid[0, j]) for j in range(2)]
     for ax, (metric_col, metric_label) in zip(between_axes, between_specs):
-        _plot_between_null_metric(ax, between_df, metric_col, metric_label, group_order)
+        _plot_between_null_metric(
+            ax,
+            between_df,
+            metric_col,
+            metric_label,
+            group_order,
+            max_b=int(args.max_b) if args.max_b else None,
+        )
     for ax in between_axes[len(between_specs) :]:
         ax.axis("off")
     if between_axes:
