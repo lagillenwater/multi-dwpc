@@ -183,6 +183,7 @@ def _descriptor_panel(
             .sort_values(["diff", "metapath"], ascending=[False, True])
             .reset_index(drop=True)
         )
+        group_diff_std = float(mean_diff["diff"].astype(float).std(ddof=1)) if len(mean_diff) > 1 else np.nan
         top5_gap = np.nan
         top10_gap = np.nan
         if len(mean_diff) >= 6:
@@ -215,6 +216,12 @@ def _descriptor_panel(
                     "diff_upper": float(upper["diff"]),
                     "diff_lower": float(lower["diff"]),
                     "score_gap": float(upper["diff"] - lower["diff"]),
+                    "group_diff_std": group_diff_std,
+                    "standardized_score_gap": (
+                        float((upper["diff"] - lower["diff"]) / group_diff_std)
+                        if pd.notna(group_diff_std) and abs(group_diff_std) > 1e-12
+                        else np.nan
+                    ),
                 }
             )
     gap_df = pd.DataFrame(gap_rows)

@@ -58,6 +58,12 @@ def parse_args() -> argparse.Namespace:
         default=20,
         help="Maximum upper rank to display",
     )
+    parser.add_argument(
+        "--metric",
+        choices=["raw", "standardized"],
+        default="standardized",
+        help="Which score-gap metric to plot",
+    )
     return parser.parse_args()
 
 
@@ -73,12 +79,15 @@ def main() -> None:
             "rank_upper",
             "rank_lower",
             "score_gap",
+            "standardized_score_gap",
             "diff_upper",
             "diff_lower",
         ],
     )
     df = _group_label(df)
     df = df[df["rank_upper"].astype(int) <= int(args.max_rank)].copy()
+    metric_col = "standardized_score_gap" if str(args.metric) == "standardized" else "score_gap"
+    metric_label = "Standardized adjacent score gap" if metric_col == "standardized_score_gap" else "Adjacent score gap"
 
     group_order = df["group_label"].drop_duplicates().astype(str).tolist()
     n_groups = len(group_order)
@@ -94,7 +103,7 @@ def main() -> None:
     if n_groups == 1:
         axes = [axes]
 
-    all_vals = df["score_gap"].astype(float).to_numpy()
+    all_vals = df[metric_col].astype(float).to_numpy()
     ymin = float(np.nanmin(all_vals))
     ymax = float(np.nanmax(all_vals))
     span = max(1e-6, ymax - ymin)
@@ -107,7 +116,7 @@ def main() -> None:
             linestyle, marker = CONTROL_STYLES.get(control, ("-", "o"))
             ax.plot(
                 cdf["rank_upper"].astype(int),
-                cdf["score_gap"].astype(float),
+                cdf[metric_col].astype(float),
                 linestyle=linestyle,
                 marker=marker,
                 linewidth=2.0,
@@ -117,15 +126,15 @@ def main() -> None:
                 label=control,
             )
         ax.set_title(group_label)
-        ax.set_ylabel("Adjacent score gap")
-        ax.set_ylim(max(0.0, ymin - 0.08 * span), ymax + 0.10 * span)
+        ax.set_ylabel(metric_label)
+        ax.set_ylim(ymin - 0.08 * span, ymax + 0.10 * span)
         ax.grid(alpha=0.22, linestyle=":")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.legend(loc="upper right", fontsize=9)
 
     axes[-1].set_xlabel("Upper rank k in gap between ranks k and k+1")
-    fig.suptitle("LVQC score separation", fontsize=18, y=0.98)
+    fig.suptitle(f"LVQC score separation ({args.metric})", fontsize=18, y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
 
     out_path = qc_dir / "lv_score_separation.png"
