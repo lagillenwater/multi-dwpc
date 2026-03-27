@@ -379,6 +379,7 @@ poe lv-null-variance-plots
 poe lv-rank-stability-plots
 poe lv-rank-seed-comparisons
 poe lv-group-qc-plots
+poe lv-score-separation-plots
 ```
 
 Track the same top 5 metapaths across seeds and B using seed 11 at max B:
