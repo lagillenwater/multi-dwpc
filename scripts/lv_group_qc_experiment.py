@@ -101,7 +101,8 @@ def _descriptor_panel(
     analysis_dir: Path,
     stats_path: Path,
     gap_b: int,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+    score_gap_max_k: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     feature_manifest = _load_csv(output_dir / "feature_manifest.csv", ["target_set_id", "metapath"])
     real_scores = _load_csv(output_dir / "real_feature_scores.csv", ["lv_id", "target_set_id", "real_mean"])
     target_sets = _load_csv(output_dir / "target_sets.csv", ["target_set_id", "target_set_label", "target_id"])
@@ -172,6 +173,7 @@ def _descriptor_panel(
     descriptor_df = pd.DataFrame(descriptor_rows)
 
     gap_rows = []
+    score_gap_rows = []
     gap_subset = runs_df[runs_df["b"].astype(int) == int(gap_b)].copy()
     for key, group in gap_subset.groupby(["control", "lv_id", "target_set_id"], sort=True):
         control, lv_id, target_set_id = key
@@ -196,7 +198,27 @@ def _descriptor_panel(
                 "top10_gap": top10_gap,
             }
         )
+        max_k = min(int(score_gap_max_k), max(len(mean_diff) - 1, 0))
+        for k in range(1, max_k + 1):
+            upper = mean_diff.loc[k - 1]
+            lower = mean_diff.loc[k]
+            score_gap_rows.append(
+                {
+                    "lv_id": str(lv_id),
+                    "target_set_id": str(target_set_id),
+                    "control": str(control),
+                    "b": int(gap_b),
+                    "rank_upper": int(k),
+                    "rank_lower": int(k + 1),
+                    "metapath_upper": str(upper["metapath"]),
+                    "metapath_lower": str(lower["metapath"]),
+                    "diff_upper": float(upper["diff"]),
+                    "diff_lower": float(lower["diff"]),
+                    "score_gap": float(upper["diff"] - lower["diff"]),
+                }
+            )
     gap_df = pd.DataFrame(gap_rows)
+    score_gap_df = pd.DataFrame(score_gap_rows)
     if not gap_df.empty:
         gap_wide = gap_df.pivot(
             index=["lv_id", "target_set_id"],
@@ -207,7 +229,7 @@ def _descriptor_panel(
         gap_wide = gap_wide.reset_index()
         descriptor_df = descriptor_df.merge(gap_wide, on=["lv_id", "target_set_id"], how="left")
 
-    return descriptor_df, gap_df
+    return descriptor_df, gap_df, score_gap_df
 
 
 def _random_qc(output_dir: Path, requested_tolerance: int) -> pd.DataFrame:
@@ -832,6 +854,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--metapath-stats-path", default="data/metapath-dwpc-stats.tsv")
     parser.add_argument("--gap-b", type=int, default=5)
+    parser.add_argument("--score-gap-max-k", type=int, default=20)
     parser.add_argument("--tier1-b", type=int, default=5)
     parser.add_argument("--tier2-b", type=int, default=10)
     parser.add_argument("--rbo-p", type=float, default=0.98)
@@ -860,11 +883,12 @@ def main() -> None:
     )
     qc_output_dir.mkdir(parents=True, exist_ok=True)
 
-    descriptor_df, gap_df = _descriptor_panel(
+    descriptor_df, gap_df, score_gap_df = _descriptor_panel(
         output_dir=output_dir,
         analysis_dir=analysis_dir,
         stats_path=Path(args.metapath_stats_path),
         gap_b=int(args.gap_b),
+        score_gap_max_k=int(args.score_gap_max_k),
     )
     random_qc_df = _random_qc(
         output_dir=output_dir,
@@ -904,6 +928,7 @@ def main() -> None:
 
     descriptor_df.to_csv(qc_output_dir / "descriptor_panel.csv", index=False)
     gap_df.to_csv(qc_output_dir / "gap_summary.csv", index=False)
+    score_gap_df.to_csv(qc_output_dir / "score_separation_table.csv", index=False)
     random_qc_df.to_csv(qc_output_dir / "random_match_qc.csv", index=False)
     perm_qc_df.to_csv(qc_output_dir / "permuted_null_qc.csv", index=False)
     envelope_df.to_csv(qc_output_dir / "calibration_envelope.csv", index=False)
@@ -923,6 +948,7 @@ def main() -> None:
     print(f"Saved QC descriptor panel: {qc_output_dir / 'descriptor_panel.csv'}")
     print(f"Saved random-null QC: {qc_output_dir / 'random_match_qc.csv'}")
     print(f"Saved permuted-null QC: {qc_output_dir / 'permuted_null_qc.csv'}")
+    print(f"Saved score separation table: {qc_output_dir / 'score_separation_table.csv'}")
     print(f"Saved calibration envelope: {qc_output_dir / 'calibration_envelope.csv'}")
     print(f"Saved descriptor deviation table: {qc_output_dir / 'descriptor_deviation.csv'}")
     print(f"Saved within-null stability summary: {qc_output_dir / 'within_null_stability_summary.csv'}")
