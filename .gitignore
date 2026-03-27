@@ -65,3 +65,4 @@ connectivity-search-backend/data/postgres/
 
 # hpc
 slurm*
+/hpc/logs/
