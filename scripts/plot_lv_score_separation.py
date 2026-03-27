@@ -60,40 +60,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--metric",
-        choices=["raw", "standardized"],
-        default="standardized",
+        choices=["raw", "standardized", "both"],
+        default="both",
         help="Which score-gap metric to plot",
     )
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    qc_dir = Path(args.qc_dir)
-    df = _load_csv(
-        qc_dir / "score_separation_table.csv",
-        [
-            "lv_id",
-            "target_set_id",
-            "control",
-            "rank_upper",
-            "rank_lower",
-            "score_gap",
-            "standardized_score_gap",
-            "diff_upper",
-            "diff_lower",
-        ],
-    )
-    df = _group_label(df)
-    df = df[df["rank_upper"].astype(int) <= int(args.max_rank)].copy()
-    metric_col = "standardized_score_gap" if str(args.metric) == "standardized" else "score_gap"
-    metric_label = "Standardized adjacent score gap" if metric_col == "standardized_score_gap" else "Adjacent score gap"
-
-    group_order = df["group_label"].drop_duplicates().astype(str).tolist()
+def _plot_metric(
+    df: pd.DataFrame,
+    qc_dir: Path,
+    group_order: list[str],
+    metric_col: str,
+    metric_label: str,
+    metric_slug: str,
+) -> Path:
     n_groups = len(group_order)
-    if n_groups == 0:
-        raise ValueError("No rows available after filtering score_separation_table.csv")
-
     fig, axes = plt.subplots(
         n_groups,
         1,
@@ -134,13 +116,59 @@ def main() -> None:
         ax.legend(loc="upper right", fontsize=9)
 
     axes[-1].set_xlabel("Upper rank k in gap between ranks k and k+1")
-    fig.suptitle(f"LVQC score separation ({args.metric})", fontsize=18, y=0.98)
+    fig.suptitle(f"LVQC score separation ({metric_slug})", fontsize=18, y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
 
-    out_path = qc_dir / "lv_score_separation.png"
+    out_path = qc_dir / f"lv_score_separation_{metric_slug}.png"
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved plot: {out_path}")
+    return out_path
+
+
+def main() -> None:
+    args = parse_args()
+    qc_dir = Path(args.qc_dir)
+    df = _load_csv(
+        qc_dir / "score_separation_table.csv",
+        [
+            "lv_id",
+            "target_set_id",
+            "control",
+            "rank_upper",
+            "rank_lower",
+            "score_gap",
+            "standardized_score_gap",
+            "diff_upper",
+            "diff_lower",
+        ],
+    )
+    df = _group_label(df)
+    df = df[df["rank_upper"].astype(int) <= int(args.max_rank)].copy()
+
+    group_order = df["group_label"].drop_duplicates().astype(str).tolist()
+    n_groups = len(group_order)
+    if n_groups == 0:
+        raise ValueError("No rows available after filtering score_separation_table.csv")
+    metrics = []
+    if args.metric in {"raw", "both"}:
+        metrics.append(("score_gap", "Adjacent score gap", "raw"))
+    if args.metric in {"standardized", "both"}:
+        metrics.append(("standardized_score_gap", "Standardized adjacent score gap", "standardized"))
+
+    out_paths = []
+    for metric_col, metric_label, metric_slug in metrics:
+        out_paths.append(
+            _plot_metric(
+                df=df,
+                qc_dir=qc_dir,
+                group_order=group_order,
+                metric_col=metric_col,
+                metric_label=metric_label,
+                metric_slug=metric_slug,
+            )
+        )
+    for out_path in out_paths:
+        print(f"Saved plot: {out_path}")
 
 
 if __name__ == "__main__":
