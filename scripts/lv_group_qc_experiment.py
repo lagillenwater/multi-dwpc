@@ -30,7 +30,9 @@ def _parse_int_list(arg: str) -> list[int]:
 def _load_csv(path: Path, required_columns: list[str] | None = None) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Required input file not found: {path}")
-    df = pd.read_csv(path)
+    suffix = path.suffix.lower()
+    sep = "\t" if suffix in {".tsv", ".tab"} else ","
+    df = pd.read_csv(path, sep=sep)
     if required_columns:
         missing = sorted(set(required_columns) - set(df.columns))
         if missing:

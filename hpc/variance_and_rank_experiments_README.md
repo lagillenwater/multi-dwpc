@@ -356,6 +356,10 @@ sbatch hpc/lv_group_qc_aggregate.sbatch
 
 The QC script is most informative when the LV rank-stability aggregate includes both top-5 and top-10 overlap columns.
 
+LV Slurm logs are written under:
+
+- `hpc/logs/`
+
 Useful overrides:
 
 ```bash

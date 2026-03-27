@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
-#SBATCH --output=slurm_%x_%j.out
+#SBATCH --output=hpc/logs/%x_%j.out
 
 set -euo pipefail
 
@@ -15,6 +15,7 @@ PYTHON_EXE="${PYTHON_EXE:-python}"
 
 cd "$REPO_ROOT"
 module load anaconda
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate multi_dwpc
 
 $PYTHON_EXE scripts/lv_prepare_experiment.py \
