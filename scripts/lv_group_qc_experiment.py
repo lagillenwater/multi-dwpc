@@ -436,10 +436,9 @@ def _load_or_build_rank_df(analysis_dir: Path) -> pd.DataFrame:
 
 
 def _within_null_stability_summary(
-    analysis_dir: Path,
+    rank_df: pd.DataFrame,
     rbo_p: float,
 ) -> pd.DataFrame:
-    rank_df = _load_or_build_rank_df(analysis_dir)
     rows = []
     for key, group in rank_df.groupby(["control", "b", "lv_id", "target_set_id"], sort=True):
         control, b, lv_id, target_set_id = key
@@ -483,10 +482,9 @@ def _spearman_from_rank_arrays(rank_a: pd.Series, rank_b: pd.Series) -> float:
 
 
 def _between_null_agreement_summary(
-    analysis_dir: Path,
+    rank_df: pd.DataFrame,
     rbo_p: float,
 ) -> pd.DataFrame:
-    rank_df = _load_or_build_rank_df(analysis_dir)
     rows = []
     for key, group in rank_df.groupby(["b", "lv_id", "target_set_id"], sort=True):
         b, lv_id, target_set_id = key
@@ -518,6 +516,104 @@ def _between_null_agreement_summary(
         }
         rows.append(row)
     return pd.DataFrame(rows).sort_values(["lv_id", "target_set_id", "b"]).reset_index(drop=True)
+
+
+def _within_null_pairwise_diagnostics(
+    rank_df: pd.DataFrame,
+    rbo_p: float,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    pair_rows = []
+    prefix_rows = []
+    for key, group in rank_df.groupby(["control", "b", "lv_id", "target_set_id"], sort=True):
+        control, b, lv_id, target_set_id = key
+        by_seed: dict[int, pd.DataFrame] = {}
+        for seed, seed_df in group.groupby("seed", sort=True):
+            ordered = seed_df.sort_values("metapath_rank")
+            by_seed[int(seed)] = ordered[["metapath", "metapath_rank"]].copy()
+        seed_ids = sorted(by_seed.keys())
+        for idx, seed_a in enumerate(seed_ids):
+            for seed_b in seed_ids[idx + 1 :]:
+                df_a = by_seed[seed_a].rename(columns={"metapath_rank": "rank_a"})
+                df_b = by_seed[seed_b].rename(columns={"metapath_rank": "rank_b"})
+                merged = df_a.merge(df_b, on="metapath", how="inner")
+                if merged.empty:
+                    continue
+                list_a = df_a.sort_values("rank_a")["metapath"].astype(str).tolist()
+                list_b = df_b.sort_values("rank_b")["metapath"].astype(str).tolist()
+                pair_rows.append(
+                    {
+                        "control": str(control),
+                        "b": int(b),
+                        "lv_id": str(lv_id),
+                        "target_set_id": str(target_set_id),
+                        "seed_a": int(seed_a),
+                        "seed_b": int(seed_b),
+                        "n_common_metapaths": int(len(merged)),
+                        "spearman_rho": _spearman_from_rank_arrays(
+                            merged["rank_a"],
+                            merged["rank_b"],
+                        )
+                        if len(merged) >= 2
+                        else np.nan,
+                        "rbo": _rbo_score(list_a, list_b, p=rbo_p),
+                    }
+                )
+                max_k = min(len(list_a), len(list_b))
+                prefix_a: set[str] = set()
+                prefix_b: set[str] = set()
+                for k in range(1, max_k + 1):
+                    prefix_a.add(list_a[k - 1])
+                    prefix_b.add(list_b[k - 1])
+                    prefix_rows.append(
+                        {
+                            "control": str(control),
+                            "b": int(b),
+                            "lv_id": str(lv_id),
+                            "target_set_id": str(target_set_id),
+                            "seed_a": int(seed_a),
+                            "seed_b": int(seed_b),
+                            "k": int(k),
+                            "prefix_jaccard": _jaccard(prefix_a, prefix_b),
+                        }
+                    )
+    return (
+        pd.DataFrame(pair_rows).sort_values(
+            ["control", "lv_id", "target_set_id", "b", "seed_a", "seed_b"]
+        ).reset_index(drop=True),
+        pd.DataFrame(prefix_rows).sort_values(
+            ["control", "lv_id", "target_set_id", "b", "seed_a", "seed_b", "k"]
+        ).reset_index(drop=True),
+    )
+
+
+def _between_null_rank_scatter_table(rank_df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for key, group in rank_df.groupby(["b", "lv_id", "target_set_id", "metapath"], sort=True):
+        b, lv_id, target_set_id, metapath = key
+        mean_ranks = (
+            group.groupby("control", as_index=False)["metapath_rank"]
+            .mean()
+            .rename(columns={"metapath_rank": "mean_rank"})
+        )
+        if set(mean_ranks["control"].astype(str)) != {"permuted", "random"}:
+            continue
+        perm_rank = float(
+            mean_ranks.loc[mean_ranks["control"].astype(str) == "permuted", "mean_rank"].iloc[0]
+        )
+        rand_rank = float(
+            mean_ranks.loc[mean_ranks["control"].astype(str) == "random", "mean_rank"].iloc[0]
+        )
+        rows.append(
+            {
+                "b": int(b),
+                "lv_id": str(lv_id),
+                "target_set_id": str(target_set_id),
+                "metapath": str(metapath),
+                "mean_rank_permuted": perm_rank,
+                "mean_rank_random": rand_rank,
+            }
+        )
+    return pd.DataFrame(rows).sort_values(["lv_id", "target_set_id", "b", "metapath"]).reset_index(drop=True)
 
 
 def _control_pass(
@@ -739,6 +835,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tier1-b", type=int, default=5)
     parser.add_argument("--tier2-b", type=int, default=10)
     parser.add_argument("--rbo-p", type=float, default=0.98)
+    parser.add_argument("--diagnostic-b", type=int, default=5)
     parser.add_argument("--random-promiscuity-tolerance", type=int, default=2)
     parser.add_argument("--rho-threshold", type=float, default=0.90)
     parser.add_argument("--rbo-threshold", type=float, default=0.80)
@@ -774,14 +871,20 @@ def main() -> None:
         requested_tolerance=int(args.random_promiscuity_tolerance),
     )
     perm_qc_df = _permuted_qc(output_dir=output_dir)
+    rank_df = _load_or_build_rank_df(analysis_dir)
     entity_df = _within_null_stability_summary(
-        analysis_dir=analysis_dir,
+        rank_df=rank_df,
         rbo_p=float(args.rbo_p),
     )
     between_null_df = _between_null_agreement_summary(
-        analysis_dir=analysis_dir,
+        rank_df=rank_df,
         rbo_p=float(args.rbo_p),
     )
+    pairwise_diag_df, prefix_diag_df = _within_null_pairwise_diagnostics(
+        rank_df=rank_df,
+        rbo_p=float(args.rbo_p),
+    )
+    between_scatter_df = _between_null_rank_scatter_table(rank_df)
     envelope_df = _calibration_envelope(descriptor_df)
     descriptor_deviation_df = _descriptor_deviation_table(descriptor_df, envelope_df)
     decision_df = _decision_table(
@@ -807,6 +910,9 @@ def main() -> None:
     descriptor_deviation_df.to_csv(qc_output_dir / "descriptor_deviation.csv", index=False)
     entity_df.to_csv(qc_output_dir / "within_null_stability_summary.csv", index=False)
     between_null_df.to_csv(qc_output_dir / "between_null_agreement.csv", index=False)
+    pairwise_diag_df.to_csv(qc_output_dir / "within_null_pairwise_diagnostics.csv", index=False)
+    prefix_diag_df.to_csv(qc_output_dir / "within_null_prefix_overlap.csv", index=False)
+    between_scatter_df.to_csv(qc_output_dir / "between_null_rank_scatter.csv", index=False)
     decision_df.to_csv(qc_output_dir / "group_decision_table.csv", index=False)
 
     merged = descriptor_df.merge(random_qc_df, on=["lv_id", "target_set_id"], how="left")
@@ -821,6 +927,9 @@ def main() -> None:
     print(f"Saved descriptor deviation table: {qc_output_dir / 'descriptor_deviation.csv'}")
     print(f"Saved within-null stability summary: {qc_output_dir / 'within_null_stability_summary.csv'}")
     print(f"Saved between-null agreement summary: {qc_output_dir / 'between_null_agreement.csv'}")
+    print(f"Saved within-null pairwise diagnostics: {qc_output_dir / 'within_null_pairwise_diagnostics.csv'}")
+    print(f"Saved within-null prefix overlap: {qc_output_dir / 'within_null_prefix_overlap.csv'}")
+    print(f"Saved between-null rank scatter table: {qc_output_dir / 'between_null_rank_scatter.csv'}")
     print(f"Saved decision table: {qc_output_dir / 'group_decision_table.csv'}")
     print(f"Saved merged summary: {qc_output_dir / 'group_qc_summary.csv'}")
 
