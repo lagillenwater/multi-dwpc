@@ -346,6 +346,26 @@ sbatch hpc/lv_null_variance_aggregate.sbatch
 sbatch hpc/lv_rank_stability_aggregate.sbatch
 ```
 
+#### Step 7: build per-group QC packets and decision tiers
+
+After the LV rank-stability aggregate finishes, build the dual-null QC packet:
+
+```bash
+sbatch hpc/lv_group_qc_aggregate.sbatch
+```
+
+The QC script is most informative when the LV rank-stability aggregate includes both top-5 and top-10 overlap columns.
+
+Useful overrides:
+
+```bash
+export LV_GROUP_QC_GAP_B=5
+export LV_GROUP_QC_TIER1_B=5
+export LV_GROUP_QC_TIER2_B=10
+export LV_RANDOM_PROM_TOL=2
+sbatch hpc/lv_group_qc_aggregate.sbatch
+```
+
 Post-processing after aggregates finish:
 
 ```bash
@@ -394,6 +414,16 @@ poe track-lv-top-metapaths
 - `output/lv_experiment/lv_rank_stability_experiment/rank_scatter_ref_seed_11/`
 - `output/lv_experiment/lv_rank_stability_experiment/top_pairs_runs.csv`
 - `output/lv_experiment/lv_rank_stability_experiment/top_paths_runs.csv`
+
+### LV group QC
+
+- `output/lv_experiment/lv_group_qc_experiment/descriptor_panel.csv`
+- `output/lv_experiment/lv_group_qc_experiment/gap_summary.csv`
+- `output/lv_experiment/lv_group_qc_experiment/random_match_qc.csv`
+- `output/lv_experiment/lv_group_qc_experiment/permuted_null_qc.csv`
+- `output/lv_experiment/lv_group_qc_experiment/calibration_envelope.csv`
+- `output/lv_experiment/lv_group_qc_experiment/group_decision_table.csv`
+- `output/lv_experiment/lv_group_qc_experiment/group_qc_summary.csv`
 
 ### Year shared workspace
 
