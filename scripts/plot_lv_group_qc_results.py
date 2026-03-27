@@ -56,10 +56,8 @@ def _group_color(label: str) -> str:
 
 def _metric_specs(df: pd.DataFrame) -> list[tuple[str, str]]:
     specs: list[tuple[str, str]] = [("mean_spearman_rho", "Spearman rho")]
-    for k in (5, 10, 15):
-        col = f"mean_topk_jaccard_{k}"
-        if col in df.columns:
-            specs.append((col, f"Top-{k} Jaccard"))
+    if "mean_rbo" in df.columns:
+        specs.append(("mean_rbo", "Rank-biased overlap"))
     return specs
 
 
@@ -146,30 +144,6 @@ def _plot_between_null_metric(
     ax.spines["right"].set_visible(False)
 
 
-def _decision_text(
-    ax: plt.Axes,
-    group_qc_df: pd.DataFrame,
-    group_order: list[str],
-) -> None:
-    df = _group_label(group_qc_df).set_index("group_label").loc[group_order].reset_index()
-    ax.axis("off")
-    lines = []
-    for row in df.itertuples(index=False):
-        status = str(getattr(row, "descriptor_status", "pass"))
-        lines.append(
-            f"{row.group_label}: {row.tier} | B={row.recommended_b} | descriptor={status}"
-        )
-    ax.text(
-        0.0,
-        1.0,
-        "Summary\n\n" + "\n".join(lines),
-        va="top",
-        ha="left",
-        fontsize=11,
-        family="monospace",
-    )
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -205,18 +179,18 @@ def main() -> None:
     within_specs = _metric_specs(within_df)
     between_specs = _metric_specs(between_df)
 
-    fig = plt.figure(figsize=(16, 14))
+    fig = plt.figure(figsize=(16, 8.2))
     gs = fig.add_gridspec(
-        3,
         2,
-        height_ratios=[1.0, 1.0, 0.22],
+        2,
+        height_ratios=[1.0, 1.0],
         width_ratios=[1.0, 1.0],
         hspace=0.34,
         wspace=0.25,
     )
 
-    within_grid = gs[0, :].subgridspec(2, 2, hspace=0.35, wspace=0.25)
-    within_axes = [fig.add_subplot(within_grid[i, j]) for i in range(2) for j in range(2)]
+    within_grid = gs[0, :].subgridspec(1, 2, hspace=0.35, wspace=0.25)
+    within_axes = [fig.add_subplot(within_grid[0, j]) for j in range(2)]
     for ax, (metric_col, metric_label) in zip(within_axes, within_specs):
         _plot_within_null_metric(ax, within_df, metric_col, metric_label, group_order)
     for ax in within_axes[len(within_specs) :]:
@@ -226,8 +200,8 @@ def main() -> None:
         if handles:
             within_axes[0].legend(handles, labels, fontsize=8, loc="lower right", ncol=2)
 
-    between_grid = gs[1, :].subgridspec(2, 2, hspace=0.35, wspace=0.25)
-    between_axes = [fig.add_subplot(between_grid[i, j]) for i in range(2) for j in range(2)]
+    between_grid = gs[1, :].subgridspec(1, 2, hspace=0.35, wspace=0.25)
+    between_axes = [fig.add_subplot(between_grid[0, j]) for j in range(2)]
     for ax, (metric_col, metric_label) in zip(between_axes, between_specs):
         _plot_between_null_metric(ax, between_df, metric_col, metric_label, group_order)
     for ax in between_axes[len(between_specs) :]:
@@ -237,12 +211,10 @@ def main() -> None:
         if handles:
             between_axes[0].legend(handles, labels, fontsize=8, loc="lower right")
 
-    ax_text = fig.add_subplot(gs[2, :])
-    _decision_text(ax_text, group_qc_df, group_order)
-
     fig.suptitle(
         "LV Group QC Dashboard\n"
-        "Top: within-null seed stability | Middle: random-vs-permuted agreement",
+        "Top: within-null seed stability | Bottom: random-vs-permuted agreement\n"
+        "Spearman rho = whole-ranking agreement | RBO = top-weighted agreement",
         fontsize=18,
         y=0.98,
     )

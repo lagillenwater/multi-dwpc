@@ -18,14 +18,7 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.bipartite_nulls import calculate_target_membership_counts  # noqa: E402
-from src.replicate_analysis import rank_features, summarize_rank_stability  # noqa: E402
-
-
-def _parse_int_list(arg: str) -> list[int]:
-    values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
-    if not values:
-        raise ValueError("Expected at least one integer value")
-    return values
+from src.replicate_analysis import rank_features  # noqa: E402
 
 
 def _load_csv(path: Path, required_columns: list[str] | None = None) -> pd.DataFrame:
@@ -45,6 +38,13 @@ def _iqr(values: pd.Series) -> float:
     if values.empty:
         return np.nan
     return float(values.quantile(0.75) - values.quantile(0.25))
+
+
+def _jaccard(set_a: set[str], set_b: set[str]) -> float:
+    union = set_a | set_b
+    if not union:
+        return np.nan
+    return float(len(set_a & set_b) / len(union))
 
 
 def _safe_p90(values: pd.Series) -> float:
@@ -261,11 +261,20 @@ def _random_qc(output_dir: Path, requested_tolerance: int) -> pd.DataFrame:
     )
 
 
-def _jaccard(a: set[str], b: set[str]) -> float:
-    union = a | b
-    if not union:
+def _rbo_score(rank_a: list[str], rank_b: list[str], p: float) -> float:
+    """Compute finite-list rank-biased overlap for two ranked lists."""
+    if not rank_a or not rank_b:
         return np.nan
-    return len(a & b) / len(union)
+    depth = min(len(rank_a), len(rank_b))
+    seen_a: set[str] = set()
+    seen_b: set[str] = set()
+    overlap_sum = 0.0
+    for d in range(1, depth + 1):
+        seen_a.add(rank_a[d - 1])
+        seen_b.add(rank_b[d - 1])
+        overlap = len(seen_a & seen_b) / float(d)
+        overlap_sum += overlap * (p ** (d - 1))
+    return float((1.0 - p) * overlap_sum)
 
 
 def _permuted_qc(output_dir: Path) -> pd.DataFrame:
@@ -427,18 +436,43 @@ def _load_or_build_rank_df(analysis_dir: Path) -> pd.DataFrame:
 
 def _within_null_stability_summary(
     analysis_dir: Path,
-    top_k_values: list[int],
+    rbo_p: float,
 ) -> pd.DataFrame:
     rank_df = _load_or_build_rank_df(analysis_dir)
-    _, entity_df, _ = summarize_rank_stability(
-        rank_df,
-        outer_keys=["control", "b", "lv_id", "target_set_id"],
-        replicate_col="seed",
-        feature_col="metapath",
-        rank_col="metapath_rank",
-        top_k=top_k_values,
-    )
-    return entity_df.sort_values(["control", "lv_id", "target_set_id", "b"]).reset_index(drop=True)
+    rows = []
+    for key, group in rank_df.groupby(["control", "b", "lv_id", "target_set_id"], sort=True):
+        control, b, lv_id, target_set_id = key
+        by_seed: dict[int, pd.DataFrame] = {}
+        for seed, seed_df in group.groupby("seed", sort=True):
+            ordered = seed_df.sort_values("metapath_rank")
+            by_seed[int(seed)] = ordered[["metapath", "metapath_rank"]].copy()
+        seed_ids = sorted(by_seed.keys())
+        spearman_vals = []
+        rbo_vals = []
+        for idx, seed_a in enumerate(seed_ids):
+            for seed_b in seed_ids[idx + 1 :]:
+                df_a = by_seed[seed_a].rename(columns={"metapath_rank": "rank_a"})
+                df_b = by_seed[seed_b].rename(columns={"metapath_rank": "rank_b"})
+                merged = df_a.merge(df_b, on="metapath", how="inner")
+                if len(merged) >= 2:
+                    spearman_vals.append(
+                        _spearman_from_rank_arrays(merged["rank_a"], merged["rank_b"])
+                    )
+                list_a = df_a.sort_values("rank_a")["metapath"].astype(str).tolist()
+                list_b = df_b.sort_values("rank_b")["metapath"].astype(str).tolist()
+                rbo_vals.append(_rbo_score(list_a, list_b, p=rbo_p))
+        rows.append(
+            {
+                "control": str(control),
+                "b": int(b),
+                "lv_id": str(lv_id),
+                "target_set_id": str(target_set_id),
+                "n_pairs": int(len(spearman_vals)),
+                "mean_spearman_rho": float(np.nanmean(spearman_vals)) if spearman_vals else np.nan,
+                "mean_rbo": float(np.nanmean(rbo_vals)) if rbo_vals else np.nan,
+            }
+        )
+    return pd.DataFrame(rows).sort_values(["control", "lv_id", "target_set_id", "b"]).reset_index(drop=True)
 
 
 def _spearman_from_rank_arrays(rank_a: pd.Series, rank_b: pd.Series) -> float:
@@ -449,7 +483,7 @@ def _spearman_from_rank_arrays(rank_a: pd.Series, rank_b: pd.Series) -> float:
 
 def _between_null_agreement_summary(
     analysis_dir: Path,
-    top_k_values: list[int],
+    rbo_p: float,
 ) -> pd.DataFrame:
     rank_df = _load_or_build_rank_df(analysis_dir)
     rows = []
@@ -475,15 +509,12 @@ def _between_null_agreement_summary(
                 merged["mean_rank_permuted"],
                 merged["mean_rank_random"],
             ),
+            "mean_rbo": _rbo_score(
+                merged.sort_values("mean_rank_permuted")["metapath"].astype(str).tolist(),
+                merged.sort_values("mean_rank_random")["metapath"].astype(str).tolist(),
+                p=rbo_p,
+            ),
         }
-        for k in top_k_values:
-            top_perm = set(
-                merged.nsmallest(int(k), "mean_rank_permuted")["metapath"].astype(str).tolist()
-            )
-            top_rand = set(
-                merged.nsmallest(int(k), "mean_rank_random")["metapath"].astype(str).tolist()
-            )
-            row[f"mean_topk_jaccard_{int(k)}"] = _jaccard(top_perm, top_rand)
         rows.append(row)
     return pd.DataFrame(rows).sort_values(["lv_id", "target_set_id", "b"]).reset_index(drop=True)
 
@@ -495,8 +526,7 @@ def _control_pass(
     control: str,
     b: int,
     rho_threshold: float,
-    top5_threshold: float,
-    top10_threshold: float,
+    rbo_threshold: float,
 ) -> bool:
     subset = entity_df[
         (entity_df["lv_id"].astype(str) == str(lv_id))
@@ -508,10 +538,8 @@ def _control_pass(
         return False
     row = subset.iloc[0]
     checks = [float(row["mean_spearman_rho"]) >= float(rho_threshold)]
-    if "mean_topk_jaccard_5" in subset.columns:
-        checks.append(float(row["mean_topk_jaccard_5"]) >= float(top5_threshold))
-    if "mean_topk_jaccard_10" in subset.columns:
-        checks.append(float(row["mean_topk_jaccard_10"]) >= float(top10_threshold))
+    if "mean_rbo" in subset.columns:
+        checks.append(float(row["mean_rbo"]) >= float(rbo_threshold))
     return all(checks)
 
 
@@ -552,8 +580,7 @@ def _decision_table(
     tier1_b: int,
     tier2_b: int,
     rho_threshold: float,
-    top5_threshold: float,
-    top10_threshold: float,
+    rbo_threshold: float,
     random_mae_threshold: float,
     random_within_tol_threshold: float,
     perm_overlap_threshold: float,
@@ -601,8 +628,7 @@ def _decision_table(
             "permuted",
             tier1_b,
             rho_threshold,
-            top5_threshold,
-            top10_threshold,
+            rbo_threshold,
         )
         rand_tier1_ok = _control_pass(
             entity_df,
@@ -611,8 +637,7 @@ def _decision_table(
             "random",
             tier1_b,
             rho_threshold,
-            top5_threshold,
-            top10_threshold,
+            rbo_threshold,
         )
         perm_tier2_ok = _control_pass(
             entity_df,
@@ -621,8 +646,7 @@ def _decision_table(
             "permuted",
             tier2_b,
             rho_threshold,
-            top5_threshold,
-            top10_threshold,
+            rbo_threshold,
         )
         rand_tier2_ok = _control_pass(
             entity_df,
@@ -631,8 +655,7 @@ def _decision_table(
             "random",
             tier2_b,
             rho_threshold,
-            top5_threshold,
-            top10_threshold,
+            rbo_threshold,
         )
         both_qc_pass = bool(random_qc_pass and permuted_qc_pass)
         both_tier1_ok = bool(perm_tier1_ok and rand_tier1_ok)
@@ -714,11 +737,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gap-b", type=int, default=5)
     parser.add_argument("--tier1-b", type=int, default=5)
     parser.add_argument("--tier2-b", type=int, default=10)
-    parser.add_argument("--top-k-values", default="5,10,15")
+    parser.add_argument("--rbo-p", type=float, default=0.98)
     parser.add_argument("--random-promiscuity-tolerance", type=int, default=2)
     parser.add_argument("--rho-threshold", type=float, default=0.90)
-    parser.add_argument("--top5-threshold", type=float, default=0.80)
-    parser.add_argument("--top10-threshold", type=float, default=0.85)
+    parser.add_argument("--rbo-threshold", type=float, default=0.80)
     parser.add_argument("--random-mae-threshold", type=float, default=1.0)
     parser.add_argument("--random-within-tol-threshold", type=float, default=0.90)
     parser.add_argument("--perm-overlap-threshold", type=float, default=0.70)
@@ -751,14 +773,13 @@ def main() -> None:
         requested_tolerance=int(args.random_promiscuity_tolerance),
     )
     perm_qc_df = _permuted_qc(output_dir=output_dir)
-    top_k_values = _parse_int_list(args.top_k_values)
     entity_df = _within_null_stability_summary(
         analysis_dir=analysis_dir,
-        top_k_values=top_k_values,
+        rbo_p=float(args.rbo_p),
     )
     between_null_df = _between_null_agreement_summary(
         analysis_dir=analysis_dir,
-        top_k_values=top_k_values,
+        rbo_p=float(args.rbo_p),
     )
     envelope_df = _calibration_envelope(descriptor_df)
     descriptor_deviation_df = _descriptor_deviation_table(descriptor_df, envelope_df)
@@ -771,8 +792,7 @@ def main() -> None:
         tier1_b=int(args.tier1_b),
         tier2_b=int(args.tier2_b),
         rho_threshold=float(args.rho_threshold),
-        top5_threshold=float(args.top5_threshold),
-        top10_threshold=float(args.top10_threshold),
+        rbo_threshold=float(args.rbo_threshold),
         random_mae_threshold=float(args.random_mae_threshold),
         random_within_tol_threshold=float(args.random_within_tol_threshold),
         perm_overlap_threshold=float(args.perm_overlap_threshold),
