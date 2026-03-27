@@ -382,14 +382,12 @@ def main() -> None:
             between_axes[0].legend(handles, labels, fontsize=8, loc="lower right")
 
     fig.suptitle(
-        "LVQC\n"
-        "Top: within-null seed stability | Bottom: random-vs-permuted agreement\n"
-        "Spearman rho = whole-ranking agreement | RBO = top-weighted agreement",
+        "LVQC",
         fontsize=18,
         y=0.995,
     )
     out_path = qc_dir / "lv_group_qc_dashboard.png"
-    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     _write_diagnostic_plots(
