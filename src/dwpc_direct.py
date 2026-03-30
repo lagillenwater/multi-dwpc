@@ -881,7 +881,6 @@ def get_gene_bp_metapaths(metagraph: Dict, max_length: int = 4) -> List[str]:
 
     existing = []
     edge_files = list((Path(metagraph.get("_data_dir", ".")) / "edges").glob("*.npz"))
-    available_edges = {f.stem.replace(".sparse", "") for f in edge_files}
 
     for mp in gene_bp_metapaths:
         existing.append(mp)
