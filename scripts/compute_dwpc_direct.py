@@ -249,8 +249,11 @@ for ds in datasets_config:
 
 # %%
 # Create ID to index mappings
-gene_id_to_idx = dict(zip(gene_nodes["identifier"], gene_nodes["position"]))
-bp_id_to_idx = dict(zip(bp_nodes["identifier"], bp_nodes["position"]))
+# Prefer the explicit 'position' column when available; otherwise, fall back to the DataFrame index
+gene_positions = gene_nodes["position"] if "position" in gene_nodes.columns else gene_nodes.index
+bp_positions = bp_nodes["position"] if "position" in bp_nodes.columns else bp_nodes.index
+gene_id_to_idx = dict(zip(gene_nodes["identifier"], gene_positions))
+bp_id_to_idx = dict(zip(bp_nodes["identifier"], bp_positions))
 
 print(f"Gene ID mapping: {len(gene_id_to_idx)} entries")
 print(f"BP ID mapping: {len(bp_id_to_idx)} entries")
