@@ -167,7 +167,9 @@ def reverse_metapath_abbrev(metapath: str) -> str:
             tokens.append("<")
             pos += 1
         else:
-            pos += 1
+            raise ValueError(
+                f"Unrecognized token in metapath abbreviation at position {pos}: {metapath[pos]!r}"
+            )
 
     direction_map = {">": "<", "<": ">"}
     reversed_tokens = []
@@ -350,11 +352,15 @@ def parse_metapath(metapath_abbrev: str, metagraph: Dict) -> List[Dict]:
                 candidate = metapath_abbrev[pos:pos + length]
                 if candidate in metaedge_info:
                     edges.append(metaedge_info[candidate])
+                    # Advance to the next node position (last character of this match).
                     pos += length - 1
                     found = True
                     break
         if not found:
-            pos += 1
+            raise ValueError(
+                f"Unable to parse metapath abbreviation '{metapath_abbrev}' at position "
+                f"{pos}: no matching metaedge for substring starting here."
+            )
 
     return edges
 
@@ -450,7 +456,8 @@ class HetMat:
 
     def _get_cache_path(self, metapath: str, damping: float) -> Path:
         """Get the disk cache path for a DWPC matrix."""
-        return self.cache_dir / f"dwpc_{metapath}_d{damping:.2f}.npz"
+        damping_str = repr(damping).replace(".", "p").replace("-", "m")
+        return self.cache_dir / f"dwpc_{metapath}_d{damping_str}.npz"
 
     def _load_from_disk(self, metapath: str, damping: float) -> Optional[sparse.csr_matrix]:
         """Load DWPC matrix from disk cache if available."""
@@ -922,9 +929,19 @@ def create_node_index_mapping(
     source_nodes = hetmat.get_nodes(source_type)
     target_nodes = hetmat.get_nodes(target_type)
 
-    source_id_to_idx = dict(zip(source_nodes["identifier"], source_nodes.index))
-    target_id_to_idx = dict(zip(target_nodes["identifier"], target_nodes.index))
+    # Prefer explicit matrix position column if available to avoid index/order bugs
+    if "position" in source_nodes.columns:
+        source_positions = source_nodes["position"]
+    else:
+        source_positions = source_nodes.index
 
+    if "position" in target_nodes.columns:
+        target_positions = target_nodes["position"]
+    else:
+        target_positions = target_nodes.index
+
+    source_id_to_idx = dict(zip(source_nodes["identifier"], source_positions))
+    target_id_to_idx = dict(zip(target_nodes["identifier"], target_positions))
     result_df = df.copy()
     result_df["source_idx"] = result_df[source_id_col].map(source_id_to_idx)
     result_df["target_idx"] = result_df[target_id_col].map(target_id_to_idx)
