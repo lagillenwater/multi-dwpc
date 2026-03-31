@@ -5,7 +5,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 export LV_ALL_METAPATHS="${LV_ALL_METAPATHS:-1}"
-export LV_OUTPUT_DIR="${LV_OUTPUT_DIR:-output/lv_experiment_all_metapaths}"
+export LV_OUTPUT_BASENAME="${LV_OUTPUT_BASENAME:-lv_experiment_more_B}"
+export LV_OUTPUT_DIR="${LV_OUTPUT_DIR:-output/${LV_OUTPUT_BASENAME}}"
 export LV_N_REPLICATES="${LV_N_REPLICATES:-100}"
 export LV_NULL_VAR_B_VALUES="${LV_NULL_VAR_B_VALUES:-1,2,5,10,20}"
 export LV_RANK_STAB_B_VALUES="${LV_RANK_STAB_B_VALUES:-1,2,5,10,20}"

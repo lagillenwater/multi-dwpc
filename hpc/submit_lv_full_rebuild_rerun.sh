@@ -5,6 +5,7 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PYTHON_EXE="${PYTHON_EXE:-python}"
 MODE="${1:-submit}"
+LV_OUTPUT_BASENAME="${LV_OUTPUT_BASENAME:-}"
 
 SBATCH_QOS="${SBATCH_QOS:-normal}"
 SBATCH_PARTITION="${SBATCH_PARTITION:-amilan}"
@@ -45,6 +46,9 @@ if [[ -n "${LV_OUTPUT_DIR:-}" ]]; then
   LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
 elif [[ -n "${LV_WORKSPACE_DIR:-}" ]]; then
   LV_OUTPUT_DIR="$LV_WORKSPACE_DIR"
+elif [[ -n "$LV_OUTPUT_BASENAME" ]]; then
+  LV_OUTPUT_DIR="output/$LV_OUTPUT_BASENAME"
+  LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
 elif [[ "${LV_ALL_METAPATHS:-0}" == "1" ]]; then
   LV_OUTPUT_DIR="output/lv_experiment_all_metapaths"
   LV_WORKSPACE_DIR="$LV_OUTPUT_DIR"
