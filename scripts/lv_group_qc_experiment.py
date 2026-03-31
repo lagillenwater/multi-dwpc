@@ -730,7 +730,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metapath-stats-path", default="data/metapath-dwpc-stats.tsv")
     parser.add_argument("--gap-b", type=int, default=5)
     parser.add_argument("--score-gap-max-k", type=int, default=20)
-    parser.add_argument("--rbo-p", type=float, default=0.98)
+    parser.add_argument("--rbo-p", type=float, default=0.9)
     parser.add_argument("--diagnostic-b", type=int, default=5)
     parser.add_argument("--random-promiscuity-tolerance", type=int, default=2)
     parser.add_argument("--near-tie-threshold", type=float, default=0.10)
