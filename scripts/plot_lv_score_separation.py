@@ -21,6 +21,7 @@ GROUP_COLORS = {
     "LV246 | adipose_tissue": "#1f77b4",
     "LV57 | hypothyroidism": "#ff7f0e",
     "LV603 | neutrophil_homeostasis": "#2ca02c",
+    "LV603 | neutrophil_bp": "#2ca02c",
 }
 
 CONTROL_STYLES = {
