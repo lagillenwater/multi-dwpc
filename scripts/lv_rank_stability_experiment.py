@@ -17,6 +17,13 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
+
+LV_COLORS = {
+    "LV246": "#1f77b4",
+    "LV57": "#ff7f0e",
+    "LV603": "#2ca02c",
+}
+
 if Path.cwd().name == "scripts":
     REPO_ROOT = Path("..").resolve()
 else:
@@ -48,6 +55,14 @@ def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
         if col.startswith(prefix):
             labels.append(col[len(prefix):])
     return sorted(set(labels), key=int)
+
+
+def _color_map(ids: list[str]) -> dict[str, str]:
+    fallback = plt.get_cmap("tab10")
+    colors = {}
+    for idx, entity_id in enumerate(ids):
+        colors[entity_id] = LV_COLORS.get(entity_id, fallback(idx % 10))
+    return colors
 
 
 def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, out_path: Path) -> None:
