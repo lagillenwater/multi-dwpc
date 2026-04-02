@@ -48,6 +48,7 @@ gen-random = "python scripts/random_null_datasets.py"
 
 # DWPC computation
 # Option A: Direct matrix computation (no Docker required)
+validate-dwpc-concordance = "python scripts/validate_dwpc_concordance.py"
 compute-dwpc-direct = "python scripts/compute_dwpc_direct.py"
 warmup-dwpc-cache = { shell = "python scripts/compute_dwpc_direct.py --warmup-cache --output-dir ${YEAR_DWPC_OUTPUT_DIR:-output/dwpc_direct/all_GO_positive_growth} --n-workers ${YEAR_DWPC_WARMUP_N_WORKERS:-2}" }
 # Option B: Via Docker API (requires connectivity-search-backend running)

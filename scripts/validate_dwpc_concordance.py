@@ -12,6 +12,7 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
@@ -24,7 +25,12 @@ else:
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from dwpc_direct import HetMat  # noqa: E402
-from dwpc_validation import list_api_metapaths, load_api_results, sample_metapath_concordance  # noqa: E402
+from dwpc_validation import (  # noqa: E402
+    allocate_samples_across_metapaths,
+    list_api_metapaths,
+    load_api_results,
+    sample_metapath_concordance,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--output-dir", default="output/dwpc_validation/all_GO_positive_growth")
-    parser.add_argument("--n-samples-per-metapath", type=int, default=1000)
+    parser.add_argument("--n-samples-total", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--metapath-api", default=None)
     parser.add_argument("--list-metapaths", action="store_true")
@@ -71,14 +77,31 @@ def _plot_metapath_scatter(samples_df: pd.DataFrame, out_path: Path, title: str)
     plt.close(fig)
 
 
-def _plot_overall_hexbin(samples_df: pd.DataFrame, out_path: Path) -> None:
+def _plot_overall_scatter_density(samples_df: pd.DataFrame, out_path: Path) -> None:
+    x = samples_df["api_dwpc"].astype(float).to_numpy()
+    y = samples_df["direct_dwpc"].astype(float).to_numpy()
+    bins = 45
+    x_edges = np.linspace(float(np.min(x)), float(np.max(x)), bins + 1)
+    y_edges = np.linspace(float(np.min(y)), float(np.max(y)), bins + 1)
+    hist, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges])
+
+    x_idx = np.clip(np.digitize(x, x_edges) - 1, 0, bins - 1)
+    y_idx = np.clip(np.digitize(y, y_edges) - 1, 0, bins - 1)
+    counts = hist[x_idx, y_idx]
+    order = np.argsort(counts)
+    x = x[order]
+    y = y[order]
+    counts = counts[order]
+
     fig, ax = plt.subplots(figsize=(6.2, 5.4))
-    hb = ax.hexbin(
-        samples_df["api_dwpc"].astype(float),
-        samples_df["direct_dwpc"].astype(float),
-        gridsize=45,
-        mincnt=1,
-        cmap="Blues",
+    scatter = ax.scatter(
+        x,
+        y,
+        c=counts,
+        s=18,
+        cmap="viridis",
+        alpha=1.0,
+        linewidths=0,
     )
     combined = pd.concat(
         [samples_df["api_dwpc"].astype(float), samples_df["direct_dwpc"].astype(float)],
@@ -91,7 +114,7 @@ def _plot_overall_hexbin(samples_df: pd.DataFrame, out_path: Path) -> None:
     ax.set_ylabel("Direct DWPC")
     ax.set_title("Direct vs API DWPC concordance")
     ax.grid(alpha=0.15)
-    fig.colorbar(hb, ax=ax, label="Sample count")
+    fig.colorbar(scatter, ax=ax, label="Local point density")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -125,17 +148,24 @@ def main() -> int:
 
     if args.metapath_api:
         metapaths = [str(args.metapath_api)]
+        sample_plan = {str(args.metapath_api): int(args.n_samples_total)}
+    else:
+        sample_plan = allocate_samples_across_metapaths(
+            api_df,
+            total_samples=int(args.n_samples_total),
+            metapaths=metapaths,
+        )
 
     hetmat = HetMat(data_dir, damping=0.5, use_disk_cache=True, write_disk_cache=False)
     all_samples = []
     summary_rows = []
-    for idx, metapath_api in enumerate(metapaths):
+    for idx, metapath_api in enumerate(sorted(sample_plan)):
         samples_df, summary = sample_metapath_concordance(
             hetmat,
             api_df,
             data_dir=data_dir,
             metapath_api=metapath_api,
-            n_samples=int(args.n_samples_per_metapath),
+            n_samples=int(sample_plan[metapath_api]),
             seed=int(args.seed) + idx,
         )
         summary_rows.append(summary)
@@ -145,13 +175,15 @@ def main() -> int:
         metapath_slug = _safe_slug(summary["metapath_api"])
         _plot_metapath_scatter(
             samples_df,
-            output_dir / f"scatter_{metapath_slug}.png",
+            output_dir / f"scatter_{metapath_slug}.pdf",
             title=f"{summary['metapath_api']} direct vs API",
         )
 
     summary_df = pd.DataFrame(summary_rows)
     summary_df.to_csv(output_dir / "concordance_summary.csv", index=False)
     print(f"Saved: {output_dir / 'concordance_summary.csv'}")
+    if sample_plan:
+        print(f"Sample plan: {sample_plan}")
 
     if not all_samples:
         print("No valid DWPC concordance samples were produced.")
@@ -161,10 +193,10 @@ def main() -> int:
     all_samples_df.to_csv(output_dir / "concordance_samples.csv", index=False)
     print(f"Saved: {output_dir / 'concordance_samples.csv'}")
 
-    _plot_overall_hexbin(all_samples_df, output_dir / "concordance_overall_hexbin.png")
-    print(f"Saved: {output_dir / 'concordance_overall_hexbin.png'}")
-    _plot_abs_diff_hist(all_samples_df, output_dir / "concordance_abs_diff_hist.png")
-    print(f"Saved: {output_dir / 'concordance_abs_diff_hist.png'}")
+    _plot_overall_scatter_density(all_samples_df, output_dir / "concordance_overall_scatter.pdf")
+    print(f"Saved: {output_dir / 'concordance_overall_scatter.pdf'}")
+    _plot_abs_diff_hist(all_samples_df, output_dir / "concordance_abs_diff_hist.pdf")
+    print(f"Saved: {output_dir / 'concordance_abs_diff_hist.pdf'}")
     return 0
 
 

@@ -55,6 +55,7 @@ Run `poe --help` to see all available tasks:
 | `gen-permutation` | Generate permutation null datasets |
 | `gen-random` | Generate random null datasets |
 | `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
+| `validate-dwpc-concordance` | Compare direct DWPC values against historical API results |
 | `warmup-dwpc-cache` | Precompute and cache year DWPC metapath matrices only |
 | `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
 | `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
@@ -132,6 +133,17 @@ There are two methods for computing Degree-Weighted Path Counts (DWPC):
 ### Option A: Direct computation 
 
 Computes DWPC directly from the HetMat sparse matrices using hetmatpy. This method is significantly faster and does not require Docker.
+
+Before the larger direct-DWPC run, validate concordance against the historical
+API outputs:
+
+```bash
+poe validate-dwpc-concordance
+```
+
+This writes a concordance summary table, sampled comparison rows, per-metapath
+scatter plots, and overall scatter/error plots under
+`output/dwpc_validation/all_GO_positive_growth/`.
 
 ```bash
 poe compute-dwpc-direct
