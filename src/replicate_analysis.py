@@ -17,6 +17,89 @@ DEFAULT_SUMMARY_COLUMNS = {
 }
 
 
+def build_b_seed_runs(
+    summary_df: pd.DataFrame,
+    b_values: list[int],
+    seeds: list[int],
+    *,
+    join_keys: list[str],
+    replicate_pool_keys: list[str],
+    control_col: str = "control",
+    replicate_col: str = "replicate",
+    score_col: str = "mean_score",
+    real_control: str = "real",
+) -> pd.DataFrame:
+    """Generic B/seed resampling for explicit real-vs-null replicate analyses."""
+    if summary_df.empty:
+        return pd.DataFrame()
+
+    required = set(join_keys) | set(replicate_pool_keys) | {control_col, replicate_col, score_col}
+    missing = required - set(summary_df.columns)
+    if missing:
+        raise ValueError(f"Summary dataframe missing required columns: {sorted(missing)}")
+
+    real_df = summary_df[summary_df[control_col].astype(str) == str(real_control)].copy()
+    if real_df.empty:
+        raise ValueError(f"No real rows found with {control_col}={real_control!r}")
+    real_df = real_df[join_keys + [score_col]].drop_duplicates(subset=join_keys).rename(
+        columns={score_col: "real_mean_score"}
+    )
+
+    null_df = summary_df[summary_df[control_col].astype(str) != str(real_control)].copy()
+    if null_df.empty:
+        raise ValueError("No null-control rows found in summary dataframe")
+
+    max_b = max(int(b) for b in b_values)
+    available = (
+        null_df.groupby(replicate_pool_keys, dropna=False)[replicate_col]
+        .nunique()
+        .to_dict()
+    )
+    for pool_key, count in available.items():
+        if int(count) < max_b:
+            label = pool_key if isinstance(pool_key, tuple) else (pool_key,)
+            raise ValueError(
+                f"Requested max B={max_b} but only {count} replicate summaries are available "
+                f"for pool={label}."
+            )
+
+    rows = []
+    for pool_key, group in null_df.groupby(replicate_pool_keys, sort=True, dropna=False):
+        key_values = pool_key if isinstance(pool_key, tuple) else (pool_key,)
+        pool_meta = {
+            replicate_pool_keys[idx]: key_values[idx]
+            for idx in range(len(replicate_pool_keys))
+        }
+        rep_ids = sorted(group[replicate_col].astype(int).unique().tolist())
+        rep_ids_arr = np.asarray(rep_ids, dtype=int)
+        for b in sorted(int(x) for x in b_values):
+            for seed in sorted(int(x) for x in seeds):
+                rng = np.random.RandomState(seed)
+                selected = rng.choice(rep_ids_arr, size=b, replace=False)
+                subset = group[group[replicate_col].isin(selected)].copy()
+                agg = (
+                    subset.groupby(join_keys, as_index=False)[score_col]
+                    .mean()
+                    .rename(columns={score_col: "null_mean_score"})
+                )
+                merged = agg.merge(real_df, on=join_keys, how="inner")
+                for key, value in pool_meta.items():
+                    if key not in merged.columns:
+                        merged[key] = value
+                merged["b"] = int(b)
+                merged["seed"] = int(seed)
+                merged["diff"] = merged["real_mean_score"] - merged["null_mean_score"]
+                rows.append(merged)
+
+    if not rows:
+        return pd.DataFrame()
+
+    out = pd.concat(rows, ignore_index=True)
+    ordered = [*replicate_pool_keys, "b", "seed", *join_keys, "real_mean_score", "null_mean_score", "diff"]
+    ordered = [col for idx, col in enumerate(ordered) if col in out.columns and col not in ordered[:idx]]
+    return out[ordered]
+
+
 def build_diff_runs(
     summary_df: pd.DataFrame,
     join_keys: list[str],
@@ -158,6 +241,23 @@ def _spearman_from_ranks(x: pd.Series, y: pd.Series) -> float:
     return float(x_rank.corr(y_rank, method="pearson"))
 
 
+def _rbo_score(rank_a: list[str], rank_b: list[str], p: float) -> float:
+    """Compute extrapolated finite-list rank-biased overlap for two ranked lists."""
+    if not rank_a or not rank_b:
+        return np.nan
+    depth = min(len(rank_a), len(rank_b))
+    seen_a: set[str] = set()
+    seen_b: set[str] = set()
+    overlap_sum = 0.0
+    overlap_at_depth = 0.0
+    for d in range(1, depth + 1):
+        seen_a.add(rank_a[d - 1])
+        seen_b.add(rank_b[d - 1])
+        overlap_at_depth = len(seen_a & seen_b) / float(d)
+        overlap_sum += overlap_at_depth * (p ** (d - 1))
+    return float(((1.0 - p) * overlap_sum) + (overlap_at_depth * (p ** depth)))
+
+
 def _normalize_top_k_specs(top_k: int | str | list[int | str] | tuple[int | str, ...]) -> list[tuple[str, int | None]]:
     if isinstance(top_k, (int, str)):
         raw_values = [top_k]
@@ -195,6 +295,7 @@ def summarize_rank_stability(
     feature_col: str = "metapath",
     rank_col: str = "feature_rank",
     top_k: int | str | list[int | str] | tuple[int | str, ...] = 10,
+    rbo_p: float | None = 0.9,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if rank_df.empty:
         empty = pd.DataFrame()
@@ -221,6 +322,8 @@ def summarize_rank_stability(
                 continue
             x = pd.Series([ranks_a[m] for m in common], dtype=float)
             y = pd.Series([ranks_b[m] for m in common], dtype=float)
+            ordered_a = [m for m, _ in sorted(ranks_a.items(), key=lambda item: (item[1], item[0]))]
+            ordered_b = [m for m, _ in sorted(ranks_b.items(), key=lambda item: (item[1], item[0]))]
             row = {outer_keys[i]: key[i] for i in range(len(outer_keys))}
             row.update(
                 {
@@ -230,6 +333,8 @@ def summarize_rank_stability(
                     "spearman_rho": _spearman_from_ranks(x, y),
                 }
             )
+            if rbo_p is not None:
+                row["rbo"] = _rbo_score(ordered_a, ordered_b, p=float(rbo_p))
             for label, limit in top_k_specs:
                 if limit is None:
                     top_a = set(ranks_a)
@@ -251,6 +356,9 @@ def summarize_rank_stability(
         "mean_spearman_rho": ("spearman_rho", "mean"),
         "median_spearman_rho": ("spearman_rho", "median"),
     }
+    if rbo_p is not None and "rbo" in pairwise_df.columns:
+        agg_dict["mean_rbo"] = ("rbo", "mean")
+        agg_dict["median_rbo"] = ("rbo", "median")
     for label, _ in top_k_specs:
         agg_dict[f"mean_topk_jaccard_{label}"] = (f"topk_jaccard_{label}", "mean")
         agg_dict[f"median_topk_jaccard_{label}"] = (f"topk_jaccard_{label}", "median")
@@ -275,6 +383,9 @@ def summarize_rank_stability(
         "mean_spearman_rho": ("mean_spearman_rho", "mean"),
         "median_spearman_rho": ("median_spearman_rho", "median"),
     }
+    if "mean_rbo" in entity_summary.columns:
+        overall_agg["mean_rbo"] = ("mean_rbo", "mean")
+        overall_agg["median_rbo"] = ("median_rbo", "median")
     for label, _ in top_k_specs:
         overall_agg[f"mean_topk_jaccard_{label}"] = (f"mean_topk_jaccard_{label}", "mean")
         overall_agg[f"median_topk_jaccard_{label}"] = (f"median_topk_jaccard_{label}", "median")
