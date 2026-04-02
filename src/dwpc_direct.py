@@ -27,7 +27,7 @@ References:
 """
 
 import json
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -383,6 +383,27 @@ def get_metaedge_abbreviations(metagraph: Dict) -> List[str]:
     return abbreviations
 
 
+def _compute_dwpc_matrix_worker(args: Tuple[str, str, float]) -> Tuple[str, sparse.csr_matrix]:
+    """
+    Compute one DWPC matrix in a subprocess.
+
+    This worker is defined at module scope so it can be pickled by
+    ProcessPoolExecutor. Each process creates its own hetmatpy object rather
+    than trying to serialize a shared instance from the parent process.
+    """
+    data_dir, metapath, damping = args
+    hetmatpy = HetMatPy(data_dir)
+    mp_obj = hetmatpy.metagraph.metapath_from_abbrev(metapath)
+    _, _, matrix = hetmatpy_dwpc(hetmatpy, mp_obj, damping=damping)
+
+    if not sparse.issparse(matrix):
+        matrix = sparse.csr_matrix(matrix)
+    else:
+        matrix = matrix.tocsr()
+
+    return metapath, matrix
+
+
 class HetMat:
     """
     HetMat data structure for efficient DWPC computation.
@@ -594,19 +615,15 @@ class HetMat:
         if not to_compute:
             return
 
-        # Compute remaining matrices in parallel using ThreadPoolExecutor
-        # (ProcessPoolExecutor has issues with hetmatpy objects)
-        def compute_one(mp):
-            mp_obj = self._hetmatpy.metagraph.metapath_from_abbrev(mp)
-            _, _, matrix = hetmatpy_dwpc(self._hetmatpy, mp_obj, damping=damping)
-            if not sparse.issparse(matrix):
-                matrix = sparse.csr_matrix(matrix)
-            else:
-                matrix = matrix.tocsr()
-            return mp, matrix
+        # Use a top-level worker so each subprocess creates its own hetmatpy
+        # instance instead of attempting to pickle self._hetmatpy.
+        args_list = [(str(self.data_dir), mp, damping) for mp in to_compute]
 
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            futures = {executor.submit(compute_one, mp): mp for mp in to_compute}
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {
+                executor.submit(_compute_dwpc_matrix_worker, args): args[1]
+                for args in args_list
+            }
 
             iterator = as_completed(futures)
             if show_progress:
