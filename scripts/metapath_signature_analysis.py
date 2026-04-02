@@ -35,6 +35,7 @@ import numpy as np
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 from pathlib import Path
+import sys
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -43,6 +44,10 @@ print("Notebook 3: Pairwise Statistical Comparisons of GO-Term-Aggregated Statis
 
 # %% papermill={"duration": 0.006075, "end_time": "2025-12-03T15:50:11.336346", "exception": false, "start_time": "2025-12-03T15:50:11.330271", "status": "completed"}
 repo_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(repo_root / "src"))
+
+from year_statistics import build_aggregated_year_statistics, detect_supported_statistics, load_labeled_year_result_files  # noqa: E402
+
 BASE_NAME = 'all_GO_positive_growth'
 data_dir = repo_root / 'output' / 'dwpc_direct' / BASE_NAME / 'results'
 output_dir = repo_root / 'output' / 'metapath_analysis' / 'pairwise_statistics'
@@ -63,68 +68,19 @@ print(f"Loading {len(files_config)} datasets")
 print(f"Output directory: {output_dir}")
 
 # %% papermill={"duration": 135.779422, "end_time": "2025-12-03T15:52:27.118424", "exception": false, "start_time": "2025-12-03T15:50:11.339002", "status": "completed"}
-datasets = {}
+datasets = load_labeled_year_result_files(
+    data_dir=data_dir,
+    files_config=files_config,
+    exclude_metapaths=set(EXCLUDE_METAPATHS),
+)
 for label, filename in files_config.items():
-    filepath = data_dir / filename
-    if filepath.exists():
-        df = pd.read_csv(filepath)
-        df = df.rename(columns={
-            'metapath_abbreviation': 'metapath',
-            'neo4j_source_id': 'go_id'
-        })
-        df = df[~df['metapath'].isin(EXCLUDE_METAPATHS)]
-        datasets[label] = df
-        print(f"Loaded {label}: {len(df):,} rows")
+    if label in datasets:
+        print(f"Loaded {label}: {len(datasets[label]):,} rows")
     else:
         print(f"WARNING: {label} file not found")
 
 print("\nAggregating data by GO term and metapath...")
-
-has_pvalue = any('p_value' in df.columns for df in datasets.values())
-has_std = any('dgp_nonzero_sd' in df.columns for df in datasets.values())
-
-agg_results = []
-for label, df in datasets.items():
-    grouped = df.groupby(['go_id', 'metapath'])
-
-    for (go_term, metapath), group in grouped:
-        dwpc_all = group['dwpc'].dropna()
-        dwpc_nonzero = dwpc_all[dwpc_all > 0]
-        if 'p_value' in group.columns:
-            pval_all = group['p_value'].dropna()
-            pval_nonzero = pval_all[pval_all > 0] if len(pval_all) > 0 else pd.Series(dtype=float)
-        else:
-            pval_all = pd.Series(dtype=float)
-            pval_nonzero = pd.Series(dtype=float)
-
-        if 'dgp_nonzero_sd' in group.columns:
-            std_all = group['dgp_nonzero_sd'].dropna()
-            std_nonzero = std_all[std_all > 0] if len(std_all) > 0 else pd.Series(dtype=float)
-        else:
-            std_all = pd.Series(dtype=float)
-            std_nonzero = pd.Series(dtype=float)
-
-        agg_results.append({
-            'go_id': go_term,
-            'metapath': metapath,
-            'dataset': label,
-            'mean_dwpc': dwpc_all.mean() if len(dwpc_all) > 0 else np.nan,
-            'mean_dwpc_nonzero': dwpc_nonzero.mean() if len(dwpc_nonzero) > 0 else np.nan,
-            'median_dwpc': dwpc_all.median() if len(dwpc_all) > 0 else np.nan,
-            'median_dwpc_nonzero': dwpc_nonzero.median() if len(dwpc_nonzero) > 0 else np.nan,
-            'mean_pvalue': pval_all.mean() if len(pval_all) > 0 else np.nan,
-            'mean_pvalue_nonzero': pval_nonzero.mean() if len(pval_nonzero) > 0 else np.nan,
-            'median_pvalue': pval_all.median() if len(pval_all) > 0 else np.nan,
-            'median_pvalue_nonzero': pval_nonzero.median() if len(pval_nonzero) > 0 else np.nan,
-            'mean_std': std_all.mean() if len(std_all) > 0 else np.nan,
-            'mean_std_nonzero': std_nonzero.mean() if len(std_nonzero) > 0 else np.nan,
-            'median_std': std_all.median() if len(std_all) > 0 else np.nan,
-            'median_std_nonzero': std_nonzero.median() if len(std_nonzero) > 0 else np.nan,
-            'n_total': len(dwpc_all),
-            'n_nonzero': len(dwpc_nonzero)
-        })
-
-agg_df = pd.DataFrame(agg_results)
+agg_df = build_aggregated_year_statistics(datasets)
 agg_df.to_csv(output_dir / 'aggregated_statistics_all_datasets.csv', index=False)
 print(f"\nAggregated {len(agg_df):,} (GO term, metapath, dataset) combinations")
 print(f"Unique GO terms: {agg_df['go_id'].nunique()}")
@@ -215,19 +171,8 @@ comparisons_config = [
 ]
 
 statistics = [
-    'mean_dwpc', 'mean_dwpc_nonzero',
-    'median_dwpc', 'median_dwpc_nonzero',
+    *detect_supported_statistics(agg_df),
 ]
-if has_pvalue:
-    statistics += [
-        'mean_pvalue', 'mean_pvalue_nonzero',
-        'median_pvalue', 'median_pvalue_nonzero',
-    ]
-if has_std:
-    statistics += [
-        'mean_std', 'mean_std_nonzero',
-        'median_std', 'median_std_nonzero',
-    ]
 
 print("Running pairwise comparisons using Wilcoxon signed-rank test...")
 print(f"  {len(statistics)} statistics × {len(comparisons_config)} comparisons")
