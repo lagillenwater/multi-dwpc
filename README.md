@@ -248,7 +248,8 @@ Outputs are written to `output/benchmark_plots/`, including:
 ### Year experiment pipeline
 
 Run the staged year comparison pipeline (2016 vs 2024) with null generation,
-direct DWPC computation, and downstream metapath analyses:
+direct DWPC computation, year-vs-control effect-size summaries, and
+metapath rank-stability analyses:
 
 ```bash
 poe pipeline-year-exp
@@ -293,7 +294,8 @@ sbatch --array=0-$(($(wc -l < output/dwpc_direct/all_GO_positive_growth/metapath
 
 The dataset array assumes a warm cache and uses read-only cache access.
 
-Run the downstream analyses:
+Run the downstream analyses, using the same explicit-replicate design as the LV
+workflow:
 
 ```bash
 poe year-null-variance-exp
