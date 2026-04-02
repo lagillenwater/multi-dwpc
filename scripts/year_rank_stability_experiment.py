@@ -22,6 +22,12 @@ YEAR_COLORS = {
     "2024": "#ff7f0e",
 }
 
+
+def _default_results_dir(score_source: str) -> str:
+    if str(score_source) == "api":
+        return "output/dwpc_com/all_GO_positive_growth/results"
+    return "output/dwpc_direct/all_GO_positive_growth/results"
+
 if Path.cwd().name == "scripts":
     REPO_ROOT = Path("..").resolve()
 else:
@@ -200,7 +206,8 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results-dir", default="output/dwpc_direct/all_GO_positive_growth/results")
+    parser.add_argument("--score-source", default="direct", choices=["direct", "api"])
+    parser.add_argument("--results-dir", default=None)
     parser.add_argument("--summaries-dir", default=None)
     parser.add_argument("--output-dir", default="output/year_rank_stability_exp")
     parser.add_argument("--b-values", default="1,2,5,10,20")
@@ -211,7 +218,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    summaries_dir = Path(args.summaries_dir) if args.summaries_dir else Path(args.results_dir).parent / "replicate_summaries"
+    results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
+    if args.summaries_dir:
+        summaries_dir = Path(args.summaries_dir)
+    else:
+        summaries_dir = results_dir.parent / "replicate_summaries"
+        if str(args.score_source) == "api":
+            raise ValueError(
+                "API-backed year rank-stability analysis requires --summaries-dir until "
+                "normalized API replicate summaries are implemented."
+            )
     exp_dir = Path(args.output_dir) / "year_rank_stability_experiment"
     exp_dir.mkdir(parents=True, exist_ok=True)
 

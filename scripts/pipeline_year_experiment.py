@@ -11,6 +11,7 @@ This pipeline mirrors the LV staged orchestration style and drives:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -132,32 +133,45 @@ def _build_steps(args: argparse.Namespace) -> list[dict]:
         },
     ]
 
-    dwpc_steps = [
-        {
-            "script": "scripts/compute_dwpc_direct.py",
-            "args": [],
-            "artifacts": [
-                "output/dwpc_direct/all_GO_positive_growth/results/dwpc_all_GO_positive_growth_2016_real.csv",
-                "output/dwpc_direct/all_GO_positive_growth/results/dwpc_all_GO_positive_growth_2024_real.csv",
-            ],
-            "env": None,
-        }
-    ]
+    if args.score_source == "api":
+        dwpc_steps = [
+            {
+                "script": "scripts/lookup_dwpc_api.py",
+                "args": [],
+                "artifacts": [
+                    "output/dwpc_com/all_GO_positive_growth/results/res_all_GO_positive_growth_2016_real.csv",
+                    "output/dwpc_com/all_GO_positive_growth/results/res_all_GO_positive_growth_2024_real.csv",
+                ],
+                "env": None,
+            }
+        ]
+    else:
+        dwpc_steps = [
+            {
+                "script": "scripts/compute_dwpc_direct.py",
+                "args": [],
+                "artifacts": [
+                    "output/dwpc_direct/all_GO_positive_growth/results/dwpc_all_GO_positive_growth_2016_real.csv",
+                    "output/dwpc_direct/all_GO_positive_growth/results/dwpc_all_GO_positive_growth_2024_real.csv",
+                ],
+                "env": None,
+            }
+        ]
 
     analysis_steps = [
         {
-            "script": "scripts/metapath_signature_analysis.py",
-            "args": [],
+            "script": "scripts/year_null_variance_experiment.py",
+            "args": ["--score-source", args.score_source],
             "artifacts": [
-                "output/metapath_analysis/pairwise_statistics/aggregated_statistics_all_datasets.csv"
+                "output/year_null_variance_exp/year_null_variance_experiment/feature_variance_summary.csv"
             ],
             "env": None,
         },
         {
-            "script": "scripts/divergence_score_analysis.py",
-            "args": [],
+            "script": "scripts/year_rank_stability_experiment.py",
+            "args": ["--score-source", args.score_source],
             "artifacts": [
-                "output/metapath_analysis/divergence_scores/divergence_all_statistics.csv"
+                "output/year_rank_stability_exp/year_rank_stability_experiment/overall_stability_summary.csv"
             ],
             "env": None,
         },
@@ -201,6 +215,12 @@ def parse_args() -> argparse.Namespace:
         help="Run Jaccard filtering with parent GO terms included.",
     )
     parser.add_argument(
+        "--score-source",
+        default="direct",
+        choices=["direct", "api"],
+        help="Use direct DWPC results or historical API lookup results where supported.",
+    )
+    parser.add_argument(
         "--log-prefix",
         default="pipeline_year_experiment",
         help="Prefix for timestamped log directories under output/logs.",
@@ -216,6 +236,7 @@ def main() -> None:
     print(f"Repository root: {root}")
     print(f"Run logs directory: {log_dir}")
     print(f"Stage: {args.stage}")
+    print(f"Score source: {args.score_source}")
 
     steps = _build_steps(args)
     for idx, step in enumerate(steps, start=1):

@@ -30,6 +30,12 @@ from src.year_replicate_analysis import build_b_seed_runs, load_summary_bank  # 
 FEATURE_KEYS = ["year", "control", "b", "go_id", "metapath"]
 
 
+def _default_results_dir(score_source: str) -> str:
+    if str(score_source) == "api":
+        return "output/dwpc_com/all_GO_positive_growth/results"
+    return "output/dwpc_direct/all_GO_positive_growth/results"
+
+
 def _parse_int_list(arg: str) -> list[int]:
     values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
     if not values:
@@ -76,7 +82,8 @@ def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results-dir", default="output/dwpc_direct/all_GO_positive_growth/results")
+    parser.add_argument("--score-source", default="direct", choices=["direct", "api"])
+    parser.add_argument("--results-dir", default=None)
     parser.add_argument("--summaries-dir", default=None)
     parser.add_argument("--output-dir", default="output/year_null_variance_exp")
     parser.add_argument("--b-values", default="1,2,5,10,20")
@@ -86,7 +93,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    summaries_dir = Path(args.summaries_dir) if args.summaries_dir else Path(args.results_dir).parent / "replicate_summaries"
+    results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
+    if args.summaries_dir:
+        summaries_dir = Path(args.summaries_dir)
+    else:
+        summaries_dir = results_dir.parent / "replicate_summaries"
+        if str(args.score_source) == "api":
+            raise ValueError(
+                "API-backed year variance analysis requires --summaries-dir until "
+                "normalized API replicate summaries are implemented."
+            )
     exp_dir = Path(args.output_dir) / "year_null_variance_experiment"
     exp_dir.mkdir(parents=True, exist_ok=True)
 
