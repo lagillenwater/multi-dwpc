@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest import mock
 
 import pandas as pd
-import dwpc_validation  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -18,6 +17,8 @@ sys.modules.setdefault("dwpc_direct", fake_dwpc_direct)
 fake_result_normalization = types.ModuleType("result_normalization")
 fake_result_normalization.load_neo4j_mappings = lambda data_dir: ({}, {})
 sys.modules.setdefault("result_normalization", fake_result_normalization)
+
+import dwpc_validation  # noqa: E402
 
 
 
