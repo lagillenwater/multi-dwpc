@@ -48,6 +48,16 @@ def _parse_top_k_values(arg: str) -> list[int]:
     return values
 
 
+def _parse_optional_rbo_p(arg: str) -> float | None:
+    text = str(arg).strip().lower()
+    if text in {"none", "off", "false", "na", "nan"}:
+        return None
+    value = float(arg)
+    if not (0.0 < value < 1.0):
+        raise ValueError("--rbo-p must be in (0, 1), or use 'none' to disable RBO")
+    return value
+
+
 def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
     labels = []
     for col in df.columns:
@@ -98,6 +108,8 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
         metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
     if "10" in top_k_labels:
         metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
+    if "mean_rbo" in entity_df.columns:
+        metric_specs.append(("rbo", "mean_rbo", "Mean RBO across seeds"))
     metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
 
     plot_rows = []
@@ -187,6 +199,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--b-values", default="1,2,5,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
     parser.add_argument("--top-k-metapaths", default="5,10")
+    parser.add_argument("--rbo-p", default="0.9", help="RBO persistence in (0,1), or 'none' to disable")
     return parser.parse_args()
 
 
@@ -212,6 +225,7 @@ def main() -> None:
         feature_col="metapath",
         rank_col="metapath_rank",
         top_k=_parse_top_k_values(args.top_k_metapaths),
+        rbo_p=_parse_optional_rbo_p(args.rbo_p),
     )
     if not entity_df.empty:
         entity_df = entity_df.rename(columns={"n_entities": "n_lv_target_sets"})
@@ -231,6 +245,14 @@ def main() -> None:
         title="LV metapath rank stability by B",
         out_path=exp_root / "spearman_overall_by_group.png",
     )
+    if "mean_rbo" in overall_df.columns:
+        _plot_overall(
+            overall_df,
+            y_col="mean_rbo",
+            y_label="Mean RBO across seeds",
+            title="LV metapath RBO stability by B",
+            out_path=exp_root / "rbo_overall_by_group.png",
+        )
     _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.png")
 
     print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
