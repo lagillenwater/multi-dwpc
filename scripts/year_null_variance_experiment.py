@@ -84,6 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--score-source", default="direct", choices=["direct", "api"])
     parser.add_argument("--results-dir", default=None)
+    parser.add_argument("--workspace-dir", default=None)
     parser.add_argument("--summaries-dir", default=None)
     parser.add_argument("--output-dir", default="output/year_null_variance_exp")
     parser.add_argument("--b-values", default="1,2,5,10,20")
@@ -94,19 +95,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
+    workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
     if args.summaries_dir:
-        summaries_dir = Path(args.summaries_dir)
+        summary_source = Path(args.summaries_dir)
     else:
-        summaries_dir = results_dir.parent / "replicate_summaries"
-        if str(args.score_source) == "api":
+        summary_source = workspace_dir
+        if str(args.score_source) == "api" and args.workspace_dir is None:
             raise ValueError(
-                "API-backed year variance analysis requires --summaries-dir until "
-                "normalized API replicate summaries are implemented."
+                "API-backed year variance analysis requires --workspace-dir or --summaries-dir "
+                "until normalized API replicate workspaces are implemented."
             )
     exp_dir = Path(args.output_dir) / "year_null_variance_experiment"
     exp_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_df = load_summary_bank(summaries_dir)
+    summary_df = load_summary_bank(summary_source)
     runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
     feature_df = summarize_feature_variance(runs_df, FEATURE_KEYS)
     overall_df = summarize_overall_variance(
