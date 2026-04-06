@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -197,3 +198,60 @@ def detect_supported_statistics(agg_df: pd.DataFrame) -> list[str]:
         if any(col in agg_df.columns and agg_df[col].notna().any() for col in stat_cols):
             statistics.extend(stat_cols)
     return statistics
+
+
+def transform_year_stat_value(statistic: str, value: float) -> float:
+    """Apply downstream score transforms to an aggregated statistic value."""
+    if pd.isna(value):
+        return np.nan
+    if "pvalue" in str(statistic):
+        return float(-math.log10(max(float(value), 1e-300)))
+    return float(value)
+
+
+def build_year_statistic_summary_long(
+    agg_df: pd.DataFrame,
+    *,
+    statistics: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Convert an aggregated year-statistics panel into long summary rows.
+
+    Output rows match the shared replicate-analysis summary shape used by the
+    sampled API sensitivity workflow: one row per dataset, GO term, metapath,
+    and statistic with a comparable `mean_score`.
+    """
+    if agg_df.empty:
+        return pd.DataFrame()
+
+    statistics = list(statistics or detect_supported_statistics(agg_df))
+    meta_cols = [
+        col
+        for col in ["domain", "name", "dataset", "control", "replicate", "year", "score_source"]
+        if col in agg_df.columns
+    ]
+    required = {"go_id", "metapath", *statistics}
+    missing = required - set(agg_df.columns)
+    if missing:
+        raise ValueError(
+            f"Aggregated year-statistics frame missing required columns for long summary: {sorted(missing)}"
+        )
+
+    rows: list[dict] = []
+    for row in agg_df.itertuples(index=False):
+        base = {col: getattr(row, col) for col in meta_cols}
+        base["go_id"] = str(getattr(row, "go_id"))
+        base["metapath"] = str(getattr(row, "metapath"))
+        for statistic in statistics:
+            raw_value = getattr(row, statistic)
+            if pd.isna(raw_value):
+                continue
+            rows.append(
+                {
+                    **base,
+                    "statistic": str(statistic),
+                    "mean_score": transform_year_stat_value(str(statistic), float(raw_value)),
+                }
+            )
+
+    return pd.DataFrame(rows)

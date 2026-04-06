@@ -22,7 +22,10 @@ import httpx
 import pandas as pd
 from tqdm import tqdm
 
-from hetionet_utils_patched.udf import async_get_complete_metapaths
+try:
+    from hetionet_utils_patched.udf import async_get_complete_metapaths
+except ModuleNotFoundError:  # pragma: no cover - fallback for repo-local script execution
+    from src.hetionet_utils_patched.udf import async_get_complete_metapaths
 
 
 @contextmanager
