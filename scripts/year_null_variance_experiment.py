@@ -24,6 +24,10 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.replicate_analysis import summarize_feature_variance, summarize_overall_variance  # noqa: E402
+from src.result_normalization import (  # noqa: E402
+    load_normalized_year_results,
+    summarize_normalized_year_results,
+)
 from src.year_replicate_analysis import build_b_seed_runs, load_summary_bank  # noqa: E402
 
 
@@ -84,6 +88,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--score-source", default="direct", choices=["direct", "api"])
     parser.add_argument("--results-dir", default=None)
+    parser.add_argument("--data-dir", default=str(REPO_ROOT / "data"))
     parser.add_argument("--workspace-dir", default=None)
     parser.add_argument("--summaries-dir", default=None)
     parser.add_argument("--output-dir", default="output/year_null_variance_exp")
@@ -98,17 +103,24 @@ def main() -> None:
     workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
     if args.summaries_dir:
         summary_source = Path(args.summaries_dir)
+        summary_df = load_summary_bank(summary_source)
     else:
         summary_source = workspace_dir
-        if str(args.score_source) == "api" and args.workspace_dir is None:
-            raise ValueError(
-                "API-backed year variance analysis requires --workspace-dir or --summaries-dir "
-                "until normalized API replicate workspaces are implemented."
+        if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+            summary_df = load_summary_bank(summary_source)
+        else:
+            normalized_df = load_normalized_year_results(
+                results_dir,
+                score_source=str(args.score_source),
+                data_dir=Path(args.data_dir),
             )
+            summary_df = summarize_normalized_year_results(normalized_df)
+            if summary_df.empty:
+                raise ValueError(
+                    f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+                )
     exp_dir = Path(args.output_dir) / "year_null_variance_experiment"
     exp_dir.mkdir(parents=True, exist_ok=True)
-
-    summary_df = load_summary_bank(summary_source)
     runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
     feature_df = summarize_feature_variance(runs_df, FEATURE_KEYS)
     overall_df = summarize_overall_variance(
