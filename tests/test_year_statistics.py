@@ -94,6 +94,39 @@ class YearStatisticsTests(unittest.TestCase):
         self.assertIn("example", loaded)
         self.assertEqual(loaded["example"]["metapath"].tolist(), ["BPpG<rG"])
 
+    def test_build_aggregated_year_statistics_panel_from_normalized_results(self):
+        normalized_df = pd.DataFrame(
+            {
+                "domain": ["year", "year", "year"],
+                "name": [
+                    "all_GO_positive_growth_2016_real",
+                    "all_GO_positive_growth_2016_real",
+                    "all_GO_positive_growth_2016_real",
+                ],
+                "control": ["real", "real", "real"],
+                "replicate": [0, 0, 0],
+                "year": [2016, 2016, 2016],
+                "score_source": ["api", "api", "api"],
+                "go_id": ["GO:1", "GO:1", "GO:1"],
+                "entrez_gene_id": [1, 2, 3],
+                "metapath": ["BPpG<rG", "BPpG<rG", "BPpG<rG"],
+                "dwpc": [0.0, 2.0, 4.0],
+                "p_value": [0.0, 0.2, 0.4],
+                "dgp_nonzero_sd": [0.0, 1.0, 2.0],
+            }
+        )
+
+        aggregated = year_statistics.build_aggregated_year_statistics_panel(normalized_df)
+
+        self.assertEqual(len(aggregated), 1)
+        row = aggregated.iloc[0]
+        self.assertEqual(row["dataset"], "all_GO_positive_growth_2016_real")
+        self.assertEqual(row["score_source"], "api")
+        self.assertEqual(int(row["year"]), 2016)
+        self.assertAlmostEqual(row["mean_dwpc"], 2.0)
+        self.assertAlmostEqual(row["mean_pvalue_nonzero"], 0.3)
+        self.assertAlmostEqual(row["mean_std_nonzero"], 1.5)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,20 @@ import pandas as pd
 
 
 DEFAULT_EXCLUDE_METAPATHS = {"BPpG", "GpBP"}
+DEFAULT_STATISTICS = [
+    "mean_dwpc",
+    "mean_dwpc_nonzero",
+    "median_dwpc",
+    "median_dwpc_nonzero",
+    "mean_pvalue",
+    "mean_pvalue_nonzero",
+    "median_pvalue",
+    "median_pvalue_nonzero",
+    "mean_std",
+    "mean_std_nonzero",
+    "median_std",
+    "median_std_nonzero",
+]
 
 
 def _standardize_year_result_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -27,6 +41,50 @@ def _standardize_year_result_frame(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Year result frame missing required columns: {sorted(missing)}")
     return out
+
+
+def _safe_series_mean(values: pd.Series) -> float:
+    return float(values.mean()) if len(values) > 0 else np.nan
+
+
+def _safe_series_median(values: pd.Series) -> float:
+    return float(values.median()) if len(values) > 0 else np.nan
+
+
+def _aggregate_one_year_group(group: pd.DataFrame) -> dict[str, float | int]:
+    dwpc_all = group["dwpc"].dropna()
+    dwpc_nonzero = dwpc_all[dwpc_all > 0]
+
+    if "p_value" in group.columns:
+        pval_all = group["p_value"].dropna()
+        pval_nonzero = pval_all[pval_all > 0] if len(pval_all) > 0 else pd.Series(dtype=float)
+    else:
+        pval_all = pd.Series(dtype=float)
+        pval_nonzero = pd.Series(dtype=float)
+
+    if "dgp_nonzero_sd" in group.columns:
+        std_all = group["dgp_nonzero_sd"].dropna()
+        std_nonzero = std_all[std_all > 0] if len(std_all) > 0 else pd.Series(dtype=float)
+    else:
+        std_all = pd.Series(dtype=float)
+        std_nonzero = pd.Series(dtype=float)
+
+    return {
+        "mean_dwpc": _safe_series_mean(dwpc_all),
+        "mean_dwpc_nonzero": _safe_series_mean(dwpc_nonzero),
+        "median_dwpc": _safe_series_median(dwpc_all),
+        "median_dwpc_nonzero": _safe_series_median(dwpc_nonzero),
+        "mean_pvalue": _safe_series_mean(pval_all),
+        "mean_pvalue_nonzero": _safe_series_mean(pval_nonzero),
+        "median_pvalue": _safe_series_median(pval_all),
+        "median_pvalue_nonzero": _safe_series_median(pval_nonzero),
+        "mean_std": _safe_series_mean(std_all),
+        "mean_std_nonzero": _safe_series_mean(std_nonzero),
+        "median_std": _safe_series_median(std_all),
+        "median_std_nonzero": _safe_series_median(std_nonzero),
+        "n_total": int(len(dwpc_all)),
+        "n_nonzero": int(len(dwpc_nonzero)),
+    }
 
 
 def load_labeled_year_result_files(
@@ -49,50 +107,83 @@ def load_labeled_year_result_files(
     return datasets
 
 
-def build_aggregated_year_statistics(datasets: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Aggregate GO-term x metapath statistics across labeled year result datasets."""
+def build_aggregated_year_statistics_panel(
+    normalized_df: pd.DataFrame,
+    *,
+    dataset_col: str = "name",
+    exclude_metapaths: set[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Aggregate GO-term x metapath statistics from normalized year results.
+
+    The input is the shared Step 6 year schema, optionally with extra columns such
+    as `p_value` or `dgp_nonzero_sd`. The output preserves dataset metadata and
+    adds a `dataset` label column used by downstream year-statistics analyses.
+    """
+    if normalized_df.empty:
+        return pd.DataFrame()
+
+    exclude_metapaths = set(DEFAULT_EXCLUDE_METAPATHS if exclude_metapaths is None else exclude_metapaths)
+    required = {"go_id", "metapath", "dwpc", dataset_col}
+    missing = required - set(normalized_df.columns)
+    if missing:
+        raise ValueError(
+            f"Normalized year dataframe missing required columns for aggregation: {sorted(missing)}"
+        )
+
+    work = normalized_df.copy()
+    if exclude_metapaths:
+        work = work[~work["metapath"].astype(str).isin(exclude_metapaths)].copy()
+    work["dataset"] = work[dataset_col].astype(str)
+
+    meta_cols = [
+        col
+        for col in ["domain", "name", "control", "replicate", "year", "score_source"]
+        if col in work.columns
+    ]
+    group_cols = [*meta_cols, "dataset", "go_id", "metapath"]
+
+    rows = []
+    for keys, group in work.groupby(group_cols, dropna=False, sort=True):
+        if not isinstance(keys, tuple):
+            keys = (keys,)
+        row = {group_cols[idx]: keys[idx] for idx in range(len(group_cols))}
+        row.update(_aggregate_one_year_group(group))
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows)
+
+
+def build_aggregated_year_statistics(
+    datasets: dict[str, pd.DataFrame] | pd.DataFrame,
+    *,
+    dataset_col: str = "name",
+    exclude_metapaths: set[str] | None = None,
+) -> pd.DataFrame:
+    """Aggregate GO-term x metapath statistics across labeled or normalized year datasets."""
+    if isinstance(datasets, pd.DataFrame):
+        return build_aggregated_year_statistics_panel(
+            datasets,
+            dataset_col=dataset_col,
+            exclude_metapaths=exclude_metapaths,
+        )
+
+    exclude_metapaths = set(DEFAULT_EXCLUDE_METAPATHS if exclude_metapaths is None else exclude_metapaths)
     rows = []
     for label, df in datasets.items():
         work = _standardize_year_result_frame(df)
+        if exclude_metapaths:
+            work = work[~work["metapath"].astype(str).isin(exclude_metapaths)].copy()
         for (go_id, metapath), group in work.groupby(["go_id", "metapath"], dropna=False):
-            dwpc_all = group["dwpc"].dropna()
-            dwpc_nonzero = dwpc_all[dwpc_all > 0]
-
-            if "p_value" in group.columns:
-                pval_all = group["p_value"].dropna()
-                pval_nonzero = pval_all[pval_all > 0] if len(pval_all) > 0 else pd.Series(dtype=float)
-            else:
-                pval_all = pd.Series(dtype=float)
-                pval_nonzero = pd.Series(dtype=float)
-
-            if "dgp_nonzero_sd" in group.columns:
-                std_all = group["dgp_nonzero_sd"].dropna()
-                std_nonzero = std_all[std_all > 0] if len(std_all) > 0 else pd.Series(dtype=float)
-            else:
-                std_all = pd.Series(dtype=float)
-                std_nonzero = pd.Series(dtype=float)
-
-            rows.append(
-                {
-                    "go_id": go_id,
-                    "metapath": str(metapath),
-                    "dataset": str(label),
-                    "mean_dwpc": dwpc_all.mean() if len(dwpc_all) > 0 else np.nan,
-                    "mean_dwpc_nonzero": dwpc_nonzero.mean() if len(dwpc_nonzero) > 0 else np.nan,
-                    "median_dwpc": dwpc_all.median() if len(dwpc_all) > 0 else np.nan,
-                    "median_dwpc_nonzero": dwpc_nonzero.median() if len(dwpc_nonzero) > 0 else np.nan,
-                    "mean_pvalue": pval_all.mean() if len(pval_all) > 0 else np.nan,
-                    "mean_pvalue_nonzero": pval_nonzero.mean() if len(pval_nonzero) > 0 else np.nan,
-                    "median_pvalue": pval_all.median() if len(pval_all) > 0 else np.nan,
-                    "median_pvalue_nonzero": pval_nonzero.median() if len(pval_nonzero) > 0 else np.nan,
-                    "mean_std": std_all.mean() if len(std_all) > 0 else np.nan,
-                    "mean_std_nonzero": std_nonzero.mean() if len(std_nonzero) > 0 else np.nan,
-                    "median_std": std_all.median() if len(std_all) > 0 else np.nan,
-                    "median_std_nonzero": std_nonzero.median() if len(std_nonzero) > 0 else np.nan,
-                    "n_total": int(len(dwpc_all)),
-                    "n_nonzero": int(len(dwpc_nonzero)),
-                }
-            )
+            row = {
+                "go_id": go_id,
+                "metapath": str(metapath),
+                "dataset": str(label),
+            }
+            row.update(_aggregate_one_year_group(group))
+            rows.append(row)
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows)
@@ -100,19 +191,9 @@ def build_aggregated_year_statistics(datasets: dict[str, pd.DataFrame]) -> pd.Da
 
 def detect_supported_statistics(agg_df: pd.DataFrame) -> list[str]:
     """Return the current statistic panel supported by an aggregated year-statistics frame."""
-    statistics = [
-        "mean_dwpc",
-        "mean_dwpc_nonzero",
-        "median_dwpc",
-        "median_dwpc_nonzero",
-    ]
+    statistics = DEFAULT_STATISTICS[:4]
     for prefix in ("pvalue", "std"):
-        stat_cols = [
-            f"mean_{prefix}",
-            f"mean_{prefix}_nonzero",
-            f"median_{prefix}",
-            f"median_{prefix}_nonzero",
-        ]
+        stat_cols = [col for col in DEFAULT_STATISTICS if prefix in col]
         if any(col in agg_df.columns and agg_df[col].notna().any() for col in stat_cols):
             statistics.extend(stat_cols)
     return statistics

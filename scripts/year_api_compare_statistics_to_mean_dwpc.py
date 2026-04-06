@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare year API statistics to mean DWPC using real-minus-control profiles."""
+"""Compare year statistics to mean DWPC using real-minus-control profiles."""
 
 from __future__ import annotations
 
@@ -21,14 +21,24 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.result_normalization import load_neo4j_mappings, normalize_api_year_result, parse_year_dataset_name  # noqa: E402
-from src.year_statistics import build_aggregated_year_statistics, detect_supported_statistics  # noqa: E402
+from src.result_normalization import load_normalized_year_results, parse_year_dataset_name  # noqa: E402
+from src.year_statistics import build_aggregated_year_statistics_panel, detect_supported_statistics  # noqa: E402
 
 
-DEFAULT_RESULTS_DIR = REPO_ROOT / "output" / "dwpc_com" / "all_GO_positive_growth" / "results"
 DEFAULT_DATA_DIR = REPO_ROOT / "data"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "year_api_stat_compare"
 ANCHOR_STAT = "mean_dwpc"
+
+
+def _default_results_dir(score_source: str) -> Path:
+    if str(score_source) == "api":
+        return REPO_ROOT / "output" / "dwpc_com" / "all_GO_positive_growth" / "results"
+    return REPO_ROOT / "output" / "dwpc_direct" / "all_GO_positive_growth" / "results"
+
+
+def _default_output_dir(score_source: str) -> Path:
+    if str(score_source) == "api":
+        return REPO_ROOT / "output" / "year_api_stat_compare"
+    return REPO_ROOT / "output" / "year_direct_stat_compare"
 
 
 def _rbo_score(rank_a: list[str], rank_b: list[str], p: float = 0.9) -> float:
@@ -53,38 +63,6 @@ def _transform_stat(stat: str, value: float) -> float:
     if "pvalue" in str(stat):
         return float(-math.log10(max(float(value), 1e-300)))
     return float(value)
-
-
-def _load_api_datasets(results_dir: Path, data_dir: Path) -> dict[str, pd.DataFrame]:
-    files = sorted(results_dir.glob("res_all_GO_positive_growth_*.csv"))
-    if not files:
-        raise FileNotFoundError(f"No API result files found under {results_dir}")
-
-    neo4j_to_entrez, neo4j_to_go = load_neo4j_mappings(data_dir)
-    datasets: dict[str, pd.DataFrame] = {}
-
-    for path in files:
-        dataset_name = path.stem.replace("res_", "", 1)
-        try:
-            parse_year_dataset_name(dataset_name)
-        except ValueError:
-            continue
-        raw_df = pd.read_csv(path)
-        if "neo4j_target_id" not in raw_df.columns and "neo4j_pseudo_target_id" in raw_df.columns:
-            raw_df = raw_df.copy()
-            raw_df["neo4j_target_id"] = raw_df["neo4j_pseudo_target_id"]
-        norm_df = normalize_api_year_result(
-            raw_df,
-            dataset_name=dataset_name,
-            neo4j_to_entrez=neo4j_to_entrez,
-            neo4j_to_go=neo4j_to_go,
-        )
-        if not norm_df.empty:
-            datasets[dataset_name] = norm_df
-
-    if not datasets:
-        raise ValueError(f"No valid year API datasets found in {results_dir}")
-    return datasets
 
 
 def _build_real_minus_control_profiles(
@@ -494,9 +472,10 @@ def _plot_variance_scatter_by_comparison(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS_DIR))
+    parser.add_argument("--score-source", default="api", choices=["direct", "api"])
+    parser.add_argument("--results-dir", default=None)
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--output-dir", default=None)
     parser.add_argument("--rbo-p", type=float, default=0.9)
     parser.add_argument("--top-n-paths", type=int, default=25)
     return parser.parse_args()
@@ -504,15 +483,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    results_dir = Path(args.results_dir)
+    results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
     data_dir = Path(args.data_dir)
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else _default_output_dir(args.score_source)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = _load_api_datasets(results_dir, data_dir)
-    agg_df = build_aggregated_year_statistics(datasets)
+    normalized_df = load_normalized_year_results(
+        results_dir,
+        score_source=str(args.score_source),
+        data_dir=data_dir,
+    )
+    agg_df = build_aggregated_year_statistics_panel(normalized_df)
     if agg_df.empty:
-        raise ValueError("Aggregated API year statistics are empty.")
+        raise ValueError("Aggregated year statistics are empty.")
 
     statistics = detect_supported_statistics(agg_df)
     if ANCHOR_STAT not in statistics:
