@@ -229,11 +229,11 @@ def main() -> None:
         analysis_dir / "go_term_stability_summary.csv",
         required_columns=["control", "year", "b", "go_id", "mean_spearman_rho"],
     )
-    rho_path = analysis_dir / "rho_points_with_mean_trend_by_b.png"
+    rho_path = analysis_dir / "rho_points_with_mean_trend_by_b.pdf"
     _plot_rho(entity_df, rho_path)
     print(f"Saved plot: {rho_path}")
 
-    topk_path = analysis_dir / "topk_jaccard_overall_by_group.png"
+    topk_path = analysis_dir / "topk_jaccard_overall_by_group.pdf"
     _plot_overlap_and_rank(entity_df, topk_path)
     print(f"Saved plot: {topk_path}")
 

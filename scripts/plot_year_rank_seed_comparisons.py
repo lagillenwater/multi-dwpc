@@ -117,7 +117,7 @@ def main() -> None:
         )
         out_name = (
             f"metapath_rank_scatter_ref_seed_{args.reference_seed}_"
-            f"{_sanitize(control)}_b{int(b)}_year{int(year)}_{_sanitize(go_id)}.png"
+            f"{_sanitize(control)}_b{int(b)}_year{int(year)}_{_sanitize(go_id)}.pdf"
         )
         out_path = output_dir / out_name
         _plot_group(group.copy(), args.reference_seed, title, out_path)

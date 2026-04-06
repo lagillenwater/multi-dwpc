@@ -125,18 +125,18 @@ def main() -> None:
         metric_col="diff_std",
         y_label="SD(diff) across seeds",
         title="Year null SD by B",
-        output_path=analysis_dir / "sd_points_with_mean_trend_by_b.png",
+        output_path=analysis_dir / "sd_points_with_mean_trend_by_b.pdf",
     )
     _plot_metric(
         feature_df=feature_df,
         metric_col="diff_var",
         y_label="Variance(diff) across seeds",
         title="Year null variance by B",
-        output_path=analysis_dir / "variance_points_with_mean_trend_by_b.png",
+        output_path=analysis_dir / "variance_points_with_mean_trend_by_b.pdf",
     )
 
-    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.png'}")
-    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.png'}")
+    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.pdf'}")
+    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.pdf'}")
 
 
 if __name__ == "__main__":

@@ -294,7 +294,7 @@ def main() -> None:
         y_col="mean_spearman_rho",
         y_label="Mean Spearman rho across seeds",
         title="Year metapath rank stability by B",
-        out_path=exp_dir / "spearman_overall_by_group.png",
+        out_path=exp_dir / "spearman_overall_by_group.pdf",
     )
     if "mean_rbo" in overall_df.columns:
         _plot_overall(
@@ -302,9 +302,9 @@ def main() -> None:
             y_col="mean_rbo",
             y_label="Mean RBO across seeds",
             title="Year metapath RBO stability by B",
-            out_path=exp_dir / "rbo_overall_by_group.png",
+            out_path=exp_dir / "rbo_overall_by_group.pdf",
         )
-    _plot_overlap_and_rank_points(go_summary_df, exp_dir / "topk_jaccard_overall_by_group.png")
+    _plot_overlap_and_rank_points(go_summary_df, exp_dir / "topk_jaccard_overall_by_group.pdf")
 
     print(f"Saved rank table: {exp_dir / 'metapath_rank_table.csv'}")
     print(f"Saved pairwise metrics: {exp_dir / 'pairwise_metrics.csv'}")

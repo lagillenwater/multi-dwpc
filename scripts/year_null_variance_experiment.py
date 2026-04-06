@@ -143,14 +143,14 @@ def main() -> None:
         y_col="mean_diff_var",
         y_label="Mean feature variance of diff across GO terms/metapaths",
         title="Year null variance by B",
-        output_path=exp_dir / "variance_overall_by_group.png",
+        output_path=exp_dir / "variance_overall_by_group.pdf",
     )
     _plot_overall(
         overall_df,
         y_col="mean_diff_std",
         y_label="Mean feature SD of diff across GO terms/metapaths",
         title="Year null SD by B",
-        output_path=exp_dir / "sd_overall_by_group.png",
+        output_path=exp_dir / "sd_overall_by_group.pdf",
     )
 
     print(f"Saved runs: {exp_dir / 'all_runs_long.csv'}")
