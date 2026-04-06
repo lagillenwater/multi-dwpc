@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
-#SBATCH --output=slurm_%x_%A_%a.out
+#SBATCH --output=hpc/logs/%x_%A_%a.out
 
 set -euo pipefail
 
@@ -22,6 +22,7 @@ TASK_ID=${SLURM_ARRAY_TASK_ID:?SLURM_ARRAY_TASK_ID is required}
 
 cd "$REPO_ROOT"
 module load anaconda
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate multi_dwpc
 
 if [[ ! -f "$MANIFEST" ]]; then

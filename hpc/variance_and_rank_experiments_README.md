@@ -282,6 +282,38 @@ sbatch hpc/year_null_variance.sbatch
 sbatch hpc/year_rank_stability.sbatch
 ```
 
+Current year direct aggregate semantics:
+
+- per-replicate summaries use `mean_score`
+- for the direct year DWPC path, `mean_score` is mean DWPC over `(GO term, metapath)`
+- variance and rank-stability analyses consume that shared summary contract directly
+
+#### Automated year direct rebuild
+
+```bash
+bash hpc/submit_year_direct_rebuild.sh
+```
+
+This wrapper runs the year direct chain end-to-end with dependencies:
+
+- shared DWPC cache warmup by metapath
+- explicit permutation and random null generation
+- per-dataset direct DWPC and summary generation
+- aggregate year null-variance analysis
+- aggregate year rank-stability analysis
+- downstream year plots and optional tracking jobs
+
+Useful overrides:
+
+```bash
+export YEAR_N_REPLICATES=20
+export YEAR_NULL_VAR_B_VALUES=1,2,5,10,20
+export YEAR_RANK_STAB_B_VALUES=1,2,5,10,20
+export YEAR_RANK_STAB_TOP_K=5,10
+export INCLUDE_TRACKING=1
+bash hpc/submit_year_direct_rebuild.sh
+```
+
 ### LV
 
 #### Step 1: prepare metadata
