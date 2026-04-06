@@ -101,8 +101,12 @@ def main() -> None:
     args = parse_args()
     results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
     workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
+    summary_dir_candidate = workspace_dir / "replicate_summaries"
     if args.summaries_dir:
         summary_source = Path(args.summaries_dir)
+        summary_df = load_summary_bank(summary_source)
+    elif summary_dir_candidate.exists():
+        summary_source = summary_dir_candidate
         summary_df = load_summary_bank(summary_source)
     else:
         summary_source = workspace_dir

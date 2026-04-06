@@ -71,7 +71,7 @@ submit_wrap() {
       --mem="$mem" \
       --time="$time_limit" \
       --output="hpc/logs/%x_%j.out" \
-      --wrap="bash -lc '$wrapped'"
+      --wrap="bash -c '$wrapped'"
   else
     sbatch \
       --parsable \
@@ -83,7 +83,7 @@ submit_wrap() {
       --mem="$mem" \
       --time="$time_limit" \
       --output="hpc/logs/%x_%j.out" \
-      --wrap="bash -lc '$wrapped'"
+      --wrap="bash -c '$wrapped'"
   fi
 }
 
