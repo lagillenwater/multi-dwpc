@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import time
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from pathlib import Path
@@ -305,6 +306,7 @@ def validate_parquet_files(
     expected_pairs: int,
     min_completion_rate: float = 0.2,
     show_progress: bool = False,
+    progress_position: int = 0,
 ) -> Tuple[int, int, float]:
     """
     Validate parquet files before merging.
@@ -321,6 +323,8 @@ def validate_parquet_files(
         Minimum acceptable completion rate (default 0.2 = 20%)
     show_progress : bool
         Show progress while scanning metadata files
+    progress_position : int
+        tqdm screen position for validation progress output
 
     Returns
     -------
@@ -344,7 +348,15 @@ def validate_parquet_files(
 
     iterator = metadata_files
     if show_progress and metadata_files:
-        iterator = tqdm(metadata_files, desc="Validating parquet metadata", unit="file")
+        iterator = tqdm(
+            metadata_files,
+            desc="Validating parquet metadata",
+            unit="file",
+            file=sys.stdout,
+            dynamic_ncols=True,
+            leave=False,
+            position=int(progress_position),
+        )
 
     for meta_file in iterator:
         try:
@@ -545,6 +557,7 @@ async def run_metapaths_for_df(
     early_check_threshold: int = 10,
     periodic_check_interval: int = 100,
     periodic_failure_threshold: float = 0.5,
+    progress_position: int = 0,
 ) -> pd.DataFrame:
     """
     Process all GO-gene pairs and fetch DWPC via Het.io API.
@@ -589,6 +602,8 @@ async def run_metapaths_for_df(
         Check interval for periodic monitoring
     periodic_failure_threshold : float
         Failure rate threshold for warnings
+    progress_position : int
+        tqdm screen position for the active dataset progress bar
 
     Returns
     -------
@@ -671,7 +686,17 @@ async def run_metapaths_for_df(
             summaries = []
             pbar_desc = f"Processing [{group}]"
             tasks = [asyncio.create_task(coro) for coro in coroutines]
-            with tqdm(total=len(tasks), desc=pbar_desc, unit="task") as pbar:
+            print(f"  Unique source-target pairs: {len(tasks)}", flush=True)
+            with tqdm(
+                total=len(tasks),
+                desc=pbar_desc,
+                unit="pair",
+                file=sys.stdout,
+                dynamic_ncols=True,
+                leave=True,
+                position=int(progress_position),
+                mininterval=1.0,
+            ) as pbar:
                 for fut in asyncio.as_completed(tasks):
                     result = await fut
                     summaries.append(result)

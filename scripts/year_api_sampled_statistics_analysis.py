@@ -13,6 +13,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 matplotlib.use("Agg")
 
@@ -26,16 +27,14 @@ from src.bipartite_nulls import degree_preserving_permutations  # noqa: E402
 from src.dwpc_api import run_metapaths_for_df, validate_parquet_files  # noqa: E402
 from src.replicate_analysis import build_b_seed_runs, summarize_feature_variance, summarize_overall_variance  # noqa: E402
 from src.result_normalization import load_neo4j_mappings, normalize_api_year_result  # noqa: E402
-from src.year_statistics import (  # noqa: E402
-    build_aggregated_year_statistics_panel,
-    build_year_statistic_summary_long,
-)
+from src.year_statistics import build_aggregated_year_statistics_panel, build_year_statistic_summary_long  # noqa: E402
 
 
 DEFAULT_BASE_NAME = "all_GO_positive_growth"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "year_api_permutation_sensitivity"
 DEFAULT_DATA_DIR = REPO_ROOT / "data"
 DEFAULT_INTERMEDIATE_DIR = REPO_ROOT / "output" / "intermediate"
+DEFAULT_PREVIOUS_REAL_RESULTS_DIR = REPO_ROOT / "output" / "dwpc_com" / DEFAULT_BASE_NAME / "results"
 
 MAX_CONCURRENCY = 120
 RETRIES = 10
@@ -72,6 +71,14 @@ def _sample_go_terms(real_2016: pd.DataFrame, real_2024: pd.DataFrame, n_go_term
     rng = np.random.RandomState(int(seed))
     idx = rng.choice(np.arange(len(pool), dtype=int), size=sample_n, replace=False)
     return sorted([pool[int(i)] for i in idx])
+
+
+def _display_statistic_name(statistic: str) -> str:
+    """Return a plot-friendly statistic label."""
+    stat = str(statistic)
+    if "pvalue" in stat:
+        return stat.replace("pvalue", "log10pvalue")
+    return stat
 
 
 def _validate_permutation(real_df: pd.DataFrame, perm_df: pd.DataFrame, year: int, rep_id: int) -> None:
@@ -111,6 +118,39 @@ def _attach_neo4j_ids(df: pd.DataFrame, entrez_to_neo4j: dict, go_to_neo4j: dict
     return out
 
 
+def _reuse_real_result_subset(
+    sampled_real_df: pd.DataFrame,
+    *,
+    year: int,
+    base_name: str,
+    data_dir: Path,
+    previous_real_results_dir: Path,
+    output_csv: Path,
+) -> None:
+    if output_csv.exists():
+        print(f"[reuse-skip] {output_csv}")
+        return
+
+    source_csv = previous_real_results_dir / f"res_{base_name}_{year}_real.csv"
+    if not source_csv.exists():
+        raise FileNotFoundError(f"Missing previous real API result file: {source_csv}")
+
+    entrez_to_neo4j, go_to_neo4j = _load_neo4j_lookup_maps(data_dir)
+    sampled_pairs = _attach_neo4j_ids(
+        sampled_real_df,
+        entrez_to_neo4j=entrez_to_neo4j,
+        go_to_neo4j=go_to_neo4j,
+    )[["neo4j_source_id", "neo4j_target_id"]].drop_duplicates()
+    if sampled_pairs.empty:
+        raise ValueError(f"No sampled real pairs mapped to Neo4j IDs for year={year}")
+
+    full_df = pd.read_csv(source_csv)
+    subset_df = full_df.merge(sampled_pairs, on=["neo4j_source_id", "neo4j_target_id"], how="inner")
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    subset_df.to_csv(output_csv, index=False)
+    print(f"[reused] {output_csv} ({len(subset_df):,} rows from {source_csv.name})")
+
+
 def _load_manifest_normalized_results(manifest_df: pd.DataFrame, data_dir: Path) -> pd.DataFrame:
     neo4j_to_entrez, neo4j_to_go = load_neo4j_mappings(data_dir)
     frames: list[pd.DataFrame] = []
@@ -141,6 +181,7 @@ def _merge_group_parquets(group_dir: Path, output_csv: Path, expected_pairs: int
         expected_pairs=expected_pairs,
         min_completion_rate=float(min_completion_rate),
         show_progress=True,
+        progress_position=1,
     )
     parquet_files = sorted(group_dir.glob("*.parquet"))
     if not parquet_files:
@@ -186,6 +227,7 @@ async def _lookup_dataset(
         max_concurrency=int(max_concurrency),
         retries=int(retries),
         backoff_first=float(backoff_first),
+        progress_position=1,
     )
     group_dir = parquet_dir / group
     expected_pairs = int(api_df[["neo4j_source_id", "neo4j_target_id"]].drop_duplicates().shape[0])
@@ -232,7 +274,7 @@ def _plot_sensitivity(overall_var_df: pd.DataFrame, out_pdf: Path) -> None:
                     marker="o",
                     linewidth=1.6,
                     alpha=0.9,
-                    label=str(statistic),
+                    label=_display_statistic_name(str(statistic)),
                 )
             ax.grid(alpha=0.25)
             ax.set_xlabel("B")
@@ -253,6 +295,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results-dir", default=None)
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--intermediate-dir", default=str(DEFAULT_INTERMEDIATE_DIR))
+    parser.add_argument("--previous-real-results-dir", default=str(DEFAULT_PREVIOUS_REAL_RESULTS_DIR))
     parser.add_argument("--base-name", default=DEFAULT_BASE_NAME)
     parser.add_argument("--n-go-terms", type=int, default=50)
     parser.add_argument("--sample-seed", type=int, default=42)
@@ -273,6 +316,7 @@ def main() -> None:
     results_dir = Path(args.results_dir) if args.results_dir else output_dir / "results"
     data_dir = Path(args.data_dir)
     intermediate_dir = Path(args.intermediate_dir)
+    previous_real_results_dir = Path(args.previous_real_results_dir)
     base_name = str(args.base_name)
     n_go_terms = int(args.n_go_terms)
     n_permutations = int(args.n_permutations)
@@ -345,19 +389,52 @@ def main() -> None:
     manifest_df = pd.DataFrame(manifest_rows).sort_values(["year", "control", "replicate"]).reset_index(drop=True)
     manifest_df.to_csv(output_dir / "dataset_manifest.csv", index=False)
 
-    for row in manifest_df.itertuples(index=False):
-        asyncio.run(
-            _lookup_dataset(
-                pd.Series(row._asdict()),
-                data_dir=data_dir,
-                parquet_dir=parquet_dir,
-                min_completion_rate=float(args.min_completion_rate),
-                max_concurrency=int(args.max_concurrency),
-                retries=int(args.retries),
-                backoff_first=float(args.backoff_first),
-                cleanup_parquet=not args.keep_parquet,
-            )
+    total_datasets = int(len(manifest_df))
+    dataset_bar = tqdm(
+        list(manifest_df.itertuples(index=False)),
+        total=total_datasets,
+        desc="Datasets",
+        unit="dataset",
+        file=sys.stdout,
+        dynamic_ncols=True,
+        position=0,
+        leave=True,
+    )
+    for idx, row in enumerate(dataset_bar, start=1):
+        row_series = pd.Series(row._asdict())
+        dataset_label = (
+            f"{row_series['name']} "
+            f"(year={row_series['year']}, control={row_series['control']}, replicate={row_series['replicate']})"
         )
+        dataset_bar.set_description(f"Datasets [{idx}/{total_datasets}]")
+        dataset_bar.set_postfix_str(str(row_series["name"]))
+        print(f"\n[dataset {idx}/{total_datasets}] {dataset_label}", flush=True)
+        if str(row_series["control"]) == "real":
+            sampled_real_df = year_real_map[int(row_series["year"])]
+            _reuse_real_result_subset(
+                sampled_real_df,
+                year=int(row_series["year"]),
+                base_name=base_name,
+                data_dir=data_dir,
+                previous_real_results_dir=previous_real_results_dir,
+                output_csv=Path(row_series["result_path"]),
+            )
+        else:
+            asyncio.run(
+                _lookup_dataset(
+                    row_series,
+                    data_dir=data_dir,
+                    parquet_dir=parquet_dir,
+                    min_completion_rate=float(args.min_completion_rate),
+                    max_concurrency=int(args.max_concurrency),
+                    retries=int(args.retries),
+                    backoff_first=float(args.backoff_first),
+                    cleanup_parquet=not args.keep_parquet,
+                )
+            )
+        completed = sum(Path(path).exists() for path in manifest_df["result_path"].astype(str).tolist())
+        print(f"[progress] completed result datasets: {completed}/{total_datasets}", flush=True)
+    dataset_bar.close()
 
     normalized_df = _load_manifest_normalized_results(manifest_df, data_dir=data_dir)
     agg_df = build_aggregated_year_statistics_panel(normalized_df)
