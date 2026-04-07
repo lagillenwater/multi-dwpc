@@ -24,7 +24,8 @@ from src.year_replicate_analysis import load_summary_bank  # noqa: E402
 def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str, group_cols: list[str]) -> pd.DataFrame:
     out = df.copy()
     out[out_col] = np.nan
-    for _, idx in out.groupby(group_cols).groups.items():
+    groupby_arg: str | list[str] = group_cols[0] if len(group_cols) == 1 else group_cols
+    for _, idx in out.groupby(groupby_arg).groups.items():
         subset = out.loc[idx]
         pvals = subset[p_col].to_numpy(dtype=float)
         valid = np.isfinite(pvals)
@@ -165,12 +166,116 @@ def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
+    required = {"year", "control", "b", "seed", "go_id", "metapath", "real_mean_score", "null_mean_score"}
+    missing = required - set(runs_df.columns)
+    if missing:
+        raise ValueError(f"Runs dataframe missing required columns: {sorted(missing)}")
+
+    work = runs_df.copy()
+    work["year"] = work["year"].astype(int)
+    work["control"] = work["control"].astype(str)
+    work["b"] = work["b"].astype(int)
+    work["seed"] = work["seed"].astype(int)
+    work["go_id"] = work["go_id"].astype(str)
+    work["metapath"] = work["metapath"].astype(str)
+
+    grouped = (
+        work.groupby(["year", "go_id", "metapath", "control", "b"], as_index=False)
+        .agg(
+            real_mean=("real_mean_score", "first"),
+            null_mean=("null_mean_score", "mean"),
+            null_std=("null_mean_score", lambda x: x.std(ddof=1) if len(x) > 1 else np.nan),
+            b_eff=("null_mean_score", "size"),
+        )
+    )
+    # Recompute the empirical count after aggregation using a vectorized pass to avoid
+    # relying on groupby lambdas with external state.
+    compare_df = work.copy()
+    compare_df["null_ge_real"] = (
+        compare_df["null_mean_score"].astype(float) >= compare_df["real_mean_score"].astype(float)
+    ).astype(int)
+    ge_counts = (
+        compare_df.groupby(["year", "go_id", "metapath", "control", "b"], as_index=False)["null_ge_real"]
+        .sum()
+        .rename(columns={"null_ge_real": "n_ge_real"})
+    )
+    grouped = grouped.drop(columns=["n_ge_real"]).merge(
+        ge_counts,
+        on=["year", "go_id", "metapath", "control", "b"],
+        how="left",
+    )
+    grouped["p_empirical"] = (1.0 + grouped["n_ge_real"].astype(float)) / (
+        grouped["b_eff"].astype(float) + 1.0
+    )
+
+    base = (
+        work[["year", "go_id", "metapath", "b", "real_mean_score"]]
+        .drop_duplicates()
+        .rename(columns={"real_mean_score": "real_mean"})
+    )
+    out = base.copy()
+    for control, prefix in [("permuted", "perm"), ("random", "rand")]:
+        sub = grouped[grouped["control"].astype(str) == control].copy()
+        if sub.empty:
+            continue
+        sub = sub.rename(
+            columns={
+                "null_mean": f"{prefix}_null_mean",
+                "null_std": f"{prefix}_null_std",
+                "p_empirical": f"p_{prefix}",
+                "b_eff": f"b_eff_{prefix}",
+            }
+        )
+        out = out.merge(
+            sub[
+                [
+                    "year",
+                    "go_id",
+                    "metapath",
+                    "b",
+                    "real_mean",
+                    f"{prefix}_null_mean",
+                    f"{prefix}_null_std",
+                    f"p_{prefix}",
+                    f"b_eff_{prefix}",
+                ]
+            ],
+            on=["year", "go_id", "metapath", "b", "real_mean"],
+            how="left",
+        )
+
+    out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
+    out["diff_rand"] = out["real_mean"] - out["rand_null_mean"]
+    out["d_perm"] = _safe_effect_size(out["real_mean"], out["perm_null_mean"], out["perm_null_std"])
+    out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
+    out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
+    out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
+    out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "b", "go_id"])
+    out = _apply_bh_fdr(out, p_col="p_rand", out_col="p_rand_fdr", group_cols=["year", "b", "go_id"])
+    out["supported"] = (
+        (out["p_perm_fdr"] < 0.05)
+        & (out["p_rand_fdr"] < 0.05)
+        & (out["diff_perm"] > 0)
+        & (out["diff_rand"] > 0)
+    )
+    out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
+    return out.sort_values(
+        ["b", "year", "go_id", "supported", "min_d", "min_diff", "fdr_sum", "metapath"],
+        ascending=[True, True, True, False, False, False, True, True],
+    ).reset_index(drop=True)
+
+
 def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
     if go_support_df.empty:
         return pd.DataFrame()
 
+    group_cols = ["year", "metapath"]
+    if "b" in go_support_df.columns:
+        group_cols = ["b", *group_cols]
+
     agg = (
-        go_support_df.groupby(["year", "metapath"], as_index=False)
+        go_support_df.groupby(group_cols, as_index=False)
         .agg(
             n_go_terms=("go_id", "nunique"),
             n_go_terms_supported=("supported", "sum"),
@@ -185,8 +290,11 @@ def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
         )
     )
     agg["support_fraction"] = agg["n_go_terms_supported"] / agg["n_go_terms"].replace(0, np.nan)
-    agg = _apply_bh_fdr(agg, p_col="combined_p_perm", out_col="combined_p_perm_fdr", group_cols=["year"])
-    agg = _apply_bh_fdr(agg, p_col="combined_p_rand", out_col="combined_p_rand_fdr", group_cols=["year"])
+    fdr_group_cols = ["year"]
+    if "b" in agg.columns:
+        fdr_group_cols = ["b", "year"]
+    agg = _apply_bh_fdr(agg, p_col="combined_p_perm", out_col="combined_p_perm_fdr", group_cols=fdr_group_cols)
+    agg = _apply_bh_fdr(agg, p_col="combined_p_rand", out_col="combined_p_rand_fdr", group_cols=fdr_group_cols)
     agg["supported_global"] = (
         (agg["combined_p_perm_fdr"] < 0.05)
         & (agg["combined_p_rand_fdr"] < 0.05)
@@ -208,6 +316,8 @@ def parse_args() -> argparse.Namespace:
         help="Year replicate workspace directory containing replicate_summaries/.",
     )
     parser.add_argument("--summaries-dir", default=None)
+    parser.add_argument("--runs-path", default=None, help="Optional B/seed runs file from year_null_variance_experiment/all_runs_long.csv")
+    parser.add_argument("--b", type=int, default=None, help="Optional B to filter when using --runs-path")
     parser.add_argument(
         "--go-support-output",
         default=str(REPO_ROOT / "output" / "year_direct_go_term_support.csv"),
@@ -221,9 +331,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    summary_source = Path(args.summaries_dir) if args.summaries_dir else Path(args.workspace_dir) / "replicate_summaries"
-    summary_df = load_summary_bank(summary_source)
-    go_df = build_go_term_support(summary_df)
+    if args.runs_path:
+        runs_df = pd.read_csv(Path(args.runs_path))
+        if args.b is not None:
+            runs_df = runs_df[runs_df["b"].astype(int) == int(args.b)].copy()
+        go_df = build_go_term_support_from_runs(runs_df)
+    else:
+        summary_source = Path(args.summaries_dir) if args.summaries_dir else Path(args.workspace_dir) / "replicate_summaries"
+        summary_df = load_summary_bank(summary_source)
+        go_df = build_go_term_support(summary_df)
     global_df = build_global_metapath_support(go_df)
 
     go_path = Path(args.go_support_output)

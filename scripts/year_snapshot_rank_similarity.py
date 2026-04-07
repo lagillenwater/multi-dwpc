@@ -11,6 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import spearmanr
 
 matplotlib.use("Agg")
 
@@ -163,12 +164,12 @@ def _compare_rankings(
         if len(common) < 2:
             continue
 
-        rho = float(
-            pd.Series([a_rank_pos[m] for m in common], dtype=float).corr(
-                pd.Series([b_rank_pos[m] for m in common], dtype=float),
-                method="pearson",
-            )
+        rho_result = spearmanr(
+            pd.Series([a_rank_pos[m] for m in common], dtype=float),
+            pd.Series([b_rank_pos[m] for m in common], dtype=float),
         )
+        rho = float(rho_result.statistic)
+        pvalue = float(rho_result.pvalue)
         summary_rows.append(
             {
                 "year_a": int(year_a),
@@ -178,6 +179,7 @@ def _compare_rankings(
                 "n_metapaths_year_b": int(len(b_ranked)),
                 "n_common_metapaths": int(len(common)),
                 "spearman_rho": rho,
+                "spearman_pvalue": pvalue,
                 "rbo": _rbo_score(a_ranked, b_ranked, p=float(rbo_p)),
             }
         )
@@ -262,6 +264,7 @@ def _plot_rank_scatter(
     statistic: str,
     year_a: int,
     year_b: int,
+    b_value: int | None,
     output_path: Path,
 ) -> None:
     a_df = ranking_df[
@@ -277,7 +280,9 @@ def _plot_rank_scatter(
         return
 
     max_rank = int(merged[["rank_a", "rank_b"]].max().max())
-    rho = float(merged["rank_a"].corr(merged["rank_b"], method="pearson"))
+    rho_result = spearmanr(merged["rank_a"].astype(float), merged["rank_b"].astype(float))
+    rho = float(rho_result.statistic)
+    pvalue = float(rho_result.pvalue)
 
     fig, ax = plt.subplots(figsize=(6.8, 6.2))
     ax.scatter(
@@ -291,7 +296,11 @@ def _plot_rank_scatter(
     ax.plot([1, max_rank], [1, max_rank], linestyle="--", color="#999999", linewidth=1.4)
     ax.set_xlabel(f"{int(year_a)} rank")
     ax.set_ylabel(f"{int(year_b)} rank")
-    ax.set_title(f"{_display_statistic_name(statistic)}\nSpearman rho = {rho:.3f}")
+    b_suffix = f", B = {int(b_value)}" if b_value is not None else ""
+    ax.set_title(
+        f"{_display_statistic_name(statistic)}{b_suffix}\n"
+        f"Spearman rho = {rho:.3f}, p = {pvalue:.2e}"
+    )
     ax.grid(alpha=0.25)
     fig.tight_layout()
     _save_dual(fig, output_path)
@@ -310,6 +319,7 @@ def parse_args() -> argparse.Namespace:
         default="mean_dwpc",
         help="Ranking metric. For support-table mode, use a column like support_fraction or mean_min_d.",
     )
+    parser.add_argument("--b", type=int, default=None, help="Optional B to filter when the support table contains a b column.")
     parser.add_argument("--year-a", type=int, default=2016)
     parser.add_argument("--year-b", type=int, default=2024)
     parser.add_argument("--statistics", default="mean_dwpc")
@@ -324,6 +334,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     if args.support_path:
         support_df = pd.read_csv(Path(args.support_path))
+        if args.b is not None and "b" in support_df.columns:
+            support_df = support_df[support_df["b"].astype(int) == int(args.b)].copy()
         ranking_df = _build_support_rankings(support_df, rank_metric=str(args.rank_metric))
         statistics = [str(args.rank_metric)]
     else:
@@ -369,7 +381,12 @@ def main() -> None:
         statistic=str(statistics[0]),
         year_a=int(args.year_a),
         year_b=int(args.year_b),
-        output_path=output_dir / f"rank_scatter_{statistics[0]}_{int(args.year_a)}_vs_{int(args.year_b)}.pdf",
+        b_value=args.b,
+        output_path=output_dir / (
+            f"rank_scatter_{statistics[0]}"
+            + (f"_b{int(args.b)}" if args.b is not None else "")
+            + f"_{int(args.year_a)}_vs_{int(args.year_b)}.pdf"
+        ),
     )
 
     print(f"Saved rankings: {output_dir / 'snapshot_metapath_rankings.csv'}")

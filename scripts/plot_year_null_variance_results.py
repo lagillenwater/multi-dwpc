@@ -48,6 +48,39 @@ def _entity_mean(feature_df: pd.DataFrame, metric_col: str) -> pd.DataFrame:
     )
 
 
+def _compute_elbow(mean_df: pd.DataFrame, metric_col: str, increasing: bool) -> pd.DataFrame:
+    rows: list[dict] = []
+    for (control, year), group in mean_df.groupby(["control", "year"], sort=True):
+        curve = group.sort_values("b").copy()
+        if len(curve) < 3:
+            continue
+        x = curve["b"].astype(float).to_numpy()
+        y = curve[f"mean_{metric_col}"].astype(float).to_numpy()
+        x_norm = (x - x.min()) / (x.max() - x.min()) if x.max() > x.min() else np.zeros_like(x)
+        y_min = float(np.nanmin(y))
+        y_max = float(np.nanmax(y))
+        if y_max > y_min:
+            y_norm = (y - y_min) / (y_max - y_min)
+        else:
+            y_norm = np.zeros_like(y)
+        if not increasing:
+            y_norm = 1.0 - y_norm
+        line = np.linspace(y_norm[0], y_norm[-1], len(y_norm))
+        distance = y_norm - line
+        idx = int(np.argmax(distance))
+        rows.append(
+            {
+                "control": str(control),
+                "year": int(year),
+                "metric": str(metric_col),
+                "elbow_b": int(curve["b"].iloc[idx]),
+                "elbow_mean_value": float(curve[f"mean_{metric_col}"].iloc[idx]),
+                "elbow_distance": float(distance[idx]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _plot_metric(
     feature_df: pd.DataFrame,
     metric_col: str,
@@ -71,20 +104,28 @@ def _plot_metric(
     for ax, control in zip(axes, controls):
         control_points = feature_df[feature_df["control"].astype(str) == control].copy()
         control_mean = mean_df[mean_df["control"].astype(str) == control].copy()
+        width = 0.32 if len(years) > 1 else 0.55
         for year in years:
             color = YEAR_COLORS.get(str(year), "#333333")
             points = control_points[control_points["year"].astype(int) == int(year)].copy()
             if points.empty:
                 continue
-            b_values = points["b"].astype(float).to_numpy()
-            jitter = rng.uniform(-0.14, 0.14, size=len(points))
-            ax.scatter(
-                b_values + jitter,
-                points[metric_col].astype(float),
-                s=28,
-                alpha=0.30,
-                color=color,
-                edgecolors="none",
+            offsets = {int(y): ((idx - (len(years) - 1) / 2.0) * width) for idx, y in enumerate(years)}
+            positions = [float(b) + float(offsets[int(year)]) for b in sorted(points["b"].astype(int).unique().tolist())]
+            box_data = [
+                points[points["b"].astype(int) == int(b)][metric_col].astype(float).to_numpy()
+                for b in sorted(points["b"].astype(int).unique().tolist())
+            ]
+            ax.boxplot(
+                box_data,
+                positions=positions,
+                widths=width * 0.85,
+                patch_artist=True,
+                boxprops={"facecolor": color, "alpha": 0.22, "edgecolor": color},
+                medianprops={"color": color, "linewidth": 1.4},
+                whiskerprops={"color": color, "alpha": 0.5},
+                capprops={"color": color, "alpha": 0.5},
+                flierprops={"marker": "o", "markersize": 2.5, "markerfacecolor": color, "markeredgecolor": "none", "alpha": 0.20},
             )
             line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
             ax.plot(
@@ -94,6 +135,7 @@ def _plot_metric(
                 linewidth=2.2,
                 markersize=6.5,
                 color=color,
+                alpha=0.55,
                 label=str(year),
             )
         ax.set_xlabel("Null replicate count (B)")
@@ -131,25 +173,39 @@ def main() -> None:
         required_columns=["control", "year", "b", "diff_std", "diff_var"],
     )
 
+    mean_std_df = _entity_mean(feature_df, "diff_std")
+    mean_var_df = _entity_mean(feature_df, "diff_var")
+    elbow_df = pd.concat(
+        [
+            _compute_elbow(mean_std_df, "diff_std", increasing=False),
+            _compute_elbow(mean_var_df, "diff_var", increasing=False),
+        ],
+        ignore_index=True,
+    )
+    if not elbow_df.empty:
+        elbow_df.to_csv(analysis_dir / "elbow_summary.csv", index=False)
+
     _plot_metric(
         feature_df=feature_df,
         metric_col="diff_std",
         y_label="SD(diff) across seeds",
         title="Year null SD by B",
-        output_path=analysis_dir / "sd_points_with_mean_trend_by_b.pdf",
+        output_path=analysis_dir / "sd_boxplots_with_mean_trend_by_b.pdf",
     )
     _plot_metric(
         feature_df=feature_df,
         metric_col="diff_var",
         y_label="Variance(diff) across seeds",
         title="Year null variance by B",
-        output_path=analysis_dir / "variance_points_with_mean_trend_by_b.pdf",
+        output_path=analysis_dir / "variance_boxplots_with_mean_trend_by_b.pdf",
     )
 
-    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.pdf'}")
-    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.png'}")
-    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.pdf'}")
-    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.png'}")
+    if not elbow_df.empty:
+        print(f"Saved summary: {analysis_dir / 'elbow_summary.csv'}")
+    print(f"Saved plot: {analysis_dir / 'sd_boxplots_with_mean_trend_by_b.pdf'}")
+    print(f"Saved plot: {analysis_dir / 'sd_boxplots_with_mean_trend_by_b.png'}")
+    print(f"Saved plot: {analysis_dir / 'variance_boxplots_with_mean_trend_by_b.pdf'}")
+    print(f"Saved plot: {analysis_dir / 'variance_boxplots_with_mean_trend_by_b.png'}")
 
 
 if __name__ == "__main__":
