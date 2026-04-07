@@ -45,7 +45,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--support-path", default=None)
     parser.add_argument("--support-only", action="store_true")
-    parser.add_argument("--support-sort-metric", default="min_d", choices=["min_d", "min_diff", "real_mean"])
+    parser.add_argument(
+        "--support-sort-metric",
+        default="consensus_score",
+        choices=[
+            "consensus_score",
+            "consensus_rank",
+            "mean_std_score",
+            "min_d",
+            "min_diff",
+            "diff_perm",
+            "diff_rand",
+            "real_mean",
+            "rank_perm",
+            "rank_rand",
+        ],
+    )
     parser.add_argument("--metapath", default=None)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument("--chunksize", type=int, default=200_000)

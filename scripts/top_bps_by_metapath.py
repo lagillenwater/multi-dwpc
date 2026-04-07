@@ -51,6 +51,18 @@ def load_support_table(path: Path | None) -> pd.DataFrame | None:
             .str.lower()
             .isin({"1", "true", "t", "yes"})
         )
+    for col in [
+        "selected_by_effective_n_all",
+        "selected_by_effective_n_supported_only",
+    ]:
+        if col in support_df.columns:
+            support_df[col] = (
+                support_df[col]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+                .isin({"1", "true", "t", "yes"})
+            )
     return support_df
 
 
@@ -118,14 +130,24 @@ def select_supported_go_metapaths(
     if "go_id" not in subset.columns:
         raise ValueError("GO-term support table is required for GO-centric subgraph extraction")
 
+    ascending_metrics = {"consensus_rank", "rank_perm", "rank_rand", "fdr_sum", "p_perm_fdr", "p_rand_fdr"}
+    sort_ascending = sort_metric in ascending_metrics
     rows = []
     for go_id, group in subset.groupby("go_id", sort=True):
-        group = group.sort_values([sort_metric, "min_diff", "metapath"], ascending=[False, False, True]).reset_index(drop=True)
+        secondary_metric = "consensus_score" if "consensus_score" in group.columns else "min_diff"
+        group = group.sort_values(
+            [sort_metric, secondary_metric, "metapath"],
+            ascending=[sort_ascending, False, True],
+        ).reset_index(drop=True)
         threshold = np.nan
         selection = None
         if use_effective_number:
+            if sort_metric == "consensus_rank":
+                effective_scores = 1.0 / group[sort_metric].replace(0, np.nan)
+            else:
+                effective_scores = group[sort_metric].clip(lower=0)
             k = effective_k(
-                group[sort_metric].clip(lower=0),
+                effective_scores,
                 min_n=effective_min_n,
                 max_n=effective_max_n,
             )
@@ -312,7 +334,23 @@ def main() -> None:
     parser.add_argument("--output-dir", default=None, help="Destination for top-path selection CSVs.")
     parser.add_argument("--support-path", default=None, help="GO-term support table CSV.")
     parser.add_argument("--support-only", action="store_true", help="When support table is provided, keep only supported metapaths.")
-    parser.add_argument("--support-sort-metric", default="min_d", choices=["min_d", "min_diff", "real_mean"], help="Sort metric for metapaths from support table within each GO term.")
+    parser.add_argument(
+        "--support-sort-metric",
+        default="consensus_score",
+        choices=[
+            "consensus_score",
+            "consensus_rank",
+            "mean_std_score",
+            "min_d",
+            "min_diff",
+            "diff_perm",
+            "diff_rand",
+            "real_mean",
+            "rank_perm",
+            "rank_rand",
+        ],
+        help="Sort metric for metapaths from support table within each GO term.",
+    )
     parser.add_argument("--chunksize", type=int, default=200_000)
     args = parser.parse_args()
 

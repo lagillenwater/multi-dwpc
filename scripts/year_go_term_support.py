@@ -61,6 +61,72 @@ def _combine_pvalues_fisher(pvals: pd.Series) -> float:
     return float(chi2.sf(stat, 2 * vals.size))
 
 
+def _effective_number_from_scores(scores: pd.Series) -> float:
+    vals = scores.to_numpy(dtype=float)
+    vals = vals[np.isfinite(vals)]
+    vals = vals[vals > 0]
+    if vals.size == 0:
+        return 1.0
+    weights = vals / vals.sum()
+    entropy = float(-(weights * np.log(weights)).sum())
+    return float(np.exp(entropy))
+
+
+def _add_consensus_rank_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    group_cols = ["year", "go_id"]
+    if "b" in out.columns:
+        group_cols = ["b", *group_cols]
+
+    out["rank_perm"] = (
+        out.groupby(group_cols)["diff_perm"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    out["rank_rand"] = (
+        out.groupby(group_cols)["diff_rand"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    out["consensus_rank"] = 0.5 * (out["rank_perm"] + out["rank_rand"])
+    out["consensus_score"] = 0.5 * (
+        (1.0 / out["rank_perm"].replace(0, np.nan))
+        + (1.0 / out["rank_rand"].replace(0, np.nan))
+    )
+    return out
+
+
+def _add_effective_n_selection(
+    df: pd.DataFrame,
+    *,
+    score_col: str,
+    indicator_col: str,
+    effective_n_col: str,
+) -> pd.DataFrame:
+    out = df.copy()
+    out[indicator_col] = False
+    out[effective_n_col] = np.nan
+    group_cols = ["year", "go_id"]
+    if "b" in out.columns:
+        group_cols = ["b", *group_cols]
+
+    for _, idx in out.groupby(group_cols, sort=False).groups.items():
+        group = out.loc[idx].copy()
+        if group.empty:
+            continue
+        scores = group[score_col].astype(float).fillna(0.0).clip(lower=0.0)
+        eff_n = _effective_number_from_scores(scores)
+        k = max(1, int(np.ceil(eff_n)))
+        ranked = group.assign(_score=scores.to_numpy()).sort_values(
+            ["_score", "consensus_rank", "metapath"],
+            ascending=[False, True, True],
+        )
+        selected_idx = ranked.head(k).index
+        out.loc[idx, effective_n_col] = float(eff_n)
+        out.loc[selected_idx, indicator_col] = True
+    return out
+
+
 def _add_dual_null_summary_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
@@ -88,6 +154,8 @@ def _aggregate_global_summary(go_support_df: pd.DataFrame, suffix: str) -> pd.Da
             mean_min_diff=("min_diff", "mean"),
             mean_min_d=("min_d", "mean"),
             mean_std_score=("mean_std_score", "mean"),
+            mean_consensus_score=("consensus_score", "mean"),
+            median_consensus_rank=("consensus_rank", "median"),
             median_min_d=("min_d", "median"),
             median_std_score=("mean_std_score", "median"),
         )
@@ -100,6 +168,8 @@ def _aggregate_global_summary(go_support_df: pd.DataFrame, suffix: str) -> pd.Da
         "mean_min_diff": f"mean_min_diff_{suffix}",
         "mean_min_d": f"mean_min_d_{suffix}",
         "mean_std_score": f"mean_std_score_{suffix}",
+        "mean_consensus_score": f"mean_consensus_score_{suffix}",
+        "median_consensus_rank": f"median_consensus_rank_{suffix}",
         "median_min_d": f"median_min_d_{suffix}",
         "median_std_score": f"median_std_score_{suffix}",
     }
@@ -200,9 +270,40 @@ def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
         & (out["diff_rand"] > 0)
     )
     out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
+    out = _add_consensus_rank_columns(out)
+    out = _add_effective_n_selection(
+        out,
+        score_col="consensus_score",
+        indicator_col="selected_by_effective_n_all",
+        effective_n_col="effective_n_all",
+    )
+    supported_subset = out[out["supported"]].copy()
+    if not supported_subset.empty:
+        supported_subset = _add_effective_n_selection(
+            supported_subset,
+            score_col="consensus_score",
+            indicator_col="selected_by_effective_n_supported_only",
+            effective_n_col="effective_n_supported_only",
+        )
+        out = out.merge(
+            supported_subset[
+                [
+                    "year",
+                    "go_id",
+                    "metapath",
+                    "selected_by_effective_n_supported_only",
+                    "effective_n_supported_only",
+                ]
+            ],
+            on=["year", "go_id", "metapath"],
+            how="left",
+        )
+    else:
+        out["selected_by_effective_n_supported_only"] = np.nan
+        out["effective_n_supported_only"] = np.nan
     return out.sort_values(
-        ["year", "go_id", "supported", "mean_std_score", "min_d", "min_diff", "fdr_sum", "metapath"],
-        ascending=[True, True, False, False, False, False, True, True],
+        ["year", "go_id", "selected_by_effective_n_all", "consensus_score", "supported", "fdr_sum", "metapath"],
+        ascending=[True, True, False, False, False, True, True],
     ).reset_index(drop=True)
 
 
@@ -300,10 +401,42 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
         & (out["diff_rand"] > 0)
     )
     out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
+    out = _add_consensus_rank_columns(out)
+    out = _add_effective_n_selection(
+        out,
+        score_col="consensus_score",
+        indicator_col="selected_by_effective_n_all",
+        effective_n_col="effective_n_all",
+    )
+    supported_subset = out[out["supported"]].copy()
+    if not supported_subset.empty:
+        supported_subset = _add_effective_n_selection(
+            supported_subset,
+            score_col="consensus_score",
+            indicator_col="selected_by_effective_n_supported_only",
+            effective_n_col="effective_n_supported_only",
+        )
+        out = out.merge(
+            supported_subset[
+                [
+                    "b",
+                    "year",
+                    "go_id",
+                    "metapath",
+                    "selected_by_effective_n_supported_only",
+                    "effective_n_supported_only",
+                ]
+            ],
+            on=["b", "year", "go_id", "metapath"],
+            how="left",
+        )
+    else:
+        out["selected_by_effective_n_supported_only"] = np.nan
+        out["effective_n_supported_only"] = np.nan
 
     return out.sort_values(
-        ["b", "year", "go_id", "supported", "mean_std_score", "min_d", "min_diff", "fdr_sum", "metapath"],
-        ascending=[True, True, True, False, False, False, False, True, True],
+        ["b", "year", "go_id", "selected_by_effective_n_all", "consensus_score", "supported", "fdr_sum", "metapath"],
+        ascending=[True, True, True, False, False, False, True, True],
     ).reset_index(drop=True)
 
 def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
@@ -339,13 +472,24 @@ def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
             combined_p_perm=("p_perm", _combine_pvalues_fisher),
             combined_p_rand=("p_rand", _combine_pvalues_fisher),
             n_go_terms_supported=("supported", "sum"),
+            n_go_terms_selected_all=("selected_by_effective_n_all", "sum"),
         )
+    )
+    supported_selected = (
+        go_support_df[go_support_df["selected_by_effective_n_supported_only"].fillna(False)]
+        .groupby(group_cols, as_index=False)
+        .agg(n_go_terms_selected_supported_only=("go_id", "nunique"))
     )
 
     agg = agg_full.merge(agg_supported, on=group_cols, how="left").merge(
         agg_inferential, on=group_cols, how="left"
     )
+    agg = agg.merge(supported_selected, on=group_cols, how="left")
     agg["support_fraction"] = agg["n_go_terms_supported"] / agg["n_go_terms_all"].replace(0, np.nan)
+    agg["selected_fraction_all"] = agg["n_go_terms_selected_all"] / agg["n_go_terms_all"].replace(0, np.nan)
+    agg["selected_fraction_supported_only"] = (
+        agg["n_go_terms_selected_supported_only"] / agg["n_go_terms_supported_only"].replace(0, np.nan)
+    )
     fdr_group_cols = ["year"]
     if "b" in agg.columns:
         fdr_group_cols = ["b", "year"]
@@ -359,7 +503,7 @@ def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
     )
     agg["combined_fdr_sum"] = agg["combined_p_perm_fdr"] + agg["combined_p_rand_fdr"]
     return agg.sort_values(
-        ["year", "supported_global", "support_fraction", "mean_std_score_all", "combined_fdr_sum", "metapath"],
+        ["year", "selected_fraction_all", "mean_consensus_score_all", "supported_global", "combined_fdr_sum", "metapath"],
         ascending=[True, False, False, False, True, True],
     ).reset_index(drop=True)
 
