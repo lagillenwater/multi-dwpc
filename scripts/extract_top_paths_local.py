@@ -225,11 +225,27 @@ def enumerate_paths(
 def select_paths(
     paths: List[Tuple[float, List[int]]],
     *,
+    selection_method: str,
     top_paths: int,
     path_cumulative_frac: float | None,
     path_min_count: int,
     path_max_count: int | None,
 ) -> List[Tuple[float, List[int]]]:
+    if selection_method == "effective_number":
+        scores = pd.Series([max(float(score), 0.0) for score, _ in paths], dtype=float)
+        vals = scores.to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        vals = vals[vals > 0]
+        if vals.size == 0:
+            k = 1
+        else:
+            weights = vals / vals.sum()
+            entropy = float(-(weights * np.log(weights)).sum())
+            k = int(np.ceil(np.exp(entropy)))
+        k = max(int(path_min_count), k)
+        if path_max_count is not None:
+            k = min(k, int(path_max_count))
+        return paths[:k]
     if path_cumulative_frac is None:
         return paths[:top_paths]
     if not paths:
@@ -253,6 +269,13 @@ def main() -> None:
     parser.add_argument("--years", nargs="+", default=["2016", "2024"])
     parser.add_argument("--top-pairs", type=int, default=5)
     parser.add_argument("--top-paths", type=int, default=5)
+    parser.add_argument(
+        "--path-enumeration-top-k",
+        type=int,
+        default=5000,
+        help="Candidate path cap before applying the path selection rule.",
+    )
+    parser.add_argument("--path-selection-method", default="effective_number", choices=["effective_number", "top_n", "cumulative"])
     parser.add_argument("--path-cumulative-frac", type=float, default=None)
     parser.add_argument("--path-min-count", type=int, default=1)
     parser.add_argument("--path-max-count", type=int, default=None)
@@ -314,8 +337,10 @@ def main() -> None:
 
             try:
                 candidate_k = int(args.top_paths)
-                if args.path_cumulative_frac is not None:
-                    candidate_k = max(candidate_k, int(args.path_max_count or 0), 5000)
+                if args.path_selection_method in {"effective_number", "cumulative"}:
+                    candidate_k = int(args.path_enumeration_top_k)
+                    if args.path_max_count is not None:
+                        candidate_k = max(candidate_k, int(args.path_max_count))
                 candidate_paths = enumerate_paths(
                     bp_pos,
                     gene_pos,
@@ -327,6 +352,7 @@ def main() -> None:
                 )
                 paths = select_paths(
                     candidate_paths,
+                    selection_method=str(args.path_selection_method),
                     top_paths=int(args.top_paths),
                     path_cumulative_frac=args.path_cumulative_frac,
                     path_min_count=int(args.path_min_count),

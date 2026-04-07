@@ -27,9 +27,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-metapaths", type=int, default=None)
     parser.add_argument("--pair-top-n", type=int, default=10)
     parser.add_argument("--top-paths", type=int, default=5)
+    parser.add_argument("--go-selection-method", default="effective_number", choices=["effective_number", "top_n", "quantile", "z"])
+    parser.add_argument("--go-effective-min-n", type=int, default=1)
+    parser.add_argument("--go-effective-max-n", type=int, default=None)
+    parser.add_argument("--pair-selection-method", default="effective_number", choices=["effective_number", "top_n", "cumulative"])
     parser.add_argument("--pair-cumulative-frac", type=float, default=None)
     parser.add_argument("--pair-min-n", type=int, default=1)
     parser.add_argument("--pair-max-n", type=int, default=None)
+    parser.add_argument("--path-selection-method", default="effective_number", choices=["effective_number", "top_n", "cumulative"])
+    parser.add_argument("--path-enumeration-top-k", type=int, default=5000)
     parser.add_argument("--path-cumulative-frac", type=float, default=None)
     parser.add_argument("--path-min-count", type=int, default=1)
     parser.add_argument("--path-max-count", type=int, default=None)
@@ -66,7 +72,15 @@ def main() -> None:
         str(args.pair_top_n),
         "--chunksize",
         str(args.chunksize),
+        "--go-selection-method",
+        str(args.go_selection_method),
+        "--go-effective-min-n",
+        str(args.go_effective_min_n),
+        "--pair-selection-method",
+        str(args.pair_selection_method),
     ]
+    if args.go_effective_max_n is not None:
+        top_bp_cmd.extend(["--go-effective-max-n", str(args.go_effective_max_n)])
     if args.results_dir:
         top_bp_cmd.extend(["--results-dir", str(args.results_dir)])
     if args.output_dir:
@@ -99,6 +113,8 @@ def main() -> None:
         str(args.pair_top_n),
         "--top-paths",
         str(args.top_paths),
+        "--path-enumeration-top-k",
+        str(args.path_enumeration_top_k),
         "--degree-d",
         str(args.degree_d),
     ]
@@ -109,6 +125,7 @@ def main() -> None:
         top_path_cmd.extend(["--path-min-count", str(args.path_min_count)])
         if args.path_max_count is not None:
             top_path_cmd.extend(["--path-max-count", str(args.path_max_count)])
+    top_path_cmd.extend(["--path-selection-method", str(args.path_selection_method)])
     if args.metapath:
         top_path_cmd.extend(["--metapath", args.metapath])
     _run(top_path_cmd)
