@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 import sys
 from pathlib import Path
 
@@ -37,29 +36,18 @@ def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str, group_cols: list[s
     return out
 
 
-def _empirical_pvalue(real_value: float, null_values: np.ndarray) -> float:
-    valid = np.asarray(null_values, dtype=float)
-    valid = valid[np.isfinite(valid)]
-    if valid.size == 0 or not math.isfinite(float(real_value)):
-        return np.nan
-    return float((1.0 + np.sum(valid >= float(real_value))) / float(valid.size + 1))
+def _safe_effect_size(real_mean: pd.Series, null_mean: pd.Series, null_std: pd.Series) -> pd.Series:
+    diff = real_mean.astype(float) - null_mean.astype(float)
+    out = pd.Series(np.nan, index=diff.index, dtype=float)
 
+    valid_std = null_std.notna() & (null_std.astype(float) > 0)
+    out.loc[valid_std] = diff.loc[valid_std] / null_std.loc[valid_std].astype(float)
 
-def _effect_size(real_value: float, null_values: np.ndarray) -> float:
-    valid = np.asarray(null_values, dtype=float)
-    valid = valid[np.isfinite(valid)]
-    if valid.size == 0 or not math.isfinite(float(real_value)):
-        return np.nan
-    null_mean = float(np.mean(valid))
-    null_std = float(np.std(valid, ddof=1)) if valid.size > 1 else 0.0
-    diff = float(real_value) - null_mean
-    if null_std > 0:
-        return diff / null_std
-    if diff > 0:
-        return np.inf
-    if diff < 0:
-        return -np.inf
-    return 0.0
+    zero_std = null_std.fillna(0.0).astype(float) <= 0
+    out.loc[zero_std & (diff > 0)] = np.inf
+    out.loc[zero_std & (diff < 0)] = -np.inf
+    out.loc[zero_std & (diff == 0)] = 0.0
+    return out
 
 
 def _combine_pvalues_fisher(pvals: pd.Series) -> float:
@@ -103,34 +91,63 @@ def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"mean_score": "null_mean_score"})
     )
 
-    rows: list[dict] = []
-    for row in real_scores.itertuples(index=False):
-        out_row = {
-            "year": int(row.year),
-            "go_id": str(row.go_id),
-            "metapath": str(row.metapath),
-            "real_mean": float(row.real_mean),
-        }
-        for control, prefix in [("permuted", "perm"), ("random", "rand")]:
-            subset = null_rep[
-                (null_rep["year"].astype(int) == int(row.year))
-                & (null_rep["go_id"].astype(str) == str(row.go_id))
-                & (null_rep["metapath"].astype(str) == str(row.metapath))
-                & (null_rep["control"].astype(str) == control)
-            ].copy()
-            vals = subset["null_mean_score"].to_numpy(dtype=float)
-            out_row[f"{prefix}_null_mean"] = float(np.mean(vals)) if vals.size else np.nan
-            out_row[f"{prefix}_null_std"] = float(np.std(vals, ddof=1)) if vals.size > 1 else np.nan
-            out_row[f"p_{prefix}"] = _empirical_pvalue(float(row.real_mean), vals)
-            out_row[f"d_{prefix}"] = _effect_size(float(row.real_mean), vals)
-            out_row[f"b_eff_{prefix}"] = int(vals.size)
-        rows.append(out_row)
+    # Join all null replicate summaries to the real table once, then compute null
+    # summary statistics and empirical p-values via grouped aggregations.
+    null_vs_real = null_rep.merge(real_scores, on=["year", "go_id", "metapath"], how="inner")
+    if null_vs_real.empty:
+        return pd.DataFrame()
+    null_vs_real["null_ge_real"] = (
+        null_vs_real["null_mean_score"].astype(float) >= null_vs_real["real_mean"].astype(float)
+    ).astype(int)
 
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
+    grouped = (
+        null_vs_real.groupby(["year", "go_id", "metapath", "control"], as_index=False)
+        .agg(
+            real_mean=("real_mean", "first"),
+            null_mean=("null_mean_score", "mean"),
+            null_std=("null_mean_score", lambda x: x.std(ddof=1) if len(x) > 1 else np.nan),
+            n_ge_real=("null_ge_real", "sum"),
+            b_eff=("null_mean_score", "size"),
+        )
+    )
+    grouped["p_empirical"] = (1.0 + grouped["n_ge_real"].astype(float)) / (
+        grouped["b_eff"].astype(float) + 1.0
+    )
+
+    out = real_scores.copy()
+    for control, prefix in [("permuted", "perm"), ("random", "rand")]:
+        sub = grouped[grouped["control"].astype(str) == control].copy()
+        if sub.empty:
+            continue
+        sub = sub.rename(
+            columns={
+                "null_mean": f"{prefix}_null_mean",
+                "null_std": f"{prefix}_null_std",
+                "p_empirical": f"p_{prefix}",
+                "b_eff": f"b_eff_{prefix}",
+            }
+        )
+        out = out.merge(
+            sub[
+                [
+                    "year",
+                    "go_id",
+                    "metapath",
+                    "real_mean",
+                    f"{prefix}_null_mean",
+                    f"{prefix}_null_std",
+                    f"p_{prefix}",
+                    f"b_eff_{prefix}",
+                ]
+            ],
+            on=["year", "go_id", "metapath", "real_mean"],
+            how="left",
+        )
+
     out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
     out["diff_rand"] = out["real_mean"] - out["rand_null_mean"]
+    out["d_perm"] = _safe_effect_size(out["real_mean"], out["perm_null_mean"], out["perm_null_std"])
+    out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
     out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
     out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
     out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "go_id"])
