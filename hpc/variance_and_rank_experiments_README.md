@@ -139,6 +139,8 @@ Optional post-processing plots from the saved rank-stability CSVs:
 
 ```bash
 poe year-rank-stability-plots
+poe year-go-term-support
+poe year-snapshot-rank-similarity
 poe identify-year-top-paths
 ```
 
@@ -351,6 +353,21 @@ Important note on path enumeration:
 - the effective-number rule determines how many path instances are retained from the enumerated candidates
 - the default value `5000` is an engineering safeguard rather than a statistically justified cutoff
 - if path-level conclusions matter, validate stability by increasing the cap, for example `1000`, `5000`, and `10000`
+
+Useful local commands on top of an existing direct-DWPC workspace:
+
+```bash
+poe year-go-term-support
+poe year-snapshot-rank-similarity
+poe identify-year-top-paths
+```
+
+These defaults now point to:
+
+- GO-term support: `output/year_direct_go_term_support.csv`
+- global metapath support: `output/year_direct_global_metapath_support.csv`
+- global snapshot ranking metric: `support_fraction`
+- top-subgraph extraction support table: `output/year_direct_go_term_support.csv`
 
 ### LV
 
