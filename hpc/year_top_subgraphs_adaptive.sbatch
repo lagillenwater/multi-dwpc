@@ -58,7 +58,6 @@ python3 scripts/identify_year_top_paths.py \
   --years ${YEAR_TOP_YEARS} \
   --output-dir "$YEAR_TOP_PATHS_OUTPUT_DIR" \
   --support-path "$YEAR_GO_SUPPORT_PATH" \
-  --support-only \
   --support-sort-metric "${YEAR_SUPPORT_SORT_METRIC:-consensus_score}" \
   --go-selection-method effective_number \
   --go-effective-min-n "$YEAR_GO_EFFECTIVE_MIN_N" \

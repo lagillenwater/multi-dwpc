@@ -242,7 +242,10 @@ def collect_pairs_by_top_n(
         ranked = sorted(rows, key=lambda x: (x[0], -x[1]), reverse=True)[: int(pair_top_n)]
         for rank, (dwpc, gene_id) in enumerate(ranked, start=1):
             records.append({"metapath": metapath, "go_id": go_id, "entrez_gene_id": gene_id, "dwpc": dwpc, "rank": rank})
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    if df.empty:
+        return pd.DataFrame(columns=["metapath", "go_id", "entrez_gene_id", "dwpc", "rank"])
+    return df
 
 
 def collect_pairs_by_cumulative(
@@ -282,7 +285,20 @@ def collect_pairs_by_cumulative(
                     "pair_cumulative_fraction": pair_cumulative_frac,
                 }
             )
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "metapath",
+                "go_id",
+                "entrez_gene_id",
+                "dwpc",
+                "rank",
+                "pair_selection",
+                "pair_cumulative_fraction",
+            ]
+        )
+    return df
 
 
 def collect_pairs_by_effective_number(
@@ -318,7 +334,21 @@ def collect_pairs_by_effective_number(
                     "pair_effective_alpha": float(pair_effective_alpha),
                 }
             )
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "metapath",
+                "go_id",
+                "entrez_gene_id",
+                "dwpc",
+                "rank",
+                "pair_selection",
+                "pair_effective_n",
+                "pair_effective_alpha",
+            ]
+        )
+    return df
 
 
 def main() -> None:
@@ -414,6 +444,14 @@ def main() -> None:
         top_bps.to_csv(top_bp_path, index=False)
         print(f"Saved: {top_bp_path}")
 
+        if top_bps.empty:
+            pair_path = out_dir / f"top_gene_bp_pairs_{year}.csv"
+            pd.DataFrame(
+                columns=["metapath", "go_id", "entrez_gene_id", "dwpc", "rank", "go_name", "gene_name", "year"]
+            ).to_csv(pair_path, index=False)
+            print(f"No GO-term/metapath rows retained for {year}; saved empty pair file: {pair_path}")
+            continue
+
         top_pairs_key = set(zip(top_bps["metapath"], top_bps["go_id"]))
         pairs_df = collect_top_pairs(
             path,
@@ -426,9 +464,14 @@ def main() -> None:
             pair_effective_alpha=args.pair_effective_alpha,
             chunksize=args.chunksize,
         )
-        pairs_df["go_name"] = pairs_df["go_id"].map(bp_map)
-        pairs_df["gene_name"] = pairs_df["entrez_gene_id"].map(gene_map)
-        pairs_df["year"] = int(year)
+        if pairs_df.empty:
+            pairs_df = pd.DataFrame(
+                columns=["metapath", "go_id", "entrez_gene_id", "dwpc", "rank", "go_name", "gene_name", "year"]
+            )
+        else:
+            pairs_df["go_name"] = pairs_df["go_id"].map(bp_map)
+            pairs_df["gene_name"] = pairs_df["entrez_gene_id"].map(gene_map)
+            pairs_df["year"] = int(year)
 
         pair_path = out_dir / f"top_gene_bp_pairs_{year}.csv"
         pairs_df.to_csv(pair_path, index=False)
