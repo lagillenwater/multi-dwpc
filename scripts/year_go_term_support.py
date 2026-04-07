@@ -189,22 +189,24 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
             b_eff=("null_mean_score", "size"),
         )
     )
-    # Recompute the empirical count after aggregation using a vectorized pass to avoid
-    # relying on groupby lambdas with external state.
+
     compare_df = work.copy()
     compare_df["null_ge_real"] = (
         compare_df["null_mean_score"].astype(float) >= compare_df["real_mean_score"].astype(float)
     ).astype(int)
+
     ge_counts = (
         compare_df.groupby(["year", "go_id", "metapath", "control", "b"], as_index=False)["null_ge_real"]
         .sum()
         .rename(columns={"null_ge_real": "n_ge_real"})
     )
-    grouped = grouped.drop(columns=["n_ge_real"]).merge(
+
+    grouped = grouped.merge(
         ge_counts,
         on=["year", "go_id", "metapath", "control", "b"],
         how="left",
     )
+
     grouped["p_empirical"] = (1.0 + grouped["n_ge_real"].astype(float)) / (
         grouped["b_eff"].astype(float) + 1.0
     )
@@ -214,6 +216,7 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
         .drop_duplicates()
         .rename(columns={"real_mean_score": "real_mean"})
     )
+
     out = base.copy()
     for control, prefix in [("permuted", "perm"), ("random", "rand")]:
         sub = grouped[grouped["control"].astype(str) == control].copy()
@@ -251,8 +254,10 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
     out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
     out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
     out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
-    out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "b", "go_id"])
-    out = _apply_bh_fdr(out, p_col="p_rand", out_col="p_rand_fdr", group_cols=["year", "b", "go_id"])
+
+    out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "b"])
+    out = _apply_bh_fdr(out, p_col="p_rand", out_col="p_rand_fdr", group_cols=["year", "b"])
+
     out["supported"] = (
         (out["p_perm_fdr"] < 0.05)
         & (out["p_rand_fdr"] < 0.05)
@@ -260,11 +265,11 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
         & (out["diff_rand"] > 0)
     )
     out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
+
     return out.sort_values(
         ["b", "year", "go_id", "supported", "min_d", "min_diff", "fdr_sum", "metapath"],
         ascending=[True, True, True, False, False, False, True, True],
     ).reset_index(drop=True)
-
 
 def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
     if go_support_df.empty:
