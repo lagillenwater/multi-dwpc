@@ -120,14 +120,25 @@ def _build_support_rankings(support_df: pd.DataFrame, rank_metric: str) -> pd.Da
     work = support_df.copy()
     work["year"] = work["year"].astype(int)
     work["metapath"] = work["metapath"].astype(str)
+    work[rank_metric] = pd.to_numeric(work[rank_metric], errors="coerce")
+    valid = work[rank_metric].notna()
+    if valid.sum() == 0:
+        raise ValueError(f"Ranking metric '{rank_metric}' has no non-null values in the support table.")
+    work = work.loc[valid].copy()
     ranking_df = work.sort_values(
         ["year", rank_metric, "metapath"],
         ascending=[True, False, True],
     ).reset_index(drop=True)
     ranking_df["statistic"] = str(rank_metric)
     ranking_df["mean_score"] = ranking_df[rank_metric].astype(float)
-    if "n_go_terms" not in ranking_df.columns:
-        ranking_df["n_go_terms"] = ranking_df.get("n_go_terms_supported", np.nan)
+    if "n_go_terms" in ranking_df.columns:
+        pass
+    elif "n_go_terms_all" in ranking_df.columns:
+        ranking_df["n_go_terms"] = ranking_df["n_go_terms_all"]
+    elif "n_go_terms_supported" in ranking_df.columns:
+        ranking_df["n_go_terms"] = ranking_df["n_go_terms_supported"]
+    else:
+        ranking_df["n_go_terms"] = np.nan
     ranking_df["rank"] = ranking_df.groupby(["year", "statistic"], sort=False).cumcount().add(1)
     return ranking_df[["year", "statistic", "metapath", "mean_score", "n_go_terms", "rank"]]
 
@@ -320,7 +331,7 @@ def _plot_rank_scatter(
             ax.annotate(
                 str(row.metapath),
                 (float(row.rank_a), float(row.rank_b)),
-                xytext=(4, 4),
+                xytext=(8, 8),
                 textcoords="offset points",
                 fontsize=7,
                 color="#333333",
