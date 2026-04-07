@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pair-cumulative-frac", type=float, default=None)
     parser.add_argument("--pair-min-n", type=int, default=1)
     parser.add_argument("--pair-max-n", type=int, default=None)
+    parser.add_argument("--pair-effective-alpha", type=float, default=2.0)
     parser.add_argument("--path-selection-method", default="effective_number", choices=["effective_number", "top_n", "cumulative"])
     parser.add_argument("--path-enumeration-top-k", type=int, default=5000)
     parser.add_argument("--path-cumulative-frac", type=float, default=None)
@@ -93,6 +94,8 @@ def main() -> None:
         str(args.go_effective_min_n),
         "--pair-selection-method",
         str(args.pair_selection_method),
+        "--pair-effective-alpha",
+        str(args.pair_effective_alpha),
     ]
     if args.go_effective_max_n is not None:
         top_bp_cmd.extend(["--go-effective-max-n", str(args.go_effective_max_n)])
@@ -112,11 +115,11 @@ def main() -> None:
         top_bp_cmd.append("--support-only")
     if args.support_sort_metric:
         top_bp_cmd.extend(["--support-sort-metric", str(args.support_sort_metric)])
+    top_bp_cmd.extend(["--pair-min-n", str(args.pair_min_n)])
+    if args.pair_max_n is not None:
+        top_bp_cmd.extend(["--pair-max-n", str(args.pair_max_n)])
     if args.pair_cumulative_frac is not None:
         top_bp_cmd.extend(["--pair-cumulative-frac", str(args.pair_cumulative_frac)])
-        top_bp_cmd.extend(["--pair-min-n", str(args.pair_min_n)])
-        if args.pair_max_n is not None:
-            top_bp_cmd.extend(["--pair-max-n", str(args.pair_max_n)])
     _run(top_bp_cmd)
 
     top_path_cmd = [

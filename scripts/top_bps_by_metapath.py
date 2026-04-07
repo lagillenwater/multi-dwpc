@@ -66,19 +66,21 @@ def load_support_table(path: Path | None) -> pd.DataFrame | None:
     return support_df
 
 
-def effective_number(scores: pd.Series) -> float:
+def effective_number(scores: pd.Series, *, alpha: float = 1.0) -> float:
     vals = scores.to_numpy(dtype=float)
     vals = vals[np.isfinite(vals)]
     vals = vals[vals > 0]
     if vals.size == 0:
         return 1.0
+    if float(alpha) != 1.0:
+        vals = np.power(vals, float(alpha))
     weights = vals / vals.sum()
     entropy = float(-(weights * np.log(weights)).sum())
     return float(np.exp(entropy))
 
 
-def effective_k(scores: pd.Series, *, min_n: int = 1, max_n: int | None = None) -> int:
-    k = int(np.ceil(effective_number(scores)))
+def effective_k(scores: pd.Series, *, min_n: int = 1, max_n: int | None = None, alpha: float = 1.0) -> int:
+    k = int(np.ceil(effective_number(scores, alpha=float(alpha))))
     k = max(int(min_n), k)
     if max_n is not None:
         k = min(k, int(max_n))
@@ -185,6 +187,7 @@ def collect_top_pairs(
     pair_cumulative_frac: float | None = None,
     pair_min_n: int = 1,
     pair_max_n: int | None = None,
+    pair_effective_alpha: float = 1.0,
     chunksize: int = 200_000,
 ) -> pd.DataFrame:
     if pair_selection_method == "effective_number":
@@ -193,6 +196,7 @@ def collect_top_pairs(
             top_bp_pairs,
             pair_min_n=pair_min_n,
             pair_max_n=pair_max_n,
+            pair_effective_alpha=pair_effective_alpha,
             chunksize=chunksize,
         )
     if pair_cumulative_frac is not None:
@@ -287,6 +291,7 @@ def collect_pairs_by_effective_number(
     *,
     pair_min_n: int,
     pair_max_n: int | None,
+    pair_effective_alpha: float,
     chunksize: int = 200_000,
 ) -> pd.DataFrame:
     rows_by_key = _collect_group_rows(path, top_bp_pairs, chunksize=chunksize)
@@ -294,7 +299,12 @@ def collect_pairs_by_effective_number(
     for (metapath, go_id), rows in rows_by_key.items():
         ranked = sorted(rows, key=lambda x: (x[0], -x[1]), reverse=True)
         scores = pd.Series([max(dwpc, 0.0) for dwpc, _ in ranked], dtype=float)
-        k = effective_k(scores, min_n=pair_min_n, max_n=pair_max_n)
+        k = effective_k(
+            scores,
+            min_n=pair_min_n,
+            max_n=pair_max_n,
+            alpha=pair_effective_alpha,
+        )
         for rank, (dwpc, gene_id) in enumerate(ranked[:k], start=1):
             records.append(
                 {
@@ -304,7 +314,8 @@ def collect_pairs_by_effective_number(
                     "dwpc": dwpc,
                     "rank": rank,
                     "pair_selection": "effective_number",
-                    "pair_effective_n": float(effective_number(scores)),
+                    "pair_effective_n": float(effective_number(scores, alpha=pair_effective_alpha)),
+                    "pair_effective_alpha": float(pair_effective_alpha),
                 }
             )
     return pd.DataFrame(records)
@@ -328,6 +339,7 @@ def main() -> None:
     parser.add_argument("--pair-cumulative-frac", type=float, default=None, help="Retain pairs until this cumulative DWPC fraction is reached per metapath/GO term.")
     parser.add_argument("--pair-min-n", type=int, default=1, help="Minimum pairs retained when using --pair-cumulative-frac.")
     parser.add_argument("--pair-max-n", type=int, default=None, help="Optional cap on retained pairs per metapath/GO term.")
+    parser.add_argument("--pair-effective-alpha", type=float, default=2.0, help="Sharpening exponent for pair effective-number selection within each GO term/metapath.")
     parser.add_argument("--top-quantile", type=float, default=None, help="Quantile threshold per GO term when using quantile selection.")
     parser.add_argument("--top-z", type=float, default=None, help="Z-score threshold per GO term when using z selection.")
     parser.add_argument("--results-dir", default=None, help="Direct year result directory.")
@@ -411,6 +423,7 @@ def main() -> None:
             pair_cumulative_frac=args.pair_cumulative_frac,
             pair_min_n=args.pair_min_n,
             pair_max_n=args.pair_max_n,
+            pair_effective_alpha=args.pair_effective_alpha,
             chunksize=args.chunksize,
         )
         pairs_df["go_name"] = pairs_df["go_id"].map(bp_map)

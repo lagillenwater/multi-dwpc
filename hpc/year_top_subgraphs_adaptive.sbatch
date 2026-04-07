@@ -21,6 +21,8 @@ cd "$REPO_ROOT"
 YEAR_WORKSPACE_DIR="${YEAR_WORKSPACE_DIR:-output/dwpc_direct/all_GO_positive_growth}"
 YEAR_GO_SUPPORT_PATH="${YEAR_GO_SUPPORT_PATH:-output/year_direct_go_term_support.csv}"
 YEAR_GLOBAL_SUPPORT_PATH="${YEAR_GLOBAL_SUPPORT_PATH:-output/year_direct_global_metapath_support.csv}"
+YEAR_GO_SUPPORT_RUNS_PATH="${YEAR_GO_SUPPORT_RUNS_PATH:-}"
+YEAR_SUPPORT_B="${YEAR_SUPPORT_B:-}"
 YEAR_TOP_PATHS_OUTPUT_DIR="${YEAR_TOP_PATHS_OUTPUT_DIR:-output/metapath_analysis/top_paths_adaptive}"
 YEAR_TOP_YEARS="${YEAR_TOP_YEARS:-2016 2024}"
 
@@ -31,22 +33,40 @@ YEAR_PATH_ENUMERATION_TOP_K="${YEAR_PATH_ENUMERATION_TOP_K:-5000}"
 YEAR_TOP_CHUNKSIZE="${YEAR_TOP_CHUNKSIZE:-200000}"
 YEAR_DEGREE_D="${YEAR_DEGREE_D:-0.5}"
 
-python3 scripts/year_go_term_support.py \
-  --workspace-dir "$YEAR_WORKSPACE_DIR" \
-  --go-support-output "$YEAR_GO_SUPPORT_PATH" \
-  --global-support-output "$YEAR_GLOBAL_SUPPORT_PATH"
+if [[ -n "$YEAR_GO_SUPPORT_RUNS_PATH" ]]; then
+  support_cmd=(
+    python3 scripts/year_go_term_support.py
+    --runs-path "$YEAR_GO_SUPPORT_RUNS_PATH"
+    --go-support-output "$YEAR_GO_SUPPORT_PATH"
+    --global-support-output "$YEAR_GLOBAL_SUPPORT_PATH"
+  )
+  if [[ -n "$YEAR_SUPPORT_B" ]]; then
+    support_cmd+=(--b "$YEAR_SUPPORT_B")
+  fi
+else
+  support_cmd=(
+    python3 scripts/year_go_term_support.py
+    --workspace-dir "$YEAR_WORKSPACE_DIR"
+    --go-support-output "$YEAR_GO_SUPPORT_PATH"
+    --global-support-output "$YEAR_GLOBAL_SUPPORT_PATH"
+  )
+fi
+
+"${support_cmd[@]}"
 
 python3 scripts/identify_year_top_paths.py \
   --years ${YEAR_TOP_YEARS} \
   --output-dir "$YEAR_TOP_PATHS_OUTPUT_DIR" \
   --support-path "$YEAR_GO_SUPPORT_PATH" \
   --support-only \
-  --support-sort-metric min_d \
+  --support-sort-metric "${YEAR_SUPPORT_SORT_METRIC:-consensus_score}" \
   --go-selection-method effective_number \
   --go-effective-min-n "$YEAR_GO_EFFECTIVE_MIN_N" \
   --pair-top-n "${YEAR_PAIR_TOP_N:-20}" \
   --pair-selection-method effective_number \
   --pair-min-n "$YEAR_PAIR_MIN_N" \
+  --pair-max-n "${YEAR_PAIR_MAX_N:-5}" \
+  --pair-effective-alpha "${YEAR_PAIR_EFFECTIVE_ALPHA:-2.0}" \
   --top-paths "${YEAR_TOP_PATHS:-5}" \
   --path-enumeration-top-k "$YEAR_PATH_ENUMERATION_TOP_K" \
   --path-selection-method effective_number \
