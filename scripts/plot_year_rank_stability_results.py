@@ -112,12 +112,17 @@ def _compute_elbow(entity_df: pd.DataFrame, metric_col: str, increasing: bool) -
 def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
     entity_df = entity_df.copy()
     entity_df["year"] = entity_df["year"].astype(int)
+    # Canonical x-axis bin for plotting/ticks
+    entity_df["b_plot"] = entity_df["b"].astype(float).round().astype(int)
+
     controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
     years = sorted(entity_df["year"].dropna().astype(int).unique().tolist())
     if not controls or not years:
         raise ValueError("Year stability summary must contain control and year values")
 
     mean_df = _mean_by_year(entity_df)
+    mean_df = mean_df.copy()
+    mean_df["b_plot"] = mean_df["b"].astype(float).round().astype(int)
     fig, axes = plt.subplots(1, len(controls), figsize=(7.0 * len(controls), 5.2), sharey=True)
     if len(controls) == 1:
         axes = [axes]
@@ -127,13 +132,18 @@ def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
         control_points = entity_df[entity_df["control"].astype(str) == control].copy()
         control_mean = mean_df[mean_df["control"].astype(str) == control].copy()
         width = 0.32 if len(years) > 1 else 0.55
-        offsets = {int(y): ((idx - (len(years) - 1) / 2.0) * width) for idx, y in enumerate(years)}
+        offsets = {
+            int(y): ((idx - (len(years) - 1) / 2.0) * width)
+            for idx, y in enumerate(years)
+        }
+        all_b = sorted(control_points["b_plot"].dropna().astype(int).unique().tolist())
         for year in years:
             color = YEAR_COLORS.get(str(year), "#333333")
             points = control_points[control_points["year"].astype(int) == int(year)].copy()
             if points.empty:
                 continue
-            positions = [float(b) + float(offsets[int(year)]) for b in sorted(points["b"].astype(int).unique().tolist())]
+            b_vals = sorted(points["b_plot"].astype(int).unique().tolist())
+            positions = [b + offsets[int(year)] for b in b_vals]
             box_data = [
                 points[points["b"].astype(int) == int(b)]["mean_spearman_rho"].astype(float).to_numpy()
                 for b in sorted(points["b"].astype(int).unique().tolist())
@@ -143,11 +153,11 @@ def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
                 positions=positions,
                 widths=width * 0.85,
                 patch_artist=True,
-                boxprops={"facecolor": color, "alpha": 0.22, "edgecolor": color},
+                boxprops={"facecolor": color, "alpha": 0.5, "edgecolor": color},
                 medianprops={"color": color, "linewidth": 1.4},
                 whiskerprops={"color": color, "alpha": 0.5},
                 capprops={"color": color, "alpha": 0.5},
-                flierprops={"marker": "o", "markersize": 2.5, "markerfacecolor": color, "markeredgecolor": "none", "alpha": 0.20},
+                showfliers=False,
             )
             line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
             ax.plot(
@@ -155,14 +165,17 @@ def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
                 line["mean_rho_by_year"].astype(float),
                 marker="o",
                 linewidth=2.2,
-                markersize=6.5,
+                markersize=1,
                 color=color,
                 alpha=0.55,
                 label=str(year),
             )
-        ax.set_xlabel("Null replicate count (B)")
-        ax.set_title(control)
-        ax.grid(alpha=0.25)
+    ax.set_xlabel("Null replicate count (B)")
+    ax.set_xticks(all_b)
+    ax.set_xticklabels([str(b) for b in all_b])
+    ax.tick_params(axis="x", labelrotation=0)
+    ax.set_title(control)
+    ax.grid(alpha=0.25)
     axes[0].set_ylabel("Mean Spearman rho across seed pairs")
     axes[-1].legend(title="Year", loc="best")
     fig.suptitle("Year rank-stability rho by B")

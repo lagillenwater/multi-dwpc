@@ -90,57 +90,86 @@ def _plot_metric(
 ) -> None:
     feature_df = feature_df.copy()
     feature_df["year"] = feature_df["year"].astype(int)
+
+    # Canonical x-axis bin for plotting/ticks
+    feature_df["b_plot"] = feature_df["b"].astype(float).round().astype(int)
+
     controls = sorted(feature_df["control"].dropna().astype(str).unique().tolist())
     years = sorted(feature_df["year"].dropna().astype(int).unique().tolist())
     if not controls or not years:
         raise ValueError("Year feature summary must contain control and year values")
 
     mean_df = _entity_mean(feature_df, metric_col)
+    mean_df = mean_df.copy()
+    mean_df["b_plot"] = mean_df["b"].astype(float).round().astype(int)
+
     fig, axes = plt.subplots(1, len(controls), figsize=(7.0 * len(controls), 5.2), sharey=True)
     if len(controls) == 1:
         axes = [axes]
 
-    rng = np.random.default_rng(42)
     for ax, control in zip(axes, controls):
         control_points = feature_df[feature_df["control"].astype(str) == control].copy()
         control_mean = mean_df[mean_df["control"].astype(str) == control].copy()
+
         width = 0.32 if len(years) > 1 else 0.55
+        offsets = {
+            int(y): ((idx - (len(years) - 1) / 2.0) * width)
+            for idx, y in enumerate(years)
+        }
+
+        all_b = sorted(control_points["b_plot"].dropna().astype(int).unique().tolist())
+
         for year in years:
             color = YEAR_COLORS.get(str(year), "#333333")
             points = control_points[control_points["year"].astype(int) == int(year)].copy()
             if points.empty:
                 continue
-            offsets = {int(y): ((idx - (len(years) - 1) / 2.0) * width) for idx, y in enumerate(years)}
-            positions = [float(b) + float(offsets[int(year)]) for b in sorted(points["b"].astype(int).unique().tolist())]
+
+            b_vals = sorted(points["b_plot"].astype(int).unique().tolist())
+            positions = [b + offsets[int(year)] for b in b_vals]
+
             box_data = [
-                points[points["b"].astype(int) == int(b)][metric_col].astype(float).to_numpy()
-                for b in sorted(points["b"].astype(int).unique().tolist())
+                points.loc[points["b_plot"].astype(int) == b, metric_col].astype(float).to_numpy()
+                for b in b_vals
             ]
+
             ax.boxplot(
                 box_data,
                 positions=positions,
                 widths=width * 0.85,
                 patch_artist=True,
-                boxprops={"facecolor": color, "alpha": 0.22, "edgecolor": color},
+                boxprops={"facecolor": color, "alpha": 0.5, "edgecolor": color},
                 medianprops={"color": color, "linewidth": 1.4},
                 whiskerprops={"color": color, "alpha": 0.5},
                 capprops={"color": color, "alpha": 0.5},
-                flierprops={"marker": "o", "markersize": 2.5, "markerfacecolor": color, "markeredgecolor": "none", "alpha": 0.20},
+                showfliers=False,
             )
-            line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
+
+            line = (
+                control_mean[control_mean["year"].astype(int) == int(year)]
+                .groupby("b_plot", as_index=False)[f"mean_{metric_col}"]
+                .mean()
+                .sort_values("b_plot")
+            )
+
             ax.plot(
-                line["b"].astype(float),
+                line["b_plot"].astype(float),
                 line[f"mean_{metric_col}"].astype(float),
                 marker="o",
                 linewidth=2.2,
-                markersize=6.5,
+                markersize=1,
                 color=color,
-                alpha=0.55,
+                alpha=0.4,
                 label=str(year),
             )
+
         ax.set_xlabel("Null replicate count (B)")
+        ax.set_xticks(all_b)
+        ax.set_xticklabels([str(b) for b in all_b])
+        ax.tick_params(axis="x", labelrotation=0)
         ax.set_title(control)
         ax.grid(alpha=0.25)
+
     axes[0].set_ylabel(y_label)
     axes[-1].legend(title="Year", loc="best")
     fig.suptitle(title)
