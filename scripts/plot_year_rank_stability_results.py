@@ -84,18 +84,28 @@ def _compute_elbow(entity_df: pd.DataFrame, metric_col: str, increasing: bool) -
             continue
         x = curve["b"].astype(float).to_numpy()
         y = curve[metric_col].astype(float).to_numpy()
-        x_norm = (x - x.min()) / (x.max() - x.min()) if x.max() > x.min() else np.zeros_like(x)
+        x_log = np.log10(x)
+        x_norm = (x_log - x_log.min()) / (x_log.max() - x_log.min()) if x_log.max() > x_log.min() else np.zeros_like(x_log)
         y_min = float(np.nanmin(y))
         y_max = float(np.nanmax(y))
         if y_max > y_min:
             y_norm = (y - y_min) / (y_max - y_min)
         else:
             y_norm = np.zeros_like(y)
-        if not increasing:
-            y_norm = 1.0 - y_norm
-        line = np.linspace(y_norm[0], y_norm[-1], len(y_norm))
-        distance = y_norm - line
-        idx = int(np.argmax(distance))
+        progress = y_norm if increasing else 1.0 - y_norm
+        line = np.linspace(progress[0], progress[-1], len(progress))
+        distance = progress - line
+        geometric_idx = int(np.argmax(distance))
+
+        target_fraction = 0.90
+        if increasing:
+            target_value = y_min + (target_fraction * (y_max - y_min))
+            target_candidates = np.where(y >= target_value)[0]
+        else:
+            target_value = y_max - (target_fraction * (y_max - y_min))
+            target_candidates = np.where(y <= target_value)[0]
+        target_idx = int(target_candidates[0]) if len(target_candidates) else len(curve) - 1
+        idx = max(geometric_idx, target_idx)
         rows.append(
             {
                 "control": str(control),
@@ -104,6 +114,11 @@ def _compute_elbow(entity_df: pd.DataFrame, metric_col: str, increasing: bool) -
                 "elbow_b": int(curve["b"].iloc[idx]),
                 "elbow_mean_value": float(curve[metric_col].iloc[idx]),
                 "elbow_distance": float(distance[idx]),
+                "geometric_elbow_b": int(curve["b"].iloc[geometric_idx]),
+                "geometric_distance": float(distance[geometric_idx]),
+                "target_fraction": float(target_fraction),
+                "target_b": int(curve["b"].iloc[target_idx]),
+                "elbow_method": "max_geometric_and_target",
             }
         )
     return pd.DataFrame(rows)

@@ -62,6 +62,7 @@ def main() -> None:
                 "min_elbow_b": int(elbows["elbow_b"].min()),
                 "median_elbow_b": float(elbows["elbow_b"].median()),
                 "max_elbow_b": int(elbows["elbow_b"].max()),
+                "available_elbow_bs": ",".join(str(int(v)) for v in sorted(elbows["elbow_b"].astype(int).unique())),
             }
         ]
     )
