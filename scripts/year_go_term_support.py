@@ -61,6 +61,51 @@ def _combine_pvalues_fisher(pvals: pd.Series) -> float:
     return float(chi2.sf(stat, 2 * vals.size))
 
 
+def _add_dual_null_summary_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
+    out["diff_rand"] = out["real_mean"] - out["rand_null_mean"]
+    out["d_perm"] = _safe_effect_size(out["real_mean"], out["perm_null_mean"], out["perm_null_std"])
+    out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
+    out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
+    out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
+    out["mean_std_score"] = 0.5 * (out["d_perm"] + out["d_rand"])
+    return out
+
+
+def _aggregate_global_summary(go_support_df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+    group_cols = ["year", "metapath"]
+    if "b" in go_support_df.columns:
+        group_cols = ["b", *group_cols]
+
+    summary = (
+        go_support_df.groupby(group_cols, as_index=False)
+        .agg(
+            n_go_terms=("go_id", "nunique"),
+            mean_real_mean=("real_mean", "mean"),
+            mean_diff_perm=("diff_perm", "mean"),
+            mean_diff_rand=("diff_rand", "mean"),
+            mean_min_diff=("min_diff", "mean"),
+            mean_min_d=("min_d", "mean"),
+            mean_std_score=("mean_std_score", "mean"),
+            median_min_d=("min_d", "median"),
+            median_std_score=("mean_std_score", "median"),
+        )
+    )
+    rename_map = {
+        "n_go_terms": f"n_go_terms_{suffix}",
+        "mean_real_mean": f"mean_real_mean_{suffix}",
+        "mean_diff_perm": f"mean_diff_perm_{suffix}",
+        "mean_diff_rand": f"mean_diff_rand_{suffix}",
+        "mean_min_diff": f"mean_min_diff_{suffix}",
+        "mean_min_d": f"mean_min_d_{suffix}",
+        "mean_std_score": f"mean_std_score_{suffix}",
+        "median_min_d": f"median_min_d_{suffix}",
+        "median_std_score": f"median_std_score_{suffix}",
+    }
+    return summary.rename(columns=rename_map)
+
+
 def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
     required = {"year", "control", "replicate", "go_id", "metapath", "mean_score"}
     missing = required - set(summary_df.columns)
@@ -145,12 +190,7 @@ def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
             how="left",
         )
 
-    out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
-    out["diff_rand"] = out["real_mean"] - out["rand_null_mean"]
-    out["d_perm"] = _safe_effect_size(out["real_mean"], out["perm_null_mean"], out["perm_null_std"])
-    out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
-    out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
-    out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
+    out = _add_dual_null_summary_columns(out)
     out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "go_id"])
     out = _apply_bh_fdr(out, p_col="p_rand", out_col="p_rand_fdr", group_cols=["year", "go_id"])
     out["supported"] = (
@@ -161,8 +201,8 @@ def build_go_term_support(summary_df: pd.DataFrame) -> pd.DataFrame:
     )
     out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
     return out.sort_values(
-        ["year", "go_id", "supported", "min_d", "min_diff", "fdr_sum", "metapath"],
-        ascending=[True, True, False, False, False, True, True],
+        ["year", "go_id", "supported", "mean_std_score", "min_d", "min_diff", "fdr_sum", "metapath"],
+        ascending=[True, True, False, False, False, False, True, True],
     ).reset_index(drop=True)
 
 
@@ -248,12 +288,7 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
             how="left",
         )
 
-    out["diff_perm"] = out["real_mean"] - out["perm_null_mean"]
-    out["diff_rand"] = out["real_mean"] - out["rand_null_mean"]
-    out["d_perm"] = _safe_effect_size(out["real_mean"], out["perm_null_mean"], out["perm_null_std"])
-    out["d_rand"] = _safe_effect_size(out["real_mean"], out["rand_null_mean"], out["rand_null_std"])
-    out["min_diff"] = np.minimum(out["diff_perm"], out["diff_rand"])
-    out["min_d"] = np.minimum(out["d_perm"], out["d_rand"])
+    out = _add_dual_null_summary_columns(out)
 
     out = _apply_bh_fdr(out, p_col="p_perm", out_col="p_perm_fdr", group_cols=["year", "b"])
     out = _apply_bh_fdr(out, p_col="p_rand", out_col="p_rand_fdr", group_cols=["year", "b"])
@@ -267,8 +302,8 @@ def build_go_term_support_from_runs(runs_df: pd.DataFrame) -> pd.DataFrame:
     out["fdr_sum"] = out["p_perm_fdr"] + out["p_rand_fdr"]
 
     return out.sort_values(
-        ["b", "year", "go_id", "supported", "min_d", "min_diff", "fdr_sum", "metapath"],
-        ascending=[True, True, True, False, False, False, True, True],
+        ["b", "year", "go_id", "supported", "mean_std_score", "min_d", "min_diff", "fdr_sum", "metapath"],
+        ascending=[True, True, True, False, False, False, False, True, True],
     ).reset_index(drop=True)
 
 def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
@@ -279,22 +314,38 @@ def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
     if "b" in go_support_df.columns:
         group_cols = ["b", *group_cols]
 
-    agg = (
+    agg_full = _aggregate_global_summary(go_support_df, suffix="all")
+    supported_only = go_support_df[go_support_df["supported"].fillna(False)].copy()
+    if supported_only.empty:
+        agg_supported = agg_full[group_cols].copy()
+        for col in [
+            "n_go_terms_supported_only",
+            "mean_real_mean_supported_only",
+            "mean_diff_perm_supported_only",
+            "mean_diff_rand_supported_only",
+            "mean_min_diff_supported_only",
+            "mean_min_d_supported_only",
+            "mean_std_score_supported_only",
+            "median_min_d_supported_only",
+            "median_std_score_supported_only",
+        ]:
+            agg_supported[col] = np.nan
+    else:
+        agg_supported = _aggregate_global_summary(supported_only, suffix="supported_only")
+
+    agg_inferential = (
         go_support_df.groupby(group_cols, as_index=False)
         .agg(
-            n_go_terms=("go_id", "nunique"),
-            n_go_terms_supported=("supported", "sum"),
-            mean_real_mean=("real_mean", "mean"),
-            mean_diff_perm=("diff_perm", "mean"),
-            mean_diff_rand=("diff_rand", "mean"),
-            mean_min_diff=("min_diff", "mean"),
-            mean_min_d=("min_d", "mean"),
-            median_min_d=("min_d", "median"),
             combined_p_perm=("p_perm", _combine_pvalues_fisher),
             combined_p_rand=("p_rand", _combine_pvalues_fisher),
+            n_go_terms_supported=("supported", "sum"),
         )
     )
-    agg["support_fraction"] = agg["n_go_terms_supported"] / agg["n_go_terms"].replace(0, np.nan)
+
+    agg = agg_full.merge(agg_supported, on=group_cols, how="left").merge(
+        agg_inferential, on=group_cols, how="left"
+    )
+    agg["support_fraction"] = agg["n_go_terms_supported"] / agg["n_go_terms_all"].replace(0, np.nan)
     fdr_group_cols = ["year"]
     if "b" in agg.columns:
         fdr_group_cols = ["b", "year"]
@@ -303,12 +354,12 @@ def build_global_metapath_support(go_support_df: pd.DataFrame) -> pd.DataFrame:
     agg["supported_global"] = (
         (agg["combined_p_perm_fdr"] < 0.05)
         & (agg["combined_p_rand_fdr"] < 0.05)
-        & (agg["mean_diff_perm"] > 0)
-        & (agg["mean_diff_rand"] > 0)
+        & (agg["mean_diff_perm_all"] > 0)
+        & (agg["mean_diff_rand_all"] > 0)
     )
     agg["combined_fdr_sum"] = agg["combined_p_perm_fdr"] + agg["combined_p_rand_fdr"]
     return agg.sort_values(
-        ["year", "supported_global", "support_fraction", "mean_min_d", "combined_fdr_sum", "metapath"],
+        ["year", "supported_global", "support_fraction", "mean_std_score_all", "combined_fdr_sum", "metapath"],
         ascending=[True, False, False, False, True, True],
     ).reset_index(drop=True)
 
