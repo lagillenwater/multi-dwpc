@@ -7,6 +7,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
 #SBATCH --output=hpc/logs/year-top-adapt_%j.out
+#SBATCH --qos=normal
 
 set -euo pipefail
 
