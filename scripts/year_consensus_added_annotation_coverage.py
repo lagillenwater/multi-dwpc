@@ -16,6 +16,8 @@ DEFAULT_SUPPORT_PATH = REPO_ROOT / "output" / "year_direct_go_term_support_b5.cs
 DEFAULT_ADDED_PAIRS_PATH = REPO_ROOT / "output" / "intermediate" / "upd_go_bp_2024_added.csv"
 DEFAULT_RESULTS_PATH = REPO_ROOT / "output" / "dwpc_direct" / "all_GO_positive_growth" / "results" / "dwpc_all_GO_positive_growth_2024_real.csv"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "metapath_analysis" / "consensus_added_coverage_b5"
+NODE_ABBREVS = ["BP", "CC", "MF", "PW", "SE", "PC", "G", "A", "D", "C", "S"]
+NODE_ABBREVS = sorted(NODE_ABBREVS, key=len, reverse=True)
 
 
 def _parse_int_list(arg: str) -> list[int]:
@@ -72,6 +74,29 @@ def _load_added_pairs(path: Path) -> pd.DataFrame:
     out["go_name"] = out["go_name"].astype("string")
     out["gene_symbol"] = out["gene_symbol"].astype("string")
     return out.drop_duplicates().reset_index(drop=True)
+
+
+def _parse_nodes(metapath: str) -> list[str]:
+    nodes: list[str] = []
+    i = 0
+    text = str(metapath)
+    while i < len(text):
+        matched = False
+        for ab in NODE_ABBREVS:
+            if text.startswith(ab, i):
+                nodes.append(ab)
+                i += len(ab)
+                matched = True
+                break
+        if not matched:
+            i += 1
+    return nodes
+
+
+def _has_excluded_intermediate_node(metapath: str, excluded_nodes: set[str]) -> bool:
+    nodes = _parse_nodes(str(metapath))
+    internal = nodes[1:-1]
+    return any(node in excluded_nodes for node in internal)
 
 
 def _scan_results(
@@ -232,6 +257,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k-values", default="1,2,3")
     parser.add_argument("--chunksize", type=int, default=200_000)
     parser.add_argument("--dwpc-threshold", type=float, default=0.0)
+    parser.add_argument(
+        "--exclude-intermediate-nodes",
+        default="",
+        help="Comma-separated internal node abbreviations to exclude from candidate metapaths, e.g. BP,CC,MF,PW",
+    )
     return parser.parse_args()
 
 
@@ -241,6 +271,21 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     support_2024 = _load_support(Path(args.support_path), year=2024)
+    if str(args.exclude_intermediate_nodes).strip():
+        excluded_nodes = {
+            tok.strip()
+            for tok in str(args.exclude_intermediate_nodes).split(",")
+            if tok.strip()
+        }
+        before = int(support_2024["metapath"].nunique())
+        support_2024 = support_2024[
+            ~support_2024["metapath"].map(lambda mp: _has_excluded_intermediate_node(mp, excluded_nodes))
+        ].copy()
+        after = int(support_2024["metapath"].nunique())
+        print(
+            "Excluded internal-node metapaths: "
+            f"{sorted(excluded_nodes)}; removed {before - after} unique metapaths, kept {after}"
+        )
     added_df = _load_added_pairs(Path(args.added_pairs_path))
     top_k_values = _parse_int_list(args.top_k_values)
 
