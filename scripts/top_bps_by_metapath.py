@@ -34,6 +34,27 @@ def load_name_map(path: Path) -> dict:
     return dict(zip(df["identifier"], df["name"]))
 
 
+def load_support_table(path: Path | None) -> pd.DataFrame | None:
+    if path is None:
+        return None
+    support_df = pd.read_csv(path).copy()
+    required = {"year", "metapath"}
+    missing = required - set(support_df.columns)
+    if missing:
+        raise ValueError(f"Support table missing required columns: {sorted(missing)}")
+    support_df["year"] = support_df["year"].astype(int)
+    support_df["metapath"] = support_df["metapath"].astype(str)
+    if "supported" in support_df.columns:
+        support_df["supported"] = (
+            support_df["supported"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .isin({"1", "true", "t", "yes"})
+        )
+    return support_df
+
+
 def compute_mean_dwpc(path: Path, chunksize: int = 200_000) -> pd.DataFrame:
     agg: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0])
     usecols = ["metapath", "go_id", "dwpc"]
@@ -105,12 +126,52 @@ def select_top_metapaths(df: pd.DataFrame, top_metapaths: int | None) -> set[str
     return set(ranked.head(int(top_metapaths))["metapath"].astype(str))
 
 
+def select_supported_metapaths(
+    support_df: pd.DataFrame | None,
+    *,
+    year: int,
+    support_only: bool,
+    sort_metric: str,
+    top_metapaths: int | None,
+) -> pd.DataFrame | None:
+    if support_df is None:
+        return None
+    subset = support_df[support_df["year"].astype(int) == int(year)].copy()
+    if subset.empty:
+        return subset
+    if support_only and "supported" in subset.columns:
+        subset = subset[subset["supported"] == True].copy()  # noqa: E712
+    if subset.empty:
+        return subset
+    if sort_metric not in subset.columns:
+        raise ValueError(f"Requested support sort metric '{sort_metric}' not found in support table")
+    subset = subset.sort_values(
+        [sort_metric, "min_diff", "metapath"],
+        ascending=[False, False, True],
+    )
+    if top_metapaths is not None:
+        subset = subset.head(int(top_metapaths)).copy()
+    return subset
+
+
 def collect_top_pairs(
     path: Path,
     top_bp_pairs: set[tuple[str, str]],
     pair_top_n: int,
+    pair_cumulative_frac: float | None = None,
+    pair_min_n: int = 1,
+    pair_max_n: int | None = None,
     chunksize: int = 200_000,
 ) -> pd.DataFrame:
+    if pair_cumulative_frac is not None:
+        return collect_pairs_by_cumulative(
+            path,
+            top_bp_pairs,
+            pair_cumulative_frac=pair_cumulative_frac,
+            pair_min_n=pair_min_n,
+            pair_max_n=pair_max_n,
+            chunksize=chunksize,
+        )
     heaps: dict[tuple[str, str], list[tuple[float, int]]] = defaultdict(list)
     usecols = ["metapath", "go_id", "entrez_gene_id", "dwpc"]
 
@@ -146,6 +207,57 @@ def collect_top_pairs(
     return pd.DataFrame(records)
 
 
+def collect_pairs_by_cumulative(
+    path: Path,
+    top_bp_pairs: set[tuple[str, str]],
+    *,
+    pair_cumulative_frac: float,
+    pair_min_n: int,
+    pair_max_n: int | None,
+    chunksize: int = 200_000,
+) -> pd.DataFrame:
+    rows_by_key: dict[tuple[str, str], list[tuple[float, int]]] = defaultdict(list)
+    usecols = ["metapath", "go_id", "entrez_gene_id", "dwpc"]
+
+    for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
+        keys = list(zip(chunk["metapath"], chunk["go_id"]))
+        mask = [k in top_bp_pairs for k in keys]
+        if not any(mask):
+            continue
+        sub = chunk.loc[mask]
+        for row in sub.itertuples(index=False):
+            rows_by_key[(row.metapath, row.go_id)].append((float(row.dwpc), int(row.entrez_gene_id)))
+
+    records = []
+    for (metapath, go_id), rows in rows_by_key.items():
+        ranked = sorted(rows, key=lambda x: (x[0], -x[1]), reverse=True)
+        positive_total = sum(max(dwpc, 0.0) for dwpc, _ in ranked)
+        cumulative = 0.0
+        selected: list[tuple[float, int]] = []
+        for dwpc, gene_id in ranked:
+            selected.append((dwpc, gene_id))
+            cumulative += max(dwpc, 0.0)
+            enough_by_frac = positive_total <= 0 or cumulative / positive_total >= float(pair_cumulative_frac)
+            enough_by_min = len(selected) >= int(pair_min_n)
+            enough_by_max = pair_max_n is not None and len(selected) >= int(pair_max_n)
+            if enough_by_max or (enough_by_min and enough_by_frac):
+                break
+
+        for rank, (dwpc, gene_id) in enumerate(selected, start=1):
+            records.append(
+                {
+                    "metapath": metapath,
+                    "go_id": go_id,
+                    "entrez_gene_id": gene_id,
+                    "dwpc": dwpc,
+                    "rank": rank,
+                    "pair_selection": f"cumulative_{pair_cumulative_frac:.2f}",
+                    "pair_cumulative_fraction": pair_cumulative_frac,
+                }
+            )
+    return pd.DataFrame(records)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Top BP terms and top gene-BP pairs per metapath.")
     parser.add_argument("--years", nargs="+", default=["2016", "2024"])
@@ -157,8 +269,16 @@ def main() -> None:
         help="Optional cap on the number of metapaths retained per year.",
     )
     parser.add_argument("--pair-top-n", type=int, default=10, help="Top gene-BP pairs per BP (default 10).")
+    parser.add_argument("--pair-cumulative-frac", type=float, default=None, help="Retain pairs until this cumulative DWPC fraction is reached per metapath/GO term.")
+    parser.add_argument("--pair-min-n", type=int, default=1, help="Minimum pairs retained when using --pair-cumulative-frac.")
+    parser.add_argument("--pair-max-n", type=int, default=None, help="Optional cap on retained pairs per metapath/GO term.")
     parser.add_argument("--top-quantile", type=float, default=None, help="Quantile threshold per metapath.")
     parser.add_argument("--top-z", type=float, default=None, help="Z-score threshold per metapath.")
+    parser.add_argument("--results-dir", default=None, help="Direct year result directory.")
+    parser.add_argument("--output-dir", default=None, help="Destination for top-path selection CSVs.")
+    parser.add_argument("--support-path", default=None, help="Optional year metapath support table CSV.")
+    parser.add_argument("--support-only", action="store_true", help="When support table is provided, keep only supported metapaths.")
+    parser.add_argument("--support-sort-metric", default="min_d", choices=["min_d", "min_diff", "real_mean"], help="Sort metric for metapaths from support table.")
     parser.add_argument("--chunksize", type=int, default=200_000)
     args = parser.parse_args()
 
@@ -167,9 +287,10 @@ def main() -> None:
 
     repo_root = Path(__file__).resolve().parent.parent
     base_name = "all_GO_positive_growth"
-    results_dir = repo_root / "output" / "dwpc_direct" / base_name / "results"
-    out_dir = repo_root / "output" / "metapath_analysis" / "top_paths"
+    results_dir = Path(args.results_dir) if args.results_dir else repo_root / "output" / "dwpc_direct" / base_name / "results"
+    out_dir = Path(args.output_dir) if args.output_dir else repo_root / "output" / "metapath_analysis" / "top_paths"
     out_dir.mkdir(parents=True, exist_ok=True)
+    support_df = load_support_table(Path(args.support_path)) if args.support_path else None
 
     bp_map = load_name_map(repo_root / "data" / "nodes" / "Biological Process.tsv")
     gene_map = load_name_map(repo_root / "data" / "nodes" / "Gene.tsv")
@@ -183,10 +304,22 @@ def main() -> None:
         print(f"Processing {year} from {path}")
         mean_df = compute_mean_dwpc(path, chunksize=args.chunksize)
         top_bps = select_top_bps(mean_df, args.top_n, args.top_quantile, args.top_z)
-        selected_metapaths = select_top_metapaths(mean_df, args.top_metapaths)
-        if selected_metapaths is not None:
+        support_subset = select_supported_metapaths(
+            support_df,
+            year=int(year),
+            support_only=bool(args.support_only),
+            sort_metric=str(args.support_sort_metric),
+            top_metapaths=args.top_metapaths,
+        )
+        if support_subset is not None:
+            selected_metapaths = set(support_subset["metapath"].astype(str).tolist())
             top_bps = top_bps[top_bps["metapath"].isin(selected_metapaths)].copy()
-            print(f"Retained {len(selected_metapaths):,} metapaths for {year}")
+            print(f"Retained {len(selected_metapaths):,} metapaths for {year} from support table")
+        else:
+            selected_metapaths = select_top_metapaths(mean_df, args.top_metapaths)
+            if selected_metapaths is not None:
+                top_bps = top_bps[top_bps["metapath"].isin(selected_metapaths)].copy()
+                print(f"Retained {len(selected_metapaths):,} metapaths for {year}")
         top_bps["go_name"] = top_bps["go_id"].map(bp_map)
         top_bps["year"] = int(year)
 
@@ -195,7 +328,15 @@ def main() -> None:
         print(f"Saved: {top_bp_path}")
 
         top_pairs_key = set(zip(top_bps["metapath"], top_bps["go_id"]))
-        pairs_df = collect_top_pairs(path, top_pairs_key, args.pair_top_n, chunksize=args.chunksize)
+        pairs_df = collect_top_pairs(
+            path,
+            top_pairs_key,
+            args.pair_top_n,
+            pair_cumulative_frac=args.pair_cumulative_frac,
+            pair_min_n=args.pair_min_n,
+            pair_max_n=args.pair_max_n,
+            chunksize=args.chunksize,
+        )
         pairs_df["go_name"] = pairs_df["go_id"].map(bp_map)
         pairs_df["gene_name"] = pairs_df["entrez_gene_id"].map(gene_map)
         pairs_df["year"] = int(year)

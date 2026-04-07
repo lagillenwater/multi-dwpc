@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --job-name=year-top-adapt
+#SBATCH --partition=amilan
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=hpc/logs/year-top-adapt_%j.out
+
+set -euo pipefail
+
+module load anaconda || true
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate multi_dwpc
+
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
+cd "$REPO_ROOT"
+
+YEAR_WORKSPACE_DIR="${YEAR_WORKSPACE_DIR:-output/dwpc_direct/all_GO_positive_growth}"
+YEAR_SUPPORT_PATH="${YEAR_SUPPORT_PATH:-output/year_direct_metapath_support.csv}"
+YEAR_TOP_PATHS_OUTPUT_DIR="${YEAR_TOP_PATHS_OUTPUT_DIR:-output/metapath_analysis/top_paths_adaptive}"
+YEAR_TOP_YEARS="${YEAR_TOP_YEARS:-2016 2024}"
+
+YEAR_TOP_SUBGRAPH_TOP_Z="${YEAR_TOP_SUBGRAPH_TOP_Z:-1.0}"
+YEAR_PAIR_CUM_FRAC="${YEAR_PAIR_CUM_FRAC:-0.8}"
+YEAR_PAIR_MIN_N="${YEAR_PAIR_MIN_N:-1}"
+YEAR_PAIR_MAX_N="${YEAR_PAIR_MAX_N:-20}"
+YEAR_PATH_CUM_FRAC="${YEAR_PATH_CUM_FRAC:-0.8}"
+YEAR_PATH_MIN_COUNT="${YEAR_PATH_MIN_COUNT:-1}"
+YEAR_PATH_MAX_COUNT="${YEAR_PATH_MAX_COUNT:-20}"
+YEAR_TOP_PATHS_TOP_K="${YEAR_TOP_PATHS_TOP_K:-20}"
+YEAR_TOP_CHUNKSIZE="${YEAR_TOP_CHUNKSIZE:-200000}"
+YEAR_DEGREE_D="${YEAR_DEGREE_D:-0.5}"
+
+python3 scripts/year_metapath_support.py \
+  --workspace-dir "$YEAR_WORKSPACE_DIR" \
+  --output-path "$YEAR_SUPPORT_PATH"
+
+python3 scripts/identify_year_top_paths.py \
+  --years ${YEAR_TOP_YEARS} \
+  --output-dir "$YEAR_TOP_PATHS_OUTPUT_DIR" \
+  --support-path "$YEAR_SUPPORT_PATH" \
+  --support-only \
+  --support-sort-metric min_d \
+  --top-z "$YEAR_TOP_SUBGRAPH_TOP_Z" \
+  --pair-top-n "$YEAR_PAIR_MAX_N" \
+  --pair-cumulative-frac "$YEAR_PAIR_CUM_FRAC" \
+  --pair-min-n "$YEAR_PAIR_MIN_N" \
+  --pair-max-n "$YEAR_PAIR_MAX_N" \
+  --top-paths "$YEAR_TOP_PATHS_TOP_K" \
+  --path-cumulative-frac "$YEAR_PATH_CUM_FRAC" \
+  --path-min-count "$YEAR_PATH_MIN_COUNT" \
+  --path-max-count "$YEAR_PATH_MAX_COUNT" \
+  --degree-d "$YEAR_DEGREE_D" \
+  --chunksize "$YEAR_TOP_CHUNKSIZE"
+
+echo "Saved adaptive year top-subgraph outputs under: $YEAR_TOP_PATHS_OUTPUT_DIR"

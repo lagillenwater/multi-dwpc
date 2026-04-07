@@ -222,19 +222,50 @@ def enumerate_paths(
     raise ValueError(f"Metapath length {num_edges} not supported for enumeration.")
 
 
+def select_paths(
+    paths: List[Tuple[float, List[int]]],
+    *,
+    top_paths: int,
+    path_cumulative_frac: float | None,
+    path_min_count: int,
+    path_max_count: int | None,
+) -> List[Tuple[float, List[int]]]:
+    if path_cumulative_frac is None:
+        return paths[:top_paths]
+    if not paths:
+        return []
+    total = sum(max(float(score), 0.0) for score, _ in paths)
+    cumulative = 0.0
+    selected: List[Tuple[float, List[int]]] = []
+    for item in paths:
+        selected.append(item)
+        cumulative += max(float(item[0]), 0.0)
+        enough_by_frac = total <= 0 or cumulative / total >= float(path_cumulative_frac)
+        enough_by_min = len(selected) >= int(path_min_count)
+        enough_by_max = path_max_count is not None and len(selected) >= int(path_max_count)
+        if enough_by_max or (enough_by_min and enough_by_frac):
+            break
+    return selected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract top path instances locally.")
     parser.add_argument("--years", nargs="+", default=["2016", "2024"])
     parser.add_argument("--top-pairs", type=int, default=5)
     parser.add_argument("--top-paths", type=int, default=5)
+    parser.add_argument("--path-cumulative-frac", type=float, default=None)
+    parser.add_argument("--path-min-count", type=int, default=1)
+    parser.add_argument("--path-max-count", type=int, default=None)
     parser.add_argument("--metapath", default=None, help="Optional metapath filter (BP-first or G-first).")
     parser.add_argument("--degree-d", type=float, default=0.5)
+    parser.add_argument("--top-dir", default=None, help="Directory containing top_gene_bp_pairs_<year>.csv")
+    parser.add_argument("--output-dir", default=None, help="Directory to write path_instances_<year>.csv")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
-    base_name = "all_GO_positive_growth"
-    top_dir = repo_root / "output" / "metapath_analysis" / "top_paths"
-    results_dir = repo_root / "output" / "dwpc_direct" / base_name / "results"
+    top_dir = Path(args.top_dir) if args.top_dir else repo_root / "output" / "metapath_analysis" / "top_paths"
+    output_dir = Path(args.output_dir) if args.output_dir else top_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
     edges_dir = repo_root / "data" / "edges"
 
     edge_loader = EdgeLoader(edges_dir)
@@ -282,14 +313,24 @@ def main() -> None:
                 continue
 
             try:
-                paths = enumerate_paths(
+                candidate_k = int(args.top_paths)
+                if args.path_cumulative_frac is not None:
+                    candidate_k = max(candidate_k, int(args.path_max_count or 0), 5000)
+                candidate_paths = enumerate_paths(
                     bp_pos,
                     gene_pos,
                     nodes,
                     edges,
                     edge_loader,
-                    top_k=args.top_paths,
+                    top_k=candidate_k,
                     degree_d=args.degree_d,
+                )
+                paths = select_paths(
+                    candidate_paths,
+                    top_paths=int(args.top_paths),
+                    path_cumulative_frac=args.path_cumulative_frac,
+                    path_min_count=int(args.path_min_count),
+                    path_max_count=args.path_max_count,
                 )
             except Exception as exc:
                 print(f"Failed {metapath_bp} {bp_id} {gene_id}: {exc}")
@@ -315,12 +356,13 @@ def main() -> None:
                         "gene_name": row.get("gene_name"),
                         "path_rank": rank,
                         "path_score": score,
+                        "n_candidate_paths": int(len(candidate_paths)),
                         "path_nodes_ids": "|".join(id_path),
                         "path_nodes_names": "|".join(name_path),
                     }
                 )
 
-        out_path = top_dir / f"path_instances_{year}.csv"
+        out_path = output_dir / f"path_instances_{year}.csv"
         pd.DataFrame(output_rows).to_csv(out_path, index=False)
         print(f"Saved: {out_path}")
 

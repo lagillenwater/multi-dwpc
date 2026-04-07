@@ -314,6 +314,37 @@ export INCLUDE_TRACKING=1
 bash hpc/submit_year_direct_rebuild.sh
 ```
 
+#### Adaptive year top-subgraph extraction
+
+This runs on top of an existing year direct-DWPC workspace. It does not rerun the DWPC arrays.
+
+```bash
+module load anaconda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate multi_dwpc
+
+export YEAR_WORKSPACE_DIR=output/dwpc_direct/all_GO_positive_growth
+export YEAR_SUPPORT_PATH=output/year_direct_metapath_support.csv
+export YEAR_TOP_PATHS_OUTPUT_DIR=output/metapath_analysis/top_paths_adaptive
+export YEAR_TOP_SUBGRAPH_TOP_Z=1.0
+export YEAR_PAIR_CUM_FRAC=0.8
+export YEAR_PAIR_MAX_N=20
+export YEAR_PATH_CUM_FRAC=0.8
+export YEAR_PATH_MAX_COUNT=20
+
+sbatch hpc/year_top_subgraphs_adaptive.sbatch
+```
+
+This workflow:
+
+- builds a year metapath support table from the existing null replicate summaries
+- keeps only metapaths supported against both null controls
+- filters GO terms within each metapath by a per-metapath z-score threshold
+- keeps gene-GO pairs until they explain the chosen cumulative DWPC fraction
+- keeps path instances until they explain the chosen cumulative path-score fraction
+
+Outputs are written under `output/metapath_analysis/top_paths_adaptive/` by default.
+
 ### LV
 
 #### Step 1: prepare metadata

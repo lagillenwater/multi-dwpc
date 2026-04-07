@@ -27,8 +27,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-metapaths", type=int, default=None)
     parser.add_argument("--pair-top-n", type=int, default=10)
     parser.add_argument("--top-paths", type=int, default=5)
+    parser.add_argument("--pair-cumulative-frac", type=float, default=None)
+    parser.add_argument("--pair-min-n", type=int, default=1)
+    parser.add_argument("--pair-max-n", type=int, default=None)
+    parser.add_argument("--path-cumulative-frac", type=float, default=None)
+    parser.add_argument("--path-min-count", type=int, default=1)
+    parser.add_argument("--path-max-count", type=int, default=None)
     parser.add_argument("--top-quantile", type=float, default=None)
     parser.add_argument("--top-z", type=float, default=None)
+    parser.add_argument("--results-dir", default=None)
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--support-path", default=None)
+    parser.add_argument("--support-only", action="store_true")
+    parser.add_argument("--support-sort-metric", default="min_d", choices=["min_d", "min_diff", "real_mean"])
     parser.add_argument("--metapath", default=None)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument("--chunksize", type=int, default=200_000)
@@ -56,12 +67,27 @@ def main() -> None:
         "--chunksize",
         str(args.chunksize),
     ]
+    if args.results_dir:
+        top_bp_cmd.extend(["--results-dir", str(args.results_dir)])
+    if args.output_dir:
+        top_bp_cmd.extend(["--output-dir", str(args.output_dir)])
     if args.top_metapaths is not None:
         top_bp_cmd.extend(["--top-metapaths", str(args.top_metapaths)])
     if args.top_quantile is not None:
         top_bp_cmd.extend(["--top-quantile", str(args.top_quantile)])
     if args.top_z is not None:
         top_bp_cmd.extend(["--top-z", str(args.top_z)])
+    if args.support_path:
+        top_bp_cmd.extend(["--support-path", str(args.support_path)])
+    if args.support_only:
+        top_bp_cmd.append("--support-only")
+    if args.support_sort_metric:
+        top_bp_cmd.extend(["--support-sort-metric", str(args.support_sort_metric)])
+    if args.pair_cumulative_frac is not None:
+        top_bp_cmd.extend(["--pair-cumulative-frac", str(args.pair_cumulative_frac)])
+        top_bp_cmd.extend(["--pair-min-n", str(args.pair_min_n)])
+        if args.pair_max_n is not None:
+            top_bp_cmd.extend(["--pair-max-n", str(args.pair_max_n)])
     _run(top_bp_cmd)
 
     top_path_cmd = [
@@ -76,6 +102,13 @@ def main() -> None:
         "--degree-d",
         str(args.degree_d),
     ]
+    if args.output_dir:
+        top_path_cmd.extend(["--top-dir", str(args.output_dir), "--output-dir", str(args.output_dir)])
+    if args.path_cumulative_frac is not None:
+        top_path_cmd.extend(["--path-cumulative-frac", str(args.path_cumulative_frac)])
+        top_path_cmd.extend(["--path-min-count", str(args.path_min_count)])
+        if args.path_max_count is not None:
+            top_path_cmd.extend(["--path-max-count", str(args.path_max_count)])
     if args.metapath:
         top_path_cmd.extend(["--metapath", args.metapath])
     _run(top_path_cmd)
