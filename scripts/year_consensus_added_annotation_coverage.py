@@ -54,10 +54,23 @@ def _select_top_k_metapaths_per_go(support_df: pd.DataFrame, *, top_k: int) -> p
 
 
 def _load_added_pairs(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path, usecols=["go_id", "go_name", "entrez_gene_id", "gene_symbol"]).copy()
+    df = pd.read_csv(path).copy()
+    required = {"go_id", "entrez_gene_id"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Added-pairs file missing required columns: {sorted(missing)}")
+    if "go_name" not in df.columns:
+        df["go_name"] = pd.NA
+    if "gene_symbol" not in df.columns:
+        if "gene_name" in df.columns:
+            df = df.rename(columns={"gene_name": "gene_symbol"})
+        else:
+            df["gene_symbol"] = pd.NA
+    df = df[["go_id", "go_name", "entrez_gene_id", "gene_symbol"]].copy()
     df["go_id"] = df["go_id"].astype(str)
     df["entrez_gene_id"] = df["entrez_gene_id"].astype(int)
-    df["gene_symbol"] = df["gene_symbol"].astype(str)
+    df["go_name"] = df["go_name"].astype("string")
+    df["gene_symbol"] = df["gene_symbol"].astype("string")
     return df.drop_duplicates().reset_index(drop=True)
 
 
