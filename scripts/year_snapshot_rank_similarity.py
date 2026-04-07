@@ -265,6 +265,8 @@ def _plot_rank_scatter(
     year_a: int,
     year_b: int,
     b_value: int | None,
+    label_metapaths: bool,
+    label_top_n: int,
     output_path: Path,
 ) -> None:
     a_df = ranking_df[
@@ -301,6 +303,29 @@ def _plot_rank_scatter(
         f"{_display_statistic_name(statistic)}{b_suffix}\n"
         f"Spearman rho = {rho:.3f}, p = {pvalue:.2e}"
     )
+    if label_metapaths:
+        labeled = merged.copy()
+        labeled["rank_shift"] = (labeled["rank_a"].astype(float) - labeled["rank_b"].astype(float)).abs()
+        top_union = labeled[
+            (labeled["rank_a"].astype(int) <= int(label_top_n))
+            | (labeled["rank_b"].astype(int) <= int(label_top_n))
+        ].copy()
+        shifted = labeled.sort_values(["rank_shift", "metapath"], ascending=[False, True]).head(int(label_top_n))
+        labels_df = (
+            pd.concat([top_union, shifted], ignore_index=True)
+            .drop_duplicates(subset=["metapath"])
+            .sort_values(["rank_a", "rank_b", "metapath"])
+        )
+        for row in labels_df.itertuples(index=False):
+            ax.annotate(
+                str(row.metapath),
+                (float(row.rank_a), float(row.rank_b)),
+                xytext=(4, 4),
+                textcoords="offset points",
+                fontsize=7,
+                color="#333333",
+                alpha=0.85,
+            )
     ax.grid(alpha=0.25)
     fig.tight_layout()
     _save_dual(fig, output_path)
@@ -325,6 +350,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--statistics", default="mean_dwpc")
     parser.add_argument("--top-k-values", default="5,10,20")
     parser.add_argument("--rbo-p", type=float, default=0.9)
+    parser.add_argument("--label-metapaths", action="store_true", help="Annotate the rank scatter with metapath labels.")
+    parser.add_argument("--label-top-n", type=int, default=10, help="When labeling, annotate the union of top-N metapaths in either year and the top-N most shifted metapaths.")
     return parser.parse_args()
 
 
@@ -382,6 +409,8 @@ def main() -> None:
         year_a=int(args.year_a),
         year_b=int(args.year_b),
         b_value=args.b,
+        label_metapaths=bool(args.label_metapaths),
+        label_top_n=int(args.label_top_n),
         output_path=output_dir / (
             f"rank_scatter_{statistics[0]}"
             + (f"_b{int(args.b)}" if args.b is not None else "")
