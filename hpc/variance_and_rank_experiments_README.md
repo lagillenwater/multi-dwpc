@@ -324,26 +324,33 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate multi_dwpc
 
 export YEAR_WORKSPACE_DIR=output/dwpc_direct/all_GO_positive_growth
-export YEAR_SUPPORT_PATH=output/year_direct_metapath_support.csv
+export YEAR_GO_SUPPORT_PATH=output/year_direct_go_term_support.csv
+export YEAR_GLOBAL_SUPPORT_PATH=output/year_direct_global_metapath_support.csv
 export YEAR_TOP_PATHS_OUTPUT_DIR=output/metapath_analysis/top_paths_adaptive
-export YEAR_TOP_SUBGRAPH_TOP_Z=1.0
-export YEAR_PAIR_CUM_FRAC=0.8
-export YEAR_PAIR_MAX_N=20
-export YEAR_PATH_CUM_FRAC=0.8
-export YEAR_PATH_MAX_COUNT=20
+export YEAR_GO_EFFECTIVE_MIN_N=1
+export YEAR_PAIR_MIN_N=1
+export YEAR_PATH_MIN_COUNT=1
+export YEAR_PATH_ENUMERATION_TOP_K=5000
 
 sbatch hpc/year_top_subgraphs_adaptive.sbatch
 ```
 
 This workflow:
 
-- builds a year metapath support table from the existing null replicate summaries
-- keeps only metapaths supported against both null controls
-- filters GO terms within each metapath by a per-metapath z-score threshold
-- keeps gene-GO pairs until they explain the chosen cumulative DWPC fraction
-- keeps path instances until they explain the chosen cumulative path-score fraction
+- builds a GO-term-level support table from the existing null replicate summaries
+- applies FDR across metapaths within each GO term
+- derives a global metapath support table from the GO-term support results with a second metapath-level FDR pass
+- extracts year top subgraphs from GO-term-supported metapaths rather than from global metapath averages
+- uses an effective-number rule to retain metapaths within each GO term, then gene-GO pairs within each retained `(GO term, metapath)`, then explicit path instances within each retained pair
 
 Outputs are written under `output/metapath_analysis/top_paths_adaptive/` by default.
+
+Important note on path enumeration:
+
+- `YEAR_PATH_ENUMERATION_TOP_K` is a computational search-budget cap, not an inferential threshold
+- the effective-number rule determines how many path instances are retained from the enumerated candidates
+- the default value `5000` is an engineering safeguard rather than a statistically justified cutoff
+- if path-level conclusions matter, validate stability by increasing the cap, for example `1000`, `5000`, and `10000`
 
 ### LV
 

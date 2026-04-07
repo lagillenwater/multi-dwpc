@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare real metapath rankings between year snapshots."""
+"""Compare year metapath rankings between snapshots."""
 
 from __future__ import annotations
 
@@ -103,6 +103,26 @@ def _build_real_rankings(summary_df: pd.DataFrame) -> pd.DataFrame:
         .add(1)
     )
     return ranking_df
+
+
+def _build_support_rankings(support_df: pd.DataFrame, rank_metric: str) -> pd.DataFrame:
+    required = {"year", "metapath", rank_metric}
+    missing = required - set(support_df.columns)
+    if missing:
+        raise ValueError(f"Support dataframe missing required columns: {sorted(missing)}")
+    work = support_df.copy()
+    work["year"] = work["year"].astype(int)
+    work["metapath"] = work["metapath"].astype(str)
+    ranking_df = work.sort_values(
+        ["year", rank_metric, "metapath"],
+        ascending=[True, False, True],
+    ).reset_index(drop=True)
+    ranking_df["statistic"] = str(rank_metric)
+    ranking_df["mean_score"] = ranking_df[rank_metric].astype(float)
+    if "n_go_terms" not in ranking_df.columns:
+        ranking_df["n_go_terms"] = ranking_df.get("n_go_terms_supported", np.nan)
+    ranking_df["rank"] = ranking_df.groupby(["year", "statistic"], sort=False).cumcount().add(1)
+    return ranking_df[["year", "statistic", "metapath", "mean_score", "n_go_terms", "rank"]]
 
 
 def _compare_rankings(
@@ -278,6 +298,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results-dir", default=None)
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--support-path", default=None)
+    parser.add_argument(
+        "--rank-metric",
+        default="mean_dwpc",
+        help="Ranking metric. For support-table mode, use a column like support_fraction or mean_min_d.",
+    )
     parser.add_argument("--year-a", type=int, default=2016)
     parser.add_argument("--year-b", type=int, default=2024)
     parser.add_argument("--statistics", default="mean_dwpc")
@@ -288,23 +314,26 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
     output_dir = Path(args.output_dir) if args.output_dir else _default_output_dir(args.score_source)
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    normalized_df = load_normalized_year_results(
-        results_dir,
-        score_source=str(args.score_source),
-        data_dir=Path(args.data_dir),
-    )
-    agg_df = build_aggregated_year_statistics_panel(normalized_df)
-    if agg_df.empty:
-        raise ValueError("Aggregated year statistics are empty.")
-
-    available_statistics = detect_supported_statistics(agg_df)
-    statistics = _parse_stat_list(args.statistics, available_statistics)
-    summary_long_df = build_year_statistic_summary_long(agg_df, statistics=statistics)
-    ranking_df = _build_real_rankings(summary_long_df)
+    if args.support_path:
+        support_df = pd.read_csv(Path(args.support_path))
+        ranking_df = _build_support_rankings(support_df, rank_metric=str(args.rank_metric))
+        statistics = [str(args.rank_metric)]
+    else:
+        results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
+        normalized_df = load_normalized_year_results(
+            results_dir,
+            score_source=str(args.score_source),
+            data_dir=Path(args.data_dir),
+        )
+        agg_df = build_aggregated_year_statistics_panel(normalized_df)
+        if agg_df.empty:
+            raise ValueError("Aggregated year statistics are empty.")
+        available_statistics = detect_supported_statistics(agg_df)
+        statistics = _parse_stat_list(args.statistics, available_statistics)
+        summary_long_df = build_year_statistic_summary_long(agg_df, statistics=statistics)
+        ranking_df = _build_real_rankings(summary_long_df)
     ranking_df.to_csv(output_dir / "snapshot_metapath_rankings.csv", index=False)
 
     top_k_values = _parse_int_list(args.top_k_values)
