@@ -23,6 +23,12 @@ YEAR_COLORS = {
 }
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _load_csv(path: Path, required_columns: list[str]) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Required input file not found: {path}")
@@ -97,7 +103,7 @@ def _plot_metric(
     axes[-1].legend(title="Year", loc="best")
     fig.suptitle(title)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
@@ -114,9 +120,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     analysis_dir = Path(args.analysis_dir)
+    feature_path = analysis_dir / "feature_variance_summary.csv"
+    if not feature_path.exists():
+        alt = analysis_dir / "feature_variance_summary_supported_only.csv"
+        if alt.exists():
+            feature_path = alt
 
     feature_df = _load_csv(
-        analysis_dir / "feature_variance_summary.csv",
+        feature_path,
         required_columns=["control", "year", "b", "diff_std", "diff_var"],
     )
 
@@ -136,7 +147,9 @@ def main() -> None:
     )
 
     print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.pdf'}")
+    print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.png'}")
     print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.pdf'}")
+    print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.png'}")
 
 
 if __name__ == "__main__":

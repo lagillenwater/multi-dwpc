@@ -23,6 +23,12 @@ YEAR_COLORS = {
 }
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _top_k_labels_from_columns(df: pd.DataFrame) -> list[str]:
     labels = []
     for col in df.columns:
@@ -114,7 +120,7 @@ def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
     axes[-1].legend(title="Year", loc="best")
     fig.suptitle("Year rank-stability rho by B")
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
@@ -208,7 +214,7 @@ def _plot_overlap_and_rank(entity_df: pd.DataFrame, output_path: Path) -> None:
     axes[0, -1].legend(title="Year", loc="best")
     fig.suptitle("Year overlap and rank stability by B")
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
@@ -225,17 +231,24 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     analysis_dir = Path(args.analysis_dir)
+    entity_path = analysis_dir / "go_term_stability_summary.csv"
+    if not entity_path.exists():
+        alt = analysis_dir / "go_term_stability_summary_supported_only.csv"
+        if alt.exists():
+            entity_path = alt
     entity_df = _load_csv(
-        analysis_dir / "go_term_stability_summary.csv",
+        entity_path,
         required_columns=["control", "year", "b", "go_id", "mean_spearman_rho"],
     )
     rho_path = analysis_dir / "rho_points_with_mean_trend_by_b.pdf"
     _plot_rho(entity_df, rho_path)
     print(f"Saved plot: {rho_path}")
+    print(f"Saved plot: {rho_path.with_suffix('.png')}")
 
     topk_path = analysis_dir / "topk_jaccard_overall_by_group.pdf"
     _plot_overlap_and_rank(entity_df, topk_path)
     print(f"Saved plot: {topk_path}")
+    print(f"Saved plot: {topk_path.with_suffix('.png')}")
 
 
 if __name__ == "__main__":

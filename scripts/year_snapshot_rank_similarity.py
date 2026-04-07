@@ -31,6 +31,12 @@ from src.year_statistics import (  # noqa: E402
 DEFAULT_DATA_DIR = REPO_ROOT / "data"
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _default_results_dir(score_source: str) -> Path:
     if str(score_source) == "api":
         return REPO_ROOT / "output" / "dwpc_com" / "all_GO_positive_growth" / "results"
@@ -246,7 +252,7 @@ def _plot_metric_summary(
 
     fig.suptitle("Year snapshot metapath-ranking similarity")
     fig.tight_layout()
-    fig.savefig(output_path, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
@@ -288,7 +294,7 @@ def _plot_rank_scatter(
     ax.set_title(f"{_display_statistic_name(statistic)}\nSpearman rho = {rho:.3f}")
     ax.grid(alpha=0.25)
     fig.tight_layout()
-    fig.savefig(output_path, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 

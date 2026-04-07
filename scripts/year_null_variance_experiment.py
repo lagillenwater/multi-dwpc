@@ -34,6 +34,12 @@ from src.year_replicate_analysis import build_b_seed_runs, load_summary_bank  # 
 FEATURE_KEYS = ["year", "control", "b", "go_id", "metapath"]
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _default_results_dir(score_source: str) -> str:
     if str(score_source) == "api":
         return "output/dwpc_com/all_GO_positive_growth/results"
@@ -80,7 +86,7 @@ def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str
     axes[-1].legend(title="Year")
     fig.suptitle(title)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
