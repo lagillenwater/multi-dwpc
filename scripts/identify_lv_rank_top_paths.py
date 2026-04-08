@@ -10,6 +10,7 @@ from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 
+import numpy as np
 import pandas as pd
 
 if Path.cwd().name == "scripts":
@@ -25,6 +26,18 @@ from src.lv_subgraphs import EdgeLoader, _enumerate_paths, _load_node_maps, _par
 
 
 PAIR_RANK_CHOICES = ["dwpc", "contrast_min", "contrast_perm", "contrast_rand", "contrast_mean"]
+METAPATH_RANK_CHOICES = [
+    "metapath_rank",
+    "consensus_score",
+    "consensus_rank",
+    "min_d",
+    "min_diff",
+    "diff_perm",
+    "diff_rand",
+    "d_perm",
+    "d_rand",
+]
+ASCENDING_METRICS = {"consensus_rank", "metapath_rank", "p_perm_fdr", "p_rand_fdr"}
 
 
 def _load_rank_table(path: Path) -> pd.DataFrame:
@@ -47,6 +60,35 @@ def _load_rank_table(path: Path) -> pd.DataFrame:
     if "control" not in df.columns:
         df = df.copy()
         df["control"] = "combined"
+    if "run_id" not in df.columns:
+        df = df.copy()
+        df["run_id"] = (
+            "b"
+            + df["b"].astype(int).astype(str)
+            + "_s"
+            + df["seed"].astype(int).astype(str)
+        )
+    return df
+
+
+def _load_runs_table(path: Path) -> pd.DataFrame:
+    required = {
+        "b",
+        "seed",
+        "lv_id",
+        "target_set_id",
+        "target_set_label",
+        "node_type",
+        "metapath",
+        "control",
+        "diff",
+    }
+    if not path.exists():
+        raise FileNotFoundError(f"Required input file not found: {path}")
+    df = pd.read_csv(path)
+    missing = sorted(required - set(df.columns))
+    if missing:
+        raise ValueError(f"{path} is missing required columns: {missing}")
     if "run_id" not in df.columns:
         df = df.copy()
         df["run_id"] = (
@@ -94,6 +136,157 @@ def _rank_score_col(metric: str) -> str:
     if metric not in mapping:
         raise ValueError(f"Unsupported pair-rank metric: {metric}")
     return mapping[metric]
+
+
+def _effective_number(scores: pd.Series) -> float:
+    vals = scores.to_numpy(dtype=float)
+    vals = vals[np.isfinite(vals)]
+    vals = vals[vals > 0]
+    if vals.size == 0:
+        return 1.0
+    weights = vals / vals.sum()
+    entropy = float(-(weights * np.log(weights)).sum())
+    return float(np.exp(entropy))
+
+
+def _effective_k(scores: pd.Series, *, min_n: int = 1, max_n: int | None = None) -> int:
+    k = int(np.ceil(_effective_number(scores)))
+    k = max(int(min_n), k)
+    if max_n is not None:
+        k = min(k, int(max_n))
+    return k
+
+
+def _build_consensus_runs_table(runs_df: pd.DataFrame) -> pd.DataFrame:
+    control_map = {"permuted": "perm", "random": "rand"}
+    work = runs_df.copy()
+    work["control"] = work["control"].astype(str)
+    work = work[work["control"].isin(control_map)].copy()
+    if work.empty:
+        raise ValueError("No permuted/random rows found in all_runs_long.csv")
+
+    index_cols = [
+        col
+        for col in [
+            "b",
+            "seed",
+            "run_id",
+            "lv_id",
+            "target_set_id",
+            "target_set_label",
+            "node_type",
+            "metapath",
+        ]
+        if col in work.columns
+    ]
+    metric_cols = [col for col in ["diff", "d", "p", "p_fdr", "null_mean_score", "real_mean_score"] if col in work.columns]
+    if "diff" not in metric_cols:
+        raise ValueError("all_runs_long.csv must contain a 'diff' column for consensus ranking")
+
+    split_frames = []
+    for control, prefix in control_map.items():
+        sub = work[work["control"] == control].copy()
+        if sub.empty:
+            continue
+        rename_map = {
+            "diff": f"diff_{prefix}",
+            "d": f"d_{prefix}",
+            "p": f"p_{prefix}",
+            "p_fdr": f"p_{prefix}_fdr",
+            "null_mean_score": f"{prefix}_null_mean",
+        }
+        keep_cols = index_cols + [col for col in metric_cols if col in rename_map or col == "real_mean_score"]
+        sub = sub[keep_cols].rename(columns=rename_map)
+        split_frames.append(sub)
+
+    if len(split_frames) < 2:
+        raise ValueError("Need both permuted and random rows to build LV consensus ranking")
+
+    merged = split_frames[0]
+    for sub in split_frames[1:]:
+        merged = merged.merge(sub, on=index_cols + [col for col in ["real_mean_score"] if col in merged.columns and col in sub.columns], how="inner")
+
+    if merged.empty:
+        raise ValueError("No shared LV-target-metapath rows remained after merging permuted and random runs")
+
+    group_cols = [col for col in ["b", "seed", "run_id", "lv_id", "target_set_id"] if col in merged.columns]
+    merged["rank_perm"] = (
+        merged.groupby(group_cols)["diff_perm"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    merged["rank_rand"] = (
+        merged.groupby(group_cols)["diff_rand"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    merged["consensus_rank"] = 0.5 * (merged["rank_perm"] + merged["rank_rand"])
+    merged["consensus_score"] = 0.5 * (
+        (1.0 / merged["rank_perm"].replace(0, np.nan).astype(float))
+        + (1.0 / merged["rank_rand"].replace(0, np.nan).astype(float))
+    )
+    if "d_perm" in merged.columns and "d_rand" in merged.columns:
+        merged["min_d"] = merged[["d_perm", "d_rand"]].min(axis=1)
+    if "diff_perm" in merged.columns and "diff_rand" in merged.columns:
+        merged["min_diff"] = merged[["diff_perm", "diff_rand"]].min(axis=1)
+    if "p_perm_fdr" in merged.columns and "p_rand_fdr" in merged.columns:
+        merged["supported"] = (
+            (merged["p_perm_fdr"].astype(float) < 0.05)
+            & (merged["p_rand_fdr"].astype(float) < 0.05)
+            & (merged["diff_perm"].astype(float) > 0)
+            & (merged["diff_rand"].astype(float) > 0)
+        )
+    else:
+        merged["supported"] = pd.NA
+    return merged
+
+
+def _select_consensus_metapaths(
+    consensus_df: pd.DataFrame,
+    *,
+    rank_metric: str,
+    selection_method: str,
+    top_n: int,
+    effective_min_n: int,
+    effective_max_n: int | None,
+) -> pd.DataFrame:
+    if rank_metric not in consensus_df.columns:
+        raise ValueError(f"Requested metapath rank metric '{rank_metric}' not found in consensus runs table")
+
+    group_cols = [col for col in ["b", "seed", "run_id", "lv_id", "target_set_id"] if col in consensus_df.columns]
+    rows = []
+    for _, group in consensus_df.groupby(group_cols, sort=True):
+        work = group.copy()
+        sort_ascending = rank_metric in ASCENDING_METRICS
+        work = work.sort_values(
+            [rank_metric, "consensus_score", "min_d", "min_diff", "metapath"],
+            ascending=[sort_ascending, False, False, False, True],
+        ).reset_index(drop=True)
+        if selection_method == "effective_number":
+            if rank_metric in {"consensus_rank", "metapath_rank"}:
+                effective_scores = 1.0 / work[rank_metric].replace(0, np.nan).astype(float)
+            else:
+                effective_scores = pd.to_numeric(work[rank_metric], errors="coerce").fillna(0.0).clip(lower=0.0)
+            eff_n = _effective_number(effective_scores)
+            k = _effective_k(
+                effective_scores,
+                min_n=effective_min_n,
+                max_n=effective_max_n,
+            )
+            selected = work.head(k).copy()
+            selected["effective_n_all"] = float(eff_n)
+            selected["selection_method"] = "effective_number"
+        else:
+            selected = work.head(int(top_n)).copy()
+            selected["effective_n_all"] = pd.NA
+            selected["selection_method"] = "top_n"
+        selected["control"] = "combined"
+        selected["metapath_rank_metric"] = str(rank_metric)
+        selected["metapath_rank"] = range(1, len(selected) + 1)
+        rows.append(selected)
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True)
 
 
 def _extract_paths(top_pairs_df: pd.DataFrame, degree_d: float, top_paths: int) -> pd.DataFrame:
@@ -165,10 +358,27 @@ def parse_args() -> argparse.Namespace:
         help="Parent LV workspace directory containing lv_top_genes.csv/target_sets.csv/lv_target_map.csv",
     )
     parser.add_argument("--top-metapaths-per-run", type=int, default=2)
+    parser.add_argument(
+        "--metapath-selection-method",
+        default="top_n",
+        choices=["top_n", "effective_number"],
+        help="How to choose metapaths per LV-target run.",
+    )
+    parser.add_argument(
+        "--metapath-rank-metric",
+        default="metapath_rank",
+        choices=METAPATH_RANK_CHOICES,
+        help="Metapath ranking metric. Use consensus_score/consensus_rank for dual-null consensus selection from all_runs_long.csv.",
+    )
+    parser.add_argument("--effective-min-n", type=int, default=1)
+    parser.add_argument("--effective-max-n", type=int, default=None)
     parser.add_argument("--top-pairs", type=int, default=10)
     parser.add_argument("--top-paths", type=int, default=5)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument("--pair-rank-metric", default="dwpc", choices=PAIR_RANK_CHOICES)
+    parser.add_argument("--b", type=int, default=None, help="Optional B filter.")
+    parser.add_argument("--seed", type=int, default=None, help="Optional seed filter.")
+    parser.add_argument("--control", default=None, help="Optional control filter when using metapath_rank.")
     return parser.parse_args()
 
 
@@ -177,10 +387,41 @@ def main() -> None:
     analysis_dir = Path(args.analysis_dir)
     workspace_dir = Path(args.workspace_dir) if args.workspace_dir else analysis_dir.parent
 
-    rank_df = _load_rank_table(analysis_dir / "metapath_rank_table.csv")
-    selected = rank_df[rank_df["metapath_rank"].astype(int) <= int(args.top_metapaths_per_run)].copy()
-    if selected.empty:
-        raise ValueError("No metapaths selected after applying top-metapaths-per-run")
+    if args.metapath_rank_metric == "metapath_rank":
+        rank_df = _load_rank_table(analysis_dir / "metapath_rank_table.csv")
+        selected = rank_df.copy()
+        if args.control is not None:
+            selected = selected[selected["control"].astype(str) == str(args.control)].copy()
+        if args.b is not None:
+            selected = selected[selected["b"].astype(int) == int(args.b)].copy()
+        if args.seed is not None:
+            selected = selected[selected["seed"].astype(int) == int(args.seed)].copy()
+        selected = selected[selected["metapath_rank"].astype(int) <= int(args.top_metapaths_per_run)].copy()
+        selected["metapath_rank_metric"] = "metapath_rank"
+        selected["selection_method"] = "top_n"
+        selected["effective_n_all"] = pd.NA
+        if selected.empty:
+            raise ValueError("No metapaths selected after applying metapath_rank filters")
+    else:
+        runs_df = _load_runs_table(analysis_dir / "all_runs_long.csv")
+        if args.b is not None:
+            runs_df = runs_df[runs_df["b"].astype(int) == int(args.b)].copy()
+        if args.seed is not None:
+            runs_df = runs_df[runs_df["seed"].astype(int) == int(args.seed)].copy()
+        if runs_df.empty:
+            raise ValueError("No all_runs_long rows remain after applying B/seed filters")
+        consensus_df = _build_consensus_runs_table(runs_df)
+        selected = _select_consensus_metapaths(
+            consensus_df,
+            rank_metric=str(args.metapath_rank_metric),
+            selection_method=str(args.metapath_selection_method),
+            top_n=int(args.top_metapaths_per_run),
+            effective_min_n=int(args.effective_min_n),
+            effective_max_n=args.effective_max_n,
+        )
+        if selected.empty:
+            raise ValueError("No metapaths selected after applying consensus/effective-number selection")
+        selected.to_csv(analysis_dir / "metapath_selection_runs.csv", index=False)
 
     pairs_path = _prepare_pair_table(workspace_dir)
     manifest_override = selected[["node_type", "metapath"]].drop_duplicates().copy()
@@ -204,6 +445,11 @@ def main() -> None:
         "seed",
         "run_id",
         "metapath_rank",
+        "metapath_rank_metric",
+        "selection_method",
+        "effective_n_all",
+        "consensus_score",
+        "consensus_rank",
         "perm_null_mean",
         "rand_null_mean",
         "diff_perm",
@@ -249,6 +495,11 @@ def main() -> None:
         "target_idx",
         "metapath",
         "metapath_rank",
+        "metapath_rank_metric",
+        "selection_method",
+        "effective_n_all",
+        "consensus_score",
+        "consensus_rank",
         "dwpc",
         "pair_rank_metric",
         "pair_rank_score",
@@ -258,6 +509,7 @@ def main() -> None:
         "pair_diff_mean",
         "pair_rank",
     ]
+    top_pairs_cols = [col for col in top_pairs_cols if col in top_pairs_df.columns]
     top_pairs_out = top_pairs_df[top_pairs_cols].copy()
     top_pairs_out.to_csv(analysis_dir / "top_pairs_runs.csv", index=False)
 
@@ -270,6 +522,8 @@ def main() -> None:
 
     print(f"Saved top pairs: {analysis_dir / 'top_pairs_runs.csv'} ({len(top_pairs_out):,} rows)")
     print(f"Saved top paths: {analysis_dir / 'top_paths_runs.csv'} ({len(top_paths_df):,} rows)")
+    if args.metapath_rank_metric != "metapath_rank":
+        print(f"Saved metapath selection table: {analysis_dir / 'metapath_selection_runs.csv'}")
 
 
 if __name__ == "__main__":

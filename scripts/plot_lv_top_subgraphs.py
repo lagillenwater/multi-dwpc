@@ -57,6 +57,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--control", default=None, help="Optional control filter in rank mode.")
     parser.add_argument("--b", type=int, default=None, help="Optional B filter in rank mode; defaults to max.")
     parser.add_argument("--seed", type=int, default=11, help="Seed filter in rank mode (default 11).")
+    parser.add_argument(
+        "--metapath-selection-method",
+        default="top_n",
+        choices=["top_n", "effective_number"],
+    )
+    parser.add_argument(
+        "--effective-min-n",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--effective-max-n",
+        type=int,
+        default=None,
+    )
     parser.add_argument("--min-shared-intermediates", type=int, default=0)
     parser.add_argument("--min-genes", type=int, default=2)
     parser.add_argument("--max-genes", type=int, default=8)
@@ -150,9 +165,21 @@ def main() -> None:
             str(args.top_paths),
             "--degree-d",
             str(args.degree_d),
+            "--metapath-selection-method",
+            str(args.metapath_selection_method),
             "--pair-rank-metric",
             str(args.pair_rank_metric),
         ]
+        if args.control is not None:
+            cmd.extend(["--control", str(args.control)])
+        if args.b is not None:
+            cmd.extend(["--b", str(args.b)])
+        if args.seed is not None:
+            cmd.extend(["--seed", str(args.seed)])
+        if args.effective_min_n is not None:
+            cmd.extend(["--effective-min-n", str(args.effective_min_n)])
+        if args.effective_max_n is not None:
+            cmd.extend(["--effective-max-n", str(args.effective_max_n)])
         _run(cmd)
 
         n_written = plot_top_subgraphs(
