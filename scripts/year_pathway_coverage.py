@@ -219,41 +219,11 @@ def main() -> None:
     cumulative.to_csv(cov_dir / "year_cumulative_coverage.csv", index=False)
     print(f"Saved: {cov_dir / 'year_cumulative_coverage.csv'}")
 
-    # 5. Group-level reachability: for each year, what fraction of gene-GO
-    #    pairs are reachable through group-validated metapaths?
-    #    Multi-DWPC's contribution is selecting WHICH metapaths matter for each
-    #    gene set.  Individual pairs inherit interpretability from that group test.
-    print("\n--- Reachability through group-selected metapaths ---")
-    for year in sorted(pair_dwpc["year"].unique()):
-        dwpc_yr = pair_dwpc[pair_dwpc["year"] == year]
-        # All (gene, go_id) pairs present in the DWPC data for this year
-        all_pairs = dwpc_yr[["go_id", "entrez_gene_id"]].drop_duplicates()
-        # Pairs with at least one nonzero DWPC across selected metapaths
-        nonzero = dwpc_yr[dwpc_yr["dwpc"] > 0][["go_id", "entrez_gene_id"]].drop_duplicates()
-        n_total = len(all_pairs)
-        n_nonzero = len(nonzero)
-        frac = n_nonzero / n_total if n_total > 0 else 0.0
-        print(f"\n  Year {year}:")
-        print(f"    Gene-GO pairs in selected metapaths: {n_total:,}")
-        print(f"    Pairs with nonzero DWPC:             {n_nonzero:,} ({frac:.1%})")
-
-        # Per-GO coverage distribution
-        per_go = all_pairs.copy()
-        per_go["_key"] = list(zip(per_go["go_id"], per_go["entrez_gene_id"]))
-        nonzero_keys = set(zip(nonzero["go_id"], nonzero["entrez_gene_id"]))
-        per_go["has_signal"] = per_go["_key"].isin(nonzero_keys)
-        go_cov = per_go.groupby("go_id", as_index=False).agg(
-            n_genes=("entrez_gene_id", "size"),
-            n_covered=("has_signal", "sum"),
-        )
-        go_cov["coverage"] = go_cov["n_covered"] / go_cov["n_genes"]
-        print(f"    Per-GO coverage -- median: {go_cov['coverage'].median():.3f}, "
-              f"mean: {go_cov['coverage'].mean():.3f}, "
-              f"25th: {go_cov['coverage'].quantile(0.25):.3f}, "
-              f"75th: {go_cov['coverage'].quantile(0.75):.3f}")
-        go_cov.to_csv(cov_dir / f"year_reachability_per_go_{year}.csv", index=False)
-
-    # 6. Added-pair coverage (if validation set provided)
+    # 5. Added-pair coverage (if validation set provided)
+    #    Multi-DWPC selects metapaths via group-level testing of 2016 gene sets.
+    #    The added pairs (2024-only annotations) were NOT part of those gene sets.
+    #    Reachability of added pairs through group-selected metapaths measures
+    #    how well the group inference generalizes to new gene annotations.
     if args.added_pairs_path is not None:
         added_path = Path(args.added_pairs_path)
         if not added_path.exists():
@@ -297,8 +267,20 @@ def main() -> None:
                 added_per_go.to_csv(cov_dir / "year_added_pair_per_go.csv", index=False)
                 print(f"Saved: {cov_dir / 'year_added_pair_per_go.csv'}")
 
+                # --- Context: 2016 gene sets that drove metapath selection ---
+                dwpc_2016 = pair_dwpc[pair_dwpc["year"] == 2016].copy()
+                if not dwpc_2016.empty:
+                    original_pairs = dwpc_2016[["go_id", "entrez_gene_id"]].drop_duplicates()
+                    original_nonzero = dwpc_2016[dwpc_2016["dwpc"] > 0][["go_id", "entrez_gene_id"]].drop_duplicates()
+                    n_orig = len(original_pairs)
+                    n_orig_nz = len(original_nonzero)
+                    print(f"\n--- 2016 baseline (gene sets used for metapath selection) ---")
+                    print(f"  Original gene-GO pairs: {n_orig:,}")
+                    print(f"  With nonzero DWPC:      {n_orig_nz:,} ({n_orig_nz / n_orig:.1%})")
+
                 # --- Print added-pair summaries ---
-                print(f"\n--- Added-pair reachability through group-selected metapaths ---")
+                print(f"\n--- 2024 added pairs: reachability through group-selected metapaths ---")
+                print(f"  (These genes were NOT part of the groups that selected the metapaths)")
                 n_max_cond = int(added_cumulative_cond["k"].max())
                 for _, row in added_cumulative_cond.iterrows():
                     k = int(row["k"])
