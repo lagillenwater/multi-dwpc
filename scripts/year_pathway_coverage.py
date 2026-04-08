@@ -37,8 +37,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.pathway_coverage import (  # noqa: E402
     CoverageConfig,
-    classify_added_pair_signal,
-    classify_gene_signal,
     compare_conditions,
     compute_added_pair_coverage,
     compute_added_pair_coverage_per_group,
@@ -46,8 +44,6 @@ from src.pathway_coverage import (  # noqa: E402
     compute_metapath_complementarity,
     compute_rescue_table,
     rank_metapaths_from_results,
-    summarize_added_pair_signal,
-    summarize_signal_categories,
 )
 
 YEAR_CONFIG = CoverageConfig(
@@ -223,7 +219,41 @@ def main() -> None:
     cumulative.to_csv(cov_dir / "year_cumulative_coverage.csv", index=False)
     print(f"Saved: {cov_dir / 'year_cumulative_coverage.csv'}")
 
-    # 5. Added-pair coverage (if validation set provided)
+    # 5. Group-level reachability: for each year, what fraction of gene-GO
+    #    pairs are reachable through group-validated metapaths?
+    #    Multi-DWPC's contribution is selecting WHICH metapaths matter for each
+    #    gene set.  Individual pairs inherit interpretability from that group test.
+    print("\n--- Reachability through group-selected metapaths ---")
+    for year in sorted(pair_dwpc["year"].unique()):
+        dwpc_yr = pair_dwpc[pair_dwpc["year"] == year]
+        # All (gene, go_id) pairs present in the DWPC data for this year
+        all_pairs = dwpc_yr[["go_id", "entrez_gene_id"]].drop_duplicates()
+        # Pairs with at least one nonzero DWPC across selected metapaths
+        nonzero = dwpc_yr[dwpc_yr["dwpc"] > 0][["go_id", "entrez_gene_id"]].drop_duplicates()
+        n_total = len(all_pairs)
+        n_nonzero = len(nonzero)
+        frac = n_nonzero / n_total if n_total > 0 else 0.0
+        print(f"\n  Year {year}:")
+        print(f"    Gene-GO pairs in selected metapaths: {n_total:,}")
+        print(f"    Pairs with nonzero DWPC:             {n_nonzero:,} ({frac:.1%})")
+
+        # Per-GO coverage distribution
+        per_go = all_pairs.copy()
+        per_go["_key"] = list(zip(per_go["go_id"], per_go["entrez_gene_id"]))
+        nonzero_keys = set(zip(nonzero["go_id"], nonzero["entrez_gene_id"]))
+        per_go["has_signal"] = per_go["_key"].isin(nonzero_keys)
+        go_cov = per_go.groupby("go_id", as_index=False).agg(
+            n_genes=("entrez_gene_id", "size"),
+            n_covered=("has_signal", "sum"),
+        )
+        go_cov["coverage"] = go_cov["n_covered"] / go_cov["n_genes"]
+        print(f"    Per-GO coverage -- median: {go_cov['coverage'].median():.3f}, "
+              f"mean: {go_cov['coverage'].mean():.3f}, "
+              f"25th: {go_cov['coverage'].quantile(0.25):.3f}, "
+              f"75th: {go_cov['coverage'].quantile(0.75):.3f}")
+        go_cov.to_csv(cov_dir / f"year_reachability_per_go_{year}.csv", index=False)
+
+    # 6. Added-pair coverage (if validation set provided)
     if args.added_pairs_path is not None:
         added_path = Path(args.added_pairs_path)
         if not added_path.exists():
@@ -232,8 +262,7 @@ def main() -> None:
             added_pairs_all = pd.read_csv(added_path)
             print(f"\nLoaded {len(added_pairs_all):,} added pairs from {added_path}")
 
-            # Added pairs are year-independent (they represent 2024-only annotations).
-            # Evaluate against the 2024 DWPC data only.
+            # Evaluate against the 2024 DWPC data
             dwpc_2024 = pair_dwpc[pair_dwpc["year"] == 2024].copy()
             if dwpc_2024.empty:
                 print("Warning: no 2024 rows in pair DWPC; skipping added-pair analysis.", file=sys.stderr)
@@ -254,19 +283,12 @@ def main() -> None:
                 print(f"Added pairs in those GO terms: {n_cond:,} / {n_all:,} "
                       f"({n_go_cond:,} / {n_go_all:,} GO terms)")
 
-                # --- Global cumulative (all added pairs) ---
-                added_cumulative_all = compute_added_pair_coverage(
-                    dwpc_2024, added_pairs_all, cfg, added_group_col="go_id",
-                )
-                added_cumulative_all.to_csv(cov_dir / "year_added_pair_cumulative_global.csv", index=False)
-
                 # --- Conditional cumulative (only GO terms with selected metapaths) ---
                 added_cumulative_cond = compute_added_pair_coverage(
                     dwpc_2024, added_pairs_cond, cfg, added_group_col="go_id",
                 )
-                added_cumulative_cond.to_csv(cov_dir / "year_added_pair_cumulative_conditional.csv", index=False)
-                print(f"Saved: {cov_dir / 'year_added_pair_cumulative_global.csv'}")
-                print(f"Saved: {cov_dir / 'year_added_pair_cumulative_conditional.csv'}")
+                added_cumulative_cond.to_csv(cov_dir / "year_added_pair_cumulative.csv", index=False)
+                print(f"Saved: {cov_dir / 'year_added_pair_cumulative.csv'}")
 
                 # --- Per-GO-term rescue (conditional) ---
                 added_per_go = compute_added_pair_coverage_per_group(
@@ -275,88 +297,37 @@ def main() -> None:
                 added_per_go.to_csv(cov_dir / "year_added_pair_per_go.csv", index=False)
                 print(f"Saved: {cov_dir / 'year_added_pair_per_go.csv'}")
 
-                # --- Print summaries ---
-                print("\n--- Added-pair coverage: global (all GO terms) ---")
-                for _, row in added_cumulative_all.iterrows():
-                    print(f"  k={int(row['k']):>2}: {int(row['n_added_covered']):>6,} / "
-                          f"{int(row['n_added_total']):,} "
-                          f"({row['added_pair_coverage']:.4f})")
-
-                print(f"\n--- Added-pair coverage: conditional "
-                      f"({n_go_cond:,} GO terms with selected metapaths) ---")
+                # --- Print added-pair summaries ---
+                print(f"\n--- Added-pair reachability through group-selected metapaths ---")
+                n_max_cond = int(added_cumulative_cond["k"].max())
                 for _, row in added_cumulative_cond.iterrows():
-                    print(f"  k={int(row['k']):>2}: {int(row['n_added_covered']):>6,} / "
+                    k = int(row["k"])
+                    label = f"k={k:>2}"
+                    if k == 1:
+                        label += " (single metapath)"
+                    elif k == n_max_cond:
+                        label += " (all selected)   "
+                    print(f"  {label}: {int(row['n_added_covered']):>6,} / "
                           f"{int(row['n_added_total']):,} "
                           f"({row['added_pair_coverage']:.4f})")
 
-                n_go_with_rescue = int((added_per_go["n_rescued"] > 0).sum())
                 has_added = added_per_go[added_per_go["n_added"] > 0]
                 n_go_total = len(has_added)
-                print(f"\n  GO terms with rescued added pairs: {n_go_with_rescue:,} / {n_go_total:,}")
-                print(f"  Total added pairs rescued (top1->all): {int(added_per_go['n_rescued'].sum()):,}")
 
-                # Coverage distribution across GO terms with added pairs
-                print(f"\n  Added-pair coverage distribution (across {n_go_total:,} GO terms):")
-                print(f"    top1  -- median: {has_added['added_coverage_top1'].median():.3f}, "
-                      f"mean: {has_added['added_coverage_top1'].mean():.3f}, "
-                      f"25th: {has_added['added_coverage_top1'].quantile(0.25):.3f}, "
-                      f"75th: {has_added['added_coverage_top1'].quantile(0.75):.3f}")
-                print(f"    multi -- median: {has_added['added_coverage_all'].median():.3f}, "
-                      f"mean: {has_added['added_coverage_all'].mean():.3f}, "
-                      f"25th: {has_added['added_coverage_all'].quantile(0.25):.3f}, "
-                      f"75th: {has_added['added_coverage_all'].quantile(0.75):.3f}")
+                print(f"\n  Per-GO coverage of added pairs ({n_go_total:,} GO terms):")
+                print(f"    single metapath -- median: {has_added['added_coverage_top1'].median():.3f}, "
+                      f"mean: {has_added['added_coverage_top1'].mean():.3f}")
+                print(f"    all selected    -- median: {has_added['added_coverage_all'].median():.3f}, "
+                      f"mean: {has_added['added_coverage_all'].mean():.3f}")
                 pct_full = (has_added["added_coverage_all"] >= 1.0).sum()
-                print(f"    GO terms reaching 100% coverage (multi): {int(pct_full):,} / {n_go_total:,} "
+                print(f"    GO terms reaching 100%: {int(pct_full):,} / {n_go_total:,} "
                       f"({pct_full / n_go_total:.1%})")
 
-                top_rescued = added_per_go[added_per_go["n_rescued"] > 0].head(5)
-                if not top_rescued.empty:
-                    print("\n  Top GO terms by rescue count:")
-                    for _, r in top_rescued.iterrows():
-                        print(f"    {r['go_id']}: +{int(r['n_rescued'])} rescued "
-                              f"({r['added_coverage_top1']:.2f} -> {r['added_coverage_all']:.2f})")
-
-                # --- Group-level signal classification of added pairs ---
-                # Classify each added pair's DWPC relative to the group null
-                support_2024 = support_df[support_df["year"] == 2024].copy()
-
-                classified_added = classify_added_pair_signal(
-                    dwpc_2024, added_pairs_cond, support_2024, cfg,
-                    null_mean_col="perm_null_mean",
-                    null_std_col="perm_null_std",
-                    added_group_col="go_id",
-                )
-                classified_added.to_csv(cov_dir / "year_added_pair_classified.csv", index=False)
-                print(f"\nSaved: {cov_dir / 'year_added_pair_classified.csv'}")
-
-                signal_summary = summarize_added_pair_signal(classified_added, cfg)
-
-                print("\n--- Group-level signal classification (2024 added pairs) ---")
-                print(f"  Added pairs with DWPC rows: {signal_summary['n_added_pairs_with_dwpc_rows']:,}")
-                print(f"  Nonzero DWPC:    {signal_summary['n_nonzero']:,}")
-                print(f"    strong  (DWPC > null_mean + std): {signal_summary['n_strong']:,} "
-                      f"({signal_summary['frac_strong']:.1%})")
-                print(f"    moderate (null_mean < DWPC <= null_mean + std): {signal_summary['n_moderate']:,} "
-                      f"({signal_summary['frac_moderate']:.1%})")
-                print(f"    weak    (0 < DWPC <= null_mean): {signal_summary['n_weak']:,} "
-                      f"({signal_summary['frac_weak']:.1%})")
-                print(f"  Zero DWPC:       {signal_summary['n_zero']:,}")
-                print(f"\n  Fraction of nonzero signal attributable to group inference "
-                      f"(weak + moderate): {signal_summary['frac_group_only']:.1%}")
-
-                # Per-GO-term signal summary
-                signal_per_go = summarize_signal_categories(classified_added, cfg)
-                signal_per_go.to_csv(cov_dir / "year_added_pair_signal_per_go.csv", index=False)
-                print(f"Saved: {cov_dir / 'year_added_pair_signal_per_go.csv'}")
-
-                has_nonzero = signal_per_go[signal_per_go["n_nonzero"] > 0]
-                if not has_nonzero.empty:
-                    print(f"\n  Per-GO distribution of group-only fraction "
-                          f"(weak+moderate / nonzero, {len(has_nonzero):,} GO terms):")
-                    print(f"    median: {has_nonzero['frac_group_only'].median():.3f}, "
-                          f"mean: {has_nonzero['frac_group_only'].mean():.3f}, "
-                          f"25th: {has_nonzero['frac_group_only'].quantile(0.25):.3f}, "
-                          f"75th: {has_nonzero['frac_group_only'].quantile(0.75):.3f}")
+                n_go_with_rescue = int((added_per_go["n_rescued"] > 0).sum())
+                print(f"\n  GO terms where group selection covers more than single metapath: "
+                      f"{n_go_with_rescue:,} / {n_go_total:,}")
+                print(f"  Total additional pairs reached: "
+                      f"{int(added_per_go['n_rescued'].sum()):,}")
 
     # Summary per year
     print("\n--- Gene-level summary ---")
