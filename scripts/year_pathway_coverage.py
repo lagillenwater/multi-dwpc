@@ -225,8 +225,8 @@ def main() -> None:
         if not added_path.exists():
             print(f"Warning: added-pairs file not found: {added_path}", file=sys.stderr)
         else:
-            added_pairs = pd.read_csv(added_path)
-            print(f"\nLoaded {len(added_pairs):,} added pairs from {added_path}")
+            added_pairs_all = pd.read_csv(added_path)
+            print(f"\nLoaded {len(added_pairs_all):,} added pairs from {added_path}")
 
             # Added pairs are year-independent (they represent 2024-only annotations).
             # Evaluate against the 2024 DWPC data only.
@@ -234,31 +234,62 @@ def main() -> None:
             if dwpc_2024.empty:
                 print("Warning: no 2024 rows in pair DWPC; skipping added-pair analysis.", file=sys.stderr)
             else:
-                # Global cumulative curve
-                added_cumulative = compute_added_pair_coverage(
-                    dwpc_2024, added_pairs, cfg, added_group_col="go_id",
-                )
-                added_cumulative.to_csv(cov_dir / "year_added_pair_cumulative.csv", index=False)
-                print(f"Saved: {cov_dir / 'year_added_pair_cumulative.csv'}")
+                # GO terms that have selected metapaths in the 2024 DWPC
+                go_with_metapaths = set(dwpc_2024["go_id"].unique())
 
-                # Per-GO-term rescue
+                # Conditional added pairs: restrict to GO terms with selected metapaths
+                added_pairs_cond = added_pairs_all[
+                    added_pairs_all["go_id"].isin(go_with_metapaths)
+                ].copy()
+
+                n_all = len(added_pairs_all[["go_id", "entrez_gene_id"]].drop_duplicates())
+                n_cond = len(added_pairs_cond[["go_id", "entrez_gene_id"]].drop_duplicates())
+                n_go_all = added_pairs_all["go_id"].nunique()
+                n_go_cond = added_pairs_cond["go_id"].nunique()
+                print(f"GO terms with selected metapaths: {len(go_with_metapaths):,}")
+                print(f"Added pairs in those GO terms: {n_cond:,} / {n_all:,} "
+                      f"({n_go_cond:,} / {n_go_all:,} GO terms)")
+
+                # --- Global cumulative (all added pairs) ---
+                added_cumulative_all = compute_added_pair_coverage(
+                    dwpc_2024, added_pairs_all, cfg, added_group_col="go_id",
+                )
+                added_cumulative_all.to_csv(cov_dir / "year_added_pair_cumulative_global.csv", index=False)
+
+                # --- Conditional cumulative (only GO terms with selected metapaths) ---
+                added_cumulative_cond = compute_added_pair_coverage(
+                    dwpc_2024, added_pairs_cond, cfg, added_group_col="go_id",
+                )
+                added_cumulative_cond.to_csv(cov_dir / "year_added_pair_cumulative_conditional.csv", index=False)
+                print(f"Saved: {cov_dir / 'year_added_pair_cumulative_global.csv'}")
+                print(f"Saved: {cov_dir / 'year_added_pair_cumulative_conditional.csv'}")
+
+                # --- Per-GO-term rescue (conditional) ---
                 added_per_go = compute_added_pair_coverage_per_group(
-                    dwpc_2024, added_pairs, cfg, added_group_col="go_id",
+                    dwpc_2024, added_pairs_cond, cfg, added_group_col="go_id",
                 )
                 added_per_go.to_csv(cov_dir / "year_added_pair_per_go.csv", index=False)
                 print(f"Saved: {cov_dir / 'year_added_pair_per_go.csv'}")
 
-                print("\n--- Added-pair coverage (2024) ---")
-                for _, row in added_cumulative.iterrows():
-                    print(f"  k={int(row['k'])}: {int(row['n_added_covered']):,} / "
+                # --- Print summaries ---
+                print("\n--- Added-pair coverage: global (all GO terms) ---")
+                for _, row in added_cumulative_all.iterrows():
+                    print(f"  k={int(row['k']):>2}: {int(row['n_added_covered']):>6,} / "
+                          f"{int(row['n_added_total']):,} "
+                          f"({row['added_pair_coverage']:.4f})")
+
+                print(f"\n--- Added-pair coverage: conditional "
+                      f"({n_go_cond:,} GO terms with selected metapaths) ---")
+                for _, row in added_cumulative_cond.iterrows():
+                    print(f"  k={int(row['k']):>2}: {int(row['n_added_covered']):>6,} / "
                           f"{int(row['n_added_total']):,} "
                           f"({row['added_pair_coverage']:.4f})")
 
                 n_go_with_rescue = int((added_per_go["n_rescued"] > 0).sum())
-                n_go_total = len(added_per_go)
-                print(f"\n  GO terms with rescued pairs: {n_go_with_rescue:,} / {n_go_total:,}")
-                print(f"  Total pairs rescued (top1->all): {int(added_per_go['n_rescued'].sum()):,}")
-                top_rescued = added_per_go.head(5)
+                n_go_total = len(added_per_go[added_per_go["n_added"] > 0])
+                print(f"\n  GO terms with rescued added pairs: {n_go_with_rescue:,} / {n_go_total:,}")
+                print(f"  Total added pairs rescued (top1->all): {int(added_per_go['n_rescued'].sum()):,}")
+                top_rescued = added_per_go[added_per_go["n_rescued"] > 0].head(5)
                 if not top_rescued.empty:
                     print("  Top GO terms by rescue count:")
                     for _, r in top_rescued.iterrows():
