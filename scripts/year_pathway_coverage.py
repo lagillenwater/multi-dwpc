@@ -286,12 +286,28 @@ def main() -> None:
                           f"({row['added_pair_coverage']:.4f})")
 
                 n_go_with_rescue = int((added_per_go["n_rescued"] > 0).sum())
-                n_go_total = len(added_per_go[added_per_go["n_added"] > 0])
+                has_added = added_per_go[added_per_go["n_added"] > 0]
+                n_go_total = len(has_added)
                 print(f"\n  GO terms with rescued added pairs: {n_go_with_rescue:,} / {n_go_total:,}")
                 print(f"  Total added pairs rescued (top1->all): {int(added_per_go['n_rescued'].sum()):,}")
+
+                # Coverage distribution across GO terms with added pairs
+                print(f"\n  Added-pair coverage distribution (across {n_go_total:,} GO terms):")
+                print(f"    top1  -- median: {has_added['added_coverage_top1'].median():.3f}, "
+                      f"mean: {has_added['added_coverage_top1'].mean():.3f}, "
+                      f"25th: {has_added['added_coverage_top1'].quantile(0.25):.3f}, "
+                      f"75th: {has_added['added_coverage_top1'].quantile(0.75):.3f}")
+                print(f"    multi -- median: {has_added['added_coverage_all'].median():.3f}, "
+                      f"mean: {has_added['added_coverage_all'].mean():.3f}, "
+                      f"25th: {has_added['added_coverage_all'].quantile(0.25):.3f}, "
+                      f"75th: {has_added['added_coverage_all'].quantile(0.75):.3f}")
+                pct_full = (has_added["added_coverage_all"] >= 1.0).sum()
+                print(f"    GO terms reaching 100% coverage (multi): {int(pct_full):,} / {n_go_total:,} "
+                      f"({pct_full / n_go_total:.1%})")
+
                 top_rescued = added_per_go[added_per_go["n_rescued"] > 0].head(5)
                 if not top_rescued.empty:
-                    print("  Top GO terms by rescue count:")
+                    print("\n  Top GO terms by rescue count:")
                     for _, r in top_rescued.iterrows():
                         print(f"    {r['go_id']}: +{int(r['n_rescued'])} rescued "
                               f"({r['added_coverage_top1']:.2f} -> {r['added_coverage_all']:.2f})")
