@@ -82,14 +82,30 @@ def _load_year_dwpc(
     return pd.concat(frames, ignore_index=True)
 
 
-def _filter_to_supported(
+def _filter_to_selected(
     pair_dwpc: pd.DataFrame,
     support_df: pd.DataFrame,
+    *,
+    selection_col: str = "selected_by_effective_n_all",
 ) -> pd.DataFrame:
-    """Keep only rows whose (year, go_id, metapath) is supported."""
-    supported = support_df[support_df["supported"] == True].copy()  # noqa: E712
-    supported["year"] = supported["year"].astype(int)
-    keep_keys = supported[["year", "go_id", "metapath"]].drop_duplicates()
+    """Keep only rows whose (year, go_id, metapath) passes the selection filter.
+
+    Parameters
+    ----------
+    selection_col
+        Boolean column in *support_df* to filter on.  Defaults to
+        ``selected_by_effective_n_all``; alternatives include ``supported``
+        or ``selected_by_effective_n_supported_only``.
+    """
+    work = support_df.copy()
+    work[selection_col] = (
+        work[selection_col]
+        .astype(str).str.strip().str.lower()
+        .isin({"1", "true", "t", "yes"})
+    )
+    selected = work[work[selection_col]].copy()
+    selected["year"] = selected["year"].astype(int)
+    keep_keys = selected[["year", "go_id", "metapath"]].drop_duplicates()
     return pair_dwpc.merge(keep_keys, on=["year", "go_id", "metapath"], how="inner")
 
 
@@ -121,6 +137,11 @@ def parse_args() -> argparse.Namespace:
         default="output/year_pathway_coverage",
         help="Output directory for coverage results.",
     )
+    parser.add_argument(
+        "--selection-col",
+        default="selected_by_effective_n_all",
+        help="Boolean column in support table used to filter metapaths.",
+    )
     parser.add_argument("--chunksize", type=int, default=200_000)
     return parser.parse_args()
 
@@ -142,13 +163,10 @@ def main() -> None:
     print(f"Loaded {len(pair_dwpc):,} raw pair rows")
 
     support_df = pd.read_csv(support_path)
-    support_df["supported"] = (
-        support_df["supported"]
-        .astype(str).str.strip().str.lower()
-        .isin({"1", "true", "t", "yes"})
+    pair_dwpc = _filter_to_selected(
+        pair_dwpc, support_df, selection_col=args.selection_col,
     )
-    pair_dwpc = _filter_to_supported(pair_dwpc, support_df)
-    print(f"After filtering to supported metapaths: {len(pair_dwpc):,} rows")
+    print(f"After filtering to selected metapaths ({args.selection_col}): {len(pair_dwpc):,} rows")
 
     if pair_dwpc.empty:
         print("No supported pair rows found. Exiting.", file=sys.stderr)
