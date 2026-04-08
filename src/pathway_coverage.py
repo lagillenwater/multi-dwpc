@@ -406,6 +406,188 @@ def compute_metapath_complementarity(
 
 
 # ---------------------------------------------------------------------------
+# Group-level signal classification
+# ---------------------------------------------------------------------------
+
+def classify_gene_signal(
+    pair_dwpc: pd.DataFrame,
+    group_stats: pd.DataFrame,
+    cfg: CoverageConfig,
+    *,
+    null_mean_col: str = "perm_null_mean",
+    null_std_col: str = "perm_null_std",
+    group_target_col: str | None = None,
+) -> pd.DataFrame:
+    """Classify each gene's DWPC relative to the group-level null.
+
+    For each (pathway_group, metapath, gene), assigns a signal category:
+    - ``"strong"``: DWPC > null_mean + null_std
+    - ``"weak"``:   0 < DWPC <= null_mean
+    - ``"moderate"``: null_mean < DWPC <= null_mean + null_std
+    - ``"zero"``:   DWPC == 0
+
+    Genes in the "weak" category are those whose individual signal is
+    below the null center but contribute to a group mean that exceeds it.
+    These are the connections attributable to group-level inference.
+
+    Parameters
+    ----------
+    pair_dwpc
+        Per-gene pair-level DWPC table.
+    group_stats
+        Table with group-level null parameters.  Must contain the pathway
+        group columns, metapath column, *null_mean_col*, and *null_std_col*.
+    group_target_col
+        Column in *group_stats* that identifies the target entity for
+        joining (e.g. ``"go_id"``).  If None, uses the last element of
+        ``cfg.group_cols``.
+    """
+    if group_target_col is None:
+        group_target_col = cfg.group_cols[-1]
+
+    # Build join keys -- group_stats may have different group columns
+    # (e.g. year+go_id+metapath) vs pair_dwpc
+    stat_join_cols = [c for c in cfg.group_cols if c in group_stats.columns]
+    stat_join_cols = stat_join_cols + [cfg.metapath_col]
+    stat_keep = stat_join_cols + [null_mean_col, null_std_col]
+    stat_keep = [c for c in stat_keep if c in group_stats.columns]
+    stats_sub = group_stats[stat_keep].drop_duplicates()
+
+    merged = pair_dwpc.merge(stats_sub, on=stat_join_cols, how="inner")
+
+    null_mean = merged[null_mean_col].fillna(0.0).astype(float)
+    null_std = merged[null_std_col].fillna(0.0).astype(float).clip(lower=0.0)
+    dwpc = merged[cfg.dwpc_col].fillna(0.0).astype(float)
+
+    conditions = [
+        dwpc == 0,
+        dwpc <= null_mean,
+        dwpc <= null_mean + null_std,
+        dwpc > null_mean + null_std,
+    ]
+    labels = ["zero", "weak", "moderate", "strong"]
+    merged["signal_category"] = np.select(conditions, labels, default="zero")
+
+    return merged
+
+
+def summarize_signal_categories(
+    classified: pd.DataFrame,
+    cfg: CoverageConfig,
+    *,
+    group_target_col: str | None = None,
+) -> pd.DataFrame:
+    """Aggregate signal classifications per pathway group.
+
+    Returns one row per pathway group with counts and fractions for each
+    signal category.
+    """
+    if group_target_col is None:
+        group_target_col = cfg.group_cols[-1]
+
+    group_cols = cfg.group_cols + [cfg.metapath_col]
+    group_cols = [c for c in group_cols if c in classified.columns]
+
+    agg = classified.groupby(group_cols, as_index=False).agg(
+        n_genes=(cfg.gene_col, "nunique"),
+        n_zero=("signal_category", lambda x: (x == "zero").sum()),
+        n_weak=("signal_category", lambda x: (x == "weak").sum()),
+        n_moderate=("signal_category", lambda x: (x == "moderate").sum()),
+        n_strong=("signal_category", lambda x: (x == "strong").sum()),
+    )
+    agg["n_nonzero"] = agg["n_weak"] + agg["n_moderate"] + agg["n_strong"]
+    agg["frac_weak"] = np.where(
+        agg["n_nonzero"] > 0,
+        agg["n_weak"] / agg["n_nonzero"],
+        0.0,
+    )
+    agg["frac_moderate"] = np.where(
+        agg["n_nonzero"] > 0,
+        agg["n_moderate"] / agg["n_nonzero"],
+        0.0,
+    )
+    agg["frac_strong"] = np.where(
+        agg["n_nonzero"] > 0,
+        agg["n_strong"] / agg["n_nonzero"],
+        0.0,
+    )
+    agg["frac_group_only"] = np.where(
+        agg["n_nonzero"] > 0,
+        (agg["n_weak"] + agg["n_moderate"]) / agg["n_nonzero"],
+        0.0,
+    )
+    return agg
+
+
+def classify_added_pair_signal(
+    pair_dwpc: pd.DataFrame,
+    added_pairs: pd.DataFrame,
+    group_stats: pd.DataFrame,
+    cfg: CoverageConfig,
+    *,
+    null_mean_col: str = "perm_null_mean",
+    null_std_col: str = "perm_null_std",
+    added_group_col: str | None = None,
+) -> pd.DataFrame:
+    """Classify added-pair signal categories and summarize.
+
+    Restricts the classification to only the added (validation) pairs,
+    then reports global and per-group counts.
+
+    Returns a per-pair classified DataFrame with signal_category column.
+    """
+    if added_group_col is None:
+        added_group_col = cfg.group_cols[-1]
+
+    classified = classify_gene_signal(
+        pair_dwpc, group_stats, cfg,
+        null_mean_col=null_mean_col,
+        null_std_col=null_std_col,
+        group_target_col=added_group_col,
+    )
+
+    pair_key_cols = [added_group_col, cfg.gene_col]
+    added_keys = added_pairs[pair_key_cols].drop_duplicates()
+
+    # Mark which rows are added pairs
+    added_keys = added_keys.copy()
+    added_keys["_is_added"] = True
+    classified = classified.merge(added_keys, on=pair_key_cols, how="inner")
+
+    return classified
+
+
+def summarize_added_pair_signal(
+    classified_added: pd.DataFrame,
+    cfg: CoverageConfig,
+) -> dict:
+    """Global summary statistics for added-pair signal classification."""
+    nonzero = classified_added[classified_added["signal_category"] != "zero"]
+    n_nonzero = len(nonzero)
+    n_total = len(classified_added)
+
+    cats = ["strong", "moderate", "weak", "zero"]
+    counts = {cat: int((classified_added["signal_category"] == cat).sum()) for cat in cats}
+
+    result = {
+        "n_added_pairs_with_dwpc_rows": n_total,
+        "n_nonzero": n_nonzero,
+        **{f"n_{cat}": counts[cat] for cat in cats},
+    }
+    if n_nonzero > 0:
+        result["frac_strong"] = counts["strong"] / n_nonzero
+        result["frac_moderate"] = counts["moderate"] / n_nonzero
+        result["frac_weak"] = counts["weak"] / n_nonzero
+        result["frac_group_only"] = (counts["weak"] + counts["moderate"]) / n_nonzero
+    else:
+        result["frac_strong"] = 0.0
+        result["frac_moderate"] = 0.0
+        result["frac_weak"] = 0.0
+        result["frac_group_only"] = 0.0
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Added-pair (validation set) coverage
 # ---------------------------------------------------------------------------
 

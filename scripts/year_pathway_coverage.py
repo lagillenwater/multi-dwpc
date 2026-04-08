@@ -37,6 +37,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.pathway_coverage import (  # noqa: E402
     CoverageConfig,
+    classify_added_pair_signal,
+    classify_gene_signal,
     compare_conditions,
     compute_added_pair_coverage,
     compute_added_pair_coverage_per_group,
@@ -44,6 +46,8 @@ from src.pathway_coverage import (  # noqa: E402
     compute_metapath_complementarity,
     compute_rescue_table,
     rank_metapaths_from_results,
+    summarize_added_pair_signal,
+    summarize_signal_categories,
 )
 
 YEAR_CONFIG = CoverageConfig(
@@ -311,6 +315,48 @@ def main() -> None:
                     for _, r in top_rescued.iterrows():
                         print(f"    {r['go_id']}: +{int(r['n_rescued'])} rescued "
                               f"({r['added_coverage_top1']:.2f} -> {r['added_coverage_all']:.2f})")
+
+                # --- Group-level signal classification of added pairs ---
+                # Classify each added pair's DWPC relative to the group null
+                support_2024 = support_df[support_df["year"] == 2024].copy()
+
+                classified_added = classify_added_pair_signal(
+                    dwpc_2024, added_pairs_cond, support_2024, cfg,
+                    null_mean_col="perm_null_mean",
+                    null_std_col="perm_null_std",
+                    added_group_col="go_id",
+                )
+                classified_added.to_csv(cov_dir / "year_added_pair_classified.csv", index=False)
+                print(f"\nSaved: {cov_dir / 'year_added_pair_classified.csv'}")
+
+                signal_summary = summarize_added_pair_signal(classified_added, cfg)
+
+                print("\n--- Group-level signal classification (2024 added pairs) ---")
+                print(f"  Added pairs with DWPC rows: {signal_summary['n_added_pairs_with_dwpc_rows']:,}")
+                print(f"  Nonzero DWPC:    {signal_summary['n_nonzero']:,}")
+                print(f"    strong  (DWPC > null_mean + std): {signal_summary['n_strong']:,} "
+                      f"({signal_summary['frac_strong']:.1%})")
+                print(f"    moderate (null_mean < DWPC <= null_mean + std): {signal_summary['n_moderate']:,} "
+                      f"({signal_summary['frac_moderate']:.1%})")
+                print(f"    weak    (0 < DWPC <= null_mean): {signal_summary['n_weak']:,} "
+                      f"({signal_summary['frac_weak']:.1%})")
+                print(f"  Zero DWPC:       {signal_summary['n_zero']:,}")
+                print(f"\n  Fraction of nonzero signal attributable to group inference "
+                      f"(weak + moderate): {signal_summary['frac_group_only']:.1%}")
+
+                # Per-GO-term signal summary
+                signal_per_go = summarize_signal_categories(classified_added, cfg)
+                signal_per_go.to_csv(cov_dir / "year_added_pair_signal_per_go.csv", index=False)
+                print(f"Saved: {cov_dir / 'year_added_pair_signal_per_go.csv'}")
+
+                has_nonzero = signal_per_go[signal_per_go["n_nonzero"] > 0]
+                if not has_nonzero.empty:
+                    print(f"\n  Per-GO distribution of group-only fraction "
+                          f"(weak+moderate / nonzero, {len(has_nonzero):,} GO terms):")
+                    print(f"    median: {has_nonzero['frac_group_only'].median():.3f}, "
+                          f"mean: {has_nonzero['frac_group_only'].mean():.3f}, "
+                          f"25th: {has_nonzero['frac_group_only'].quantile(0.25):.3f}, "
+                          f"75th: {has_nonzero['frac_group_only'].quantile(0.75):.3f}")
 
     # Summary per year
     print("\n--- Gene-level summary ---")

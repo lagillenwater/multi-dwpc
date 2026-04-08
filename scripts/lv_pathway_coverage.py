@@ -35,12 +35,15 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.pathway_coverage import (  # noqa: E402
     CoverageConfig,
+    classify_gene_signal,
     compare_conditions,
     compute_cumulative_coverage,
     compute_metapath_complementarity,
     compute_rescue_table,
     rank_metapaths_by_dwpc_mass,
     rank_metapaths_from_results,
+    summarize_added_pair_signal,
+    summarize_signal_categories,
 )
 
 LV_CONFIG = CoverageConfig(
@@ -175,8 +178,50 @@ def main() -> None:
     cumulative.to_csv(cov_dir / "lv_cumulative_coverage.csv", index=False)
     print(f"Saved cumulative coverage: {cov_dir / 'lv_cumulative_coverage.csv'}")
 
+    # 5. Group-level signal classification
+    if results_path.exists():
+        results_df = pd.read_csv(results_path) if "results_df" not in dir() else results_df
+        classified = classify_gene_signal(
+            pair_dwpc, results_df, cfg,
+            null_mean_col="perm_null_mean",
+            null_std_col="perm_null_std",
+            group_target_col="target_set_id",
+        )
+        classified.to_csv(cov_dir / "lv_gene_signal_classified.csv", index=False)
+        print(f"Saved signal classification: {cov_dir / 'lv_gene_signal_classified.csv'}")
+
+        signal_per_group = summarize_signal_categories(classified, cfg)
+        signal_per_group = _attach_labels(signal_per_group, pair_dwpc)
+        signal_per_group.to_csv(cov_dir / "lv_signal_per_group.csv", index=False)
+        print(f"Saved signal summary: {cov_dir / 'lv_signal_per_group.csv'}")
+
+        signal_summary = summarize_added_pair_signal(classified, cfg)
+        print("\n--- Group-level signal classification ---")
+        print(f"  Pairs with DWPC rows: {signal_summary['n_added_pairs_with_dwpc_rows']:,}")
+        print(f"  Nonzero DWPC:    {signal_summary['n_nonzero']:,}")
+        print(f"    strong  (DWPC > null_mean + std): {signal_summary['n_strong']:,} "
+              f"({signal_summary['frac_strong']:.1%})")
+        print(f"    moderate (null_mean < DWPC <= null_mean + std): {signal_summary['n_moderate']:,} "
+              f"({signal_summary['frac_moderate']:.1%})")
+        print(f"    weak    (0 < DWPC <= null_mean): {signal_summary['n_weak']:,} "
+              f"({signal_summary['frac_weak']:.1%})")
+        print(f"  Zero DWPC:       {signal_summary['n_zero']:,}")
+        print(f"\n  Fraction of nonzero signal attributable to group inference "
+              f"(weak + moderate): {signal_summary['frac_group_only']:.1%}")
+
+        has_nonzero = signal_per_group[signal_per_group["n_nonzero"] > 0]
+        if not has_nonzero.empty:
+            print(f"\n  Per-group distribution of group-only fraction "
+                  f"({len(has_nonzero):,} groups with nonzero signal):")
+            print(f"    median: {has_nonzero['frac_group_only'].median():.3f}, "
+                  f"mean: {has_nonzero['frac_group_only'].mean():.3f}, "
+                  f"25th: {has_nonzero['frac_group_only'].quantile(0.25):.3f}, "
+                  f"75th: {has_nonzero['frac_group_only'].quantile(0.75):.3f}")
+    else:
+        print(f"\nSkipping signal classification (no metapath results at {results_path})")
+
     # Summary
-    print("\n--- Summary ---")
+    print("\n--- Coverage summary ---")
     rescue_summary = rescue[["gene_coverage_top1", "gene_coverage_multi", "gene_rescue_rate", "gene_coverage_gain"]]
     print(f"Median gene_coverage (top-1): {rescue_summary['gene_coverage_top1'].median():.3f}")
     print(f"Median gene_coverage (multi): {rescue_summary['gene_coverage_multi'].median():.3f}")
