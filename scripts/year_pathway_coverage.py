@@ -102,8 +102,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--support-path",
-        default="output/year_direct_go_term_support.csv",
-        help="Path to year_direct_go_term_support.csv.",
+        default="output/year_direct_go_term_support_b5.csv",
+        help="Path to year GO-term support table (e.g. year_direct_go_term_support_b5.csv).",
     )
     parser.add_argument(
         "--years",
