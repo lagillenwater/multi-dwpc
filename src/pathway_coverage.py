@@ -405,6 +405,130 @@ def compute_metapath_complementarity(
     return result
 
 
+# ---------------------------------------------------------------------------
+# Added-pair (validation set) coverage
+# ---------------------------------------------------------------------------
+
+def compute_added_pair_coverage(
+    pair_dwpc: pd.DataFrame,
+    added_pairs: pd.DataFrame,
+    cfg: CoverageConfig,
+    *,
+    added_group_col: str | None = None,
+) -> pd.DataFrame:
+    """Cumulative coverage of a validation pair set as metapaths are added.
+
+    Parameters
+    ----------
+    added_pairs
+        DataFrame with at least ``cfg.gene_col`` and one of the
+        ``cfg.group_cols`` identifying the target (e.g. ``go_id``).
+    added_group_col
+        The group column shared between *added_pairs* and *pair_dwpc*
+        that identifies the target entity (e.g. ``"go_id"``).  If None,
+        uses the last element of ``cfg.group_cols``.
+
+    Returns
+    -------
+    DataFrame with one row per metapath-rank cutoff *k*, containing:
+    - k, n_added_total, n_added_covered, added_pair_coverage
+    - per-group breakdown is in the ``_per_group`` companion.
+    """
+    if "metapath_rank" not in pair_dwpc.columns:
+        raise ValueError("pair_dwpc must have a 'metapath_rank' column.")
+
+    if added_group_col is None:
+        added_group_col = cfg.group_cols[-1]
+
+    pair_key_cols = [added_group_col, cfg.gene_col]
+    added_keys = added_pairs[pair_key_cols].drop_duplicates()
+    n_added_total = len(added_keys)
+
+    max_k = int(pair_dwpc["metapath_rank"].max())
+    rows = []
+    for k in range(1, max_k + 1):
+        sub = pair_dwpc[pair_dwpc["metapath_rank"] <= k]
+        # max DWPC per (group_target, gene) across metapaths
+        gene_max = (
+            sub.groupby(pair_key_cols, as_index=False)
+            .agg(max_dwpc=(cfg.dwpc_col, "max"))
+        )
+        # restrict to added pairs
+        hit = added_keys.merge(gene_max, on=pair_key_cols, how="left")
+        hit["max_dwpc"] = hit["max_dwpc"].fillna(0.0)
+        n_covered = int((hit["max_dwpc"] > 0).sum())
+        rows.append({
+            "k": k,
+            "n_added_total": n_added_total,
+            "n_added_covered": n_covered,
+            "added_pair_coverage": n_covered / n_added_total if n_added_total > 0 else 0.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def compute_added_pair_coverage_per_group(
+    pair_dwpc: pd.DataFrame,
+    added_pairs: pd.DataFrame,
+    cfg: CoverageConfig,
+    *,
+    added_group_col: str | None = None,
+) -> pd.DataFrame:
+    """Per-group added-pair rescue: top-1 vs all selected metapaths.
+
+    Returns one row per target group (e.g. per go_id) with:
+    - n_added, n_covered_top1, n_covered_all, n_rescued
+    - added_coverage_top1, added_coverage_all, added_rescue_rate
+    """
+    if "metapath_rank" not in pair_dwpc.columns:
+        raise ValueError("pair_dwpc must have a 'metapath_rank' column.")
+
+    if added_group_col is None:
+        added_group_col = cfg.group_cols[-1]
+
+    pair_key_cols = [added_group_col, cfg.gene_col]
+    added_keys = added_pairs[pair_key_cols].drop_duplicates()
+
+    results = {}
+    for label, max_rank in [("top1", 1), ("all", None)]:
+        sub = pair_dwpc if max_rank is None else pair_dwpc[pair_dwpc["metapath_rank"] <= max_rank]
+        gene_max = (
+            sub.groupby(pair_key_cols, as_index=False)
+            .agg(max_dwpc=(cfg.dwpc_col, "max"))
+        )
+        hit = added_keys.merge(gene_max, on=pair_key_cols, how="left")
+        hit["max_dwpc"] = hit["max_dwpc"].fillna(0.0)
+        hit["covered"] = hit["max_dwpc"] > 0
+        per_group = hit.groupby(added_group_col, as_index=False).agg(
+            **{f"n_covered_{label}": ("covered", "sum")},
+            n_added=(cfg.gene_col, "size"),
+        )
+        results[label] = per_group
+
+    merged = results["top1"].merge(
+        results["all"][[added_group_col, "n_covered_all"]],
+        on=added_group_col, how="outer",
+    )
+    merged["n_covered_top1"] = merged["n_covered_top1"].fillna(0).astype(int)
+    merged["n_covered_all"] = merged["n_covered_all"].fillna(0).astype(int)
+    merged["n_rescued"] = merged["n_covered_all"] - merged["n_covered_top1"]
+    merged["added_coverage_top1"] = np.where(
+        merged["n_added"] > 0,
+        merged["n_covered_top1"] / merged["n_added"],
+        0.0,
+    )
+    merged["added_coverage_all"] = np.where(
+        merged["n_added"] > 0,
+        merged["n_covered_all"] / merged["n_added"],
+        0.0,
+    )
+    merged["added_rescue_rate"] = np.where(
+        merged["n_added"] > 0,
+        merged["n_rescued"] / merged["n_added"],
+        0.0,
+    )
+    return merged.sort_values("n_rescued", ascending=False).reset_index(drop=True)
+
+
 def compute_cumulative_coverage(
     pair_dwpc: pd.DataFrame,
     cfg: CoverageConfig,

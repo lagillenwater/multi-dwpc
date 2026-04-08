@@ -38,6 +38,8 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.pathway_coverage import (  # noqa: E402
     CoverageConfig,
     compare_conditions,
+    compute_added_pair_coverage,
+    compute_added_pair_coverage_per_group,
     compute_cumulative_coverage,
     compute_metapath_complementarity,
     compute_rescue_table,
@@ -138,6 +140,12 @@ def parse_args() -> argparse.Namespace:
         help="Output directory for coverage results.",
     )
     parser.add_argument(
+        "--added-pairs-path",
+        default=None,
+        help="Path to added-pair validation set (e.g. upd_go_bp_2024_added.csv). "
+             "If provided, computes added-pair coverage metrics.",
+    )
+    parser.add_argument(
         "--selection-col",
         default="selected_by_effective_n_all",
         help="Boolean column in support table used to filter metapaths.",
@@ -211,8 +219,54 @@ def main() -> None:
     cumulative.to_csv(cov_dir / "year_cumulative_coverage.csv", index=False)
     print(f"Saved: {cov_dir / 'year_cumulative_coverage.csv'}")
 
+    # 5. Added-pair coverage (if validation set provided)
+    if args.added_pairs_path is not None:
+        added_path = Path(args.added_pairs_path)
+        if not added_path.exists():
+            print(f"Warning: added-pairs file not found: {added_path}", file=sys.stderr)
+        else:
+            added_pairs = pd.read_csv(added_path)
+            print(f"\nLoaded {len(added_pairs):,} added pairs from {added_path}")
+
+            # Added pairs are year-independent (they represent 2024-only annotations).
+            # Evaluate against the 2024 DWPC data only.
+            dwpc_2024 = pair_dwpc[pair_dwpc["year"] == 2024].copy()
+            if dwpc_2024.empty:
+                print("Warning: no 2024 rows in pair DWPC; skipping added-pair analysis.", file=sys.stderr)
+            else:
+                # Global cumulative curve
+                added_cumulative = compute_added_pair_coverage(
+                    dwpc_2024, added_pairs, cfg, added_group_col="go_id",
+                )
+                added_cumulative.to_csv(cov_dir / "year_added_pair_cumulative.csv", index=False)
+                print(f"Saved: {cov_dir / 'year_added_pair_cumulative.csv'}")
+
+                # Per-GO-term rescue
+                added_per_go = compute_added_pair_coverage_per_group(
+                    dwpc_2024, added_pairs, cfg, added_group_col="go_id",
+                )
+                added_per_go.to_csv(cov_dir / "year_added_pair_per_go.csv", index=False)
+                print(f"Saved: {cov_dir / 'year_added_pair_per_go.csv'}")
+
+                print("\n--- Added-pair coverage (2024) ---")
+                for _, row in added_cumulative.iterrows():
+                    print(f"  k={int(row['k'])}: {int(row['n_added_covered']):,} / "
+                          f"{int(row['n_added_total']):,} "
+                          f"({row['added_pair_coverage']:.4f})")
+
+                n_go_with_rescue = int((added_per_go["n_rescued"] > 0).sum())
+                n_go_total = len(added_per_go)
+                print(f"\n  GO terms with rescued pairs: {n_go_with_rescue:,} / {n_go_total:,}")
+                print(f"  Total pairs rescued (top1->all): {int(added_per_go['n_rescued'].sum()):,}")
+                top_rescued = added_per_go.head(5)
+                if not top_rescued.empty:
+                    print("  Top GO terms by rescue count:")
+                    for _, r in top_rescued.iterrows():
+                        print(f"    {r['go_id']}: +{int(r['n_rescued'])} rescued "
+                              f"({r['added_coverage_top1']:.2f} -> {r['added_coverage_all']:.2f})")
+
     # Summary per year
-    print("\n--- Summary ---")
+    print("\n--- Gene-level summary ---")
     for year in sorted(rescue["year"].unique()):
         yr = rescue[rescue["year"] == year]
         print(f"\nYear {year}:")
