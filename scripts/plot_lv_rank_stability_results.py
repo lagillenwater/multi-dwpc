@@ -95,6 +95,44 @@ def _mean_metric_by_lv(plot_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _compute_elbow(entity_df: pd.DataFrame, metric_col: str, increasing: bool) -> pd.DataFrame:
+    rows: list[dict] = []
+    for (control, lv_id), group in entity_df.groupby(["control", "lv_id"], sort=True):
+        curve = (
+            group.groupby("b", as_index=False)[metric_col]
+            .mean()
+            .sort_values("b")
+            .reset_index(drop=True)
+        )
+        if len(curve) < 3:
+            continue
+        x = curve["b"].astype(float).to_numpy()
+        y = curve[metric_col].astype(float).to_numpy()
+        x_norm = (x - x.min()) / (x.max() - x.min()) if x.max() > x.min() else np.zeros_like(x)
+        y_min = float(np.nanmin(y))
+        y_max = float(np.nanmax(y))
+        if y_max > y_min:
+            y_norm = (y - y_min) / (y_max - y_min)
+        else:
+            y_norm = np.zeros_like(y)
+        if not increasing:
+            y_norm = 1.0 - y_norm
+        line = np.linspace(y_norm[0], y_norm[-1], len(y_norm))
+        distance = y_norm - line
+        idx = int(np.argmax(distance))
+        rows.append(
+            {
+                "control": str(control),
+                "lv_id": str(lv_id),
+                "metric": str(metric_col),
+                "elbow_b": int(curve["b"].iloc[idx]),
+                "elbow_mean_value": float(curve[metric_col].iloc[idx]),
+                "elbow_distance": float(distance[idx]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _plot_rho(entity_df: pd.DataFrame, output_path: Path) -> None:
     controls = sorted(entity_df["control"].dropna().astype(str).unique().tolist())
     lv_ids = sorted(entity_df["lv_id"].dropna().astype(str).unique().tolist())
@@ -250,12 +288,24 @@ def main() -> None:
     args = parse_args()
     analysis_dir = Path(args.analysis_dir)
     entity_df = _load_entity_df(analysis_dir)
+    elbow_frames = [_compute_elbow(entity_df, "mean_spearman_rho", increasing=True)]
+    for col in entity_df.columns:
+        if col.startswith("mean_topk_jaccard_"):
+            elbow_frames.append(_compute_elbow(entity_df, col, increasing=True))
+    if "mean_rbo" in entity_df.columns:
+        elbow_frames.append(_compute_elbow(entity_df, "mean_rbo", increasing=True))
+    elbow_df = pd.concat(elbow_frames, ignore_index=True)
+    if not elbow_df.empty:
+        elbow_df.to_csv(analysis_dir / "elbow_summary.csv", index=False)
+
     rho_path = analysis_dir / "rho_points_with_mean_trend_by_b.png"
     _plot_rho(entity_df, rho_path)
     print(f"Saved plot: {rho_path}")
     topk_path = analysis_dir / "topk_jaccard_overall_by_group.png"
     _plot_overlap_and_rank(entity_df, topk_path)
     print(f"Saved plot: {topk_path}")
+    if not elbow_df.empty:
+        print(f"Saved summary: {analysis_dir / 'elbow_summary.csv'}")
 
 
 if __name__ == "__main__":

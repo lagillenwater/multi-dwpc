@@ -51,6 +51,40 @@ def _entity_mean(feature_df: pd.DataFrame, metric_col: str) -> pd.DataFrame:
     )
 
 
+def _compute_elbow(mean_df: pd.DataFrame, metric_col: str, increasing: bool) -> pd.DataFrame:
+    rows: list[dict] = []
+    value_col = f"mean_{metric_col}"
+    for (control, lv_id), group in mean_df.groupby(["control", "lv_id"], sort=True):
+        curve = group.sort_values("b").copy()
+        if len(curve) < 3:
+            continue
+        x = curve["b"].astype(float).to_numpy()
+        y = curve[value_col].astype(float).to_numpy()
+        x_norm = (x - x.min()) / (x.max() - x.min()) if x.max() > x.min() else np.zeros_like(x)
+        y_min = float(np.nanmin(y))
+        y_max = float(np.nanmax(y))
+        if y_max > y_min:
+            y_norm = (y - y_min) / (y_max - y_min)
+        else:
+            y_norm = np.zeros_like(y)
+        if not increasing:
+            y_norm = 1.0 - y_norm
+        line = np.linspace(y_norm[0], y_norm[-1], len(y_norm))
+        distance = y_norm - line
+        idx = int(np.argmax(distance))
+        rows.append(
+            {
+                "control": str(control),
+                "lv_id": str(lv_id),
+                "metric": str(metric_col),
+                "elbow_b": int(curve["b"].iloc[idx]),
+                "elbow_mean_value": float(curve[value_col].iloc[idx]),
+                "elbow_distance": float(distance[idx]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _plot_metric(
     feature_df: pd.DataFrame,
     metric_col: str,
@@ -126,6 +160,17 @@ def main() -> None:
         analysis_dir / "feature_variance_summary.csv",
         required_columns=["control", "lv_id", "b", "diff_std", "diff_var"],
     )
+    mean_std_df = _entity_mean(feature_df, "diff_std")
+    mean_var_df = _entity_mean(feature_df, "diff_var")
+    elbow_df = pd.concat(
+        [
+            _compute_elbow(mean_std_df, "diff_std", increasing=False),
+            _compute_elbow(mean_var_df, "diff_var", increasing=False),
+        ],
+        ignore_index=True,
+    )
+    if not elbow_df.empty:
+        elbow_df.to_csv(analysis_dir / "elbow_summary.csv", index=False)
 
     _plot_metric(
         feature_df=feature_df,
@@ -144,6 +189,8 @@ def main() -> None:
 
     print(f"Saved plot: {analysis_dir / 'sd_points_with_mean_trend_by_b.png'}")
     print(f"Saved plot: {analysis_dir / 'variance_points_with_mean_trend_by_b.png'}")
+    if not elbow_df.empty:
+        print(f"Saved summary: {analysis_dir / 'elbow_summary.csv'}")
 
 
 if __name__ == "__main__":
