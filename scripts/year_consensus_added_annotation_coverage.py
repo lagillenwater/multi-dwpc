@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Coverage of 2024-added GO-gene annotations under top-K 2024 consensus metapaths."""
+"""Coverage of GO-gene annotations under top-K consensus metapaths for a target year."""
 
 from __future__ import annotations
 
@@ -144,18 +144,19 @@ def _scan_results(
 
 def _summarize_for_k(
     *,
+    target_year: int,
     top_k: int,
-    support_2024: pd.DataFrame,
+    support_year_df: pd.DataFrame,
     added_df: pd.DataFrame,
     results_path: Path,
     dwpc_threshold: float,
     chunksize: int,
     output_dir: Path,
 ) -> dict:
-    topk_2024 = _select_top_k_metapaths_per_go(support_2024, top_k=int(top_k))
+    topk_year = _select_top_k_metapaths_per_go(support_year_df, top_k=int(top_k))
     hits_df = _scan_results(
         results_path,
-        selected_go_metapaths_df=topk_2024,
+        selected_go_metapaths_df=topk_year,
         added_pairs_df=added_df,
         chunksize=chunksize,
     )
@@ -186,7 +187,7 @@ def _summarize_for_k(
     else:
         best_pairs = positive_hits.groupby(["go_id", "entrez_gene_id"], as_index=False, sort=False).head(1).copy()
         best_pairs["rank"] = 1
-        best_pairs["year"] = 2024
+        best_pairs["year"] = int(target_year)
 
     pair_summary = (
         hits_df.groupby(["go_id", "entrez_gene_id"], as_index=False)
@@ -219,8 +220,8 @@ def _summarize_for_k(
         else pd.DataFrame(columns=["metapath", "n_covered_added_pairs", "n_unique_go_terms", "best_dwpc"])
     )
 
-    topk_2024.to_csv(output_dir / f"top_metapaths_by_go_2024_top{int(top_k)}.csv", index=False)
-    best_pairs.to_csv(output_dir / f"top_gene_bp_pairs_2024_top{int(top_k)}.csv", index=False)
+    topk_year.to_csv(output_dir / f"top_metapaths_by_go_{int(target_year)}_top{int(top_k)}.csv", index=False)
+    best_pairs.to_csv(output_dir / f"top_gene_bp_pairs_{int(target_year)}_top{int(top_k)}.csv", index=False)
     pair_summary.to_csv(output_dir / f"covered_added_pairs_top{int(top_k)}.csv", index=False)
     metapath_summary.to_csv(output_dir / f"coverage_by_metapath_top{int(top_k)}.csv", index=False)
 
@@ -228,20 +229,21 @@ def _summarize_for_k(
     n_pairs_with_any_rows = int(pair_summary.shape[0])
     n_pairs_covered = int(pair_summary["covered_by_topk_metapaths"].sum()) if not pair_summary.empty else 0
     return {
+        "year": int(target_year),
         "top_k": int(top_k),
         "dwpc_threshold": float(dwpc_threshold),
-        "n_go_terms_2024": int(topk_2024["go_id"].nunique()),
-        "n_go_metapath_rows_2024": int(len(topk_2024)),
+        "n_go_terms": int(topk_year["go_id"].nunique()),
+        "n_go_metapath_rows": int(len(topk_year)),
         "n_added_pairs_total": n_added_total,
-        "n_added_pairs_with_any_topk_row_2024": n_pairs_with_any_rows,
-        "n_added_pairs_covered_in_2024": n_pairs_covered,
-        "coverage_of_added_pairs_in_2024": (float(n_pairs_covered) / float(n_added_total)) if n_added_total else np.nan,
+        "n_added_pairs_with_any_topk_row": n_pairs_with_any_rows,
+        "n_added_pairs_covered": n_pairs_covered,
+        "coverage_of_added_pairs": (float(n_pairs_covered) / float(n_added_total)) if n_added_total else np.nan,
         "fraction_with_positive_dwpc_among_pairs_with_any_topk_row": (float(n_pairs_covered) / float(n_pairs_with_any_rows)) if n_pairs_with_any_rows else np.nan,
         "median_positive_metapaths_per_covered_pair": (
             float(pair_summary.loc[pair_summary["covered_by_topk_metapaths"], "n_positive_topk_metapaths"].median())
             if not pair_summary.empty and n_pairs_covered > 0 else np.nan
         ),
-        "median_best_2024_dwpc_among_covered_pairs": (
+        "median_best_dwpc_among_covered_pairs": (
             float(pair_summary.loc[pair_summary["covered_by_topk_metapaths"], "best_2024_dwpc"].median())
             if not pair_summary.empty and n_pairs_covered > 0 else np.nan
         ),
@@ -250,6 +252,7 @@ def _summarize_for_k(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--year", type=int, default=2024)
     parser.add_argument("--support-path", default=str(DEFAULT_SUPPORT_PATH))
     parser.add_argument("--added-pairs-path", default=str(DEFAULT_ADDED_PAIRS_PATH))
     parser.add_argument("--results-path", default=str(DEFAULT_RESULTS_PATH))
@@ -270,18 +273,18 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    support_2024 = _load_support(Path(args.support_path), year=2024)
+    support_year_df = _load_support(Path(args.support_path), year=int(args.year))
     if str(args.exclude_intermediate_nodes).strip():
         excluded_nodes = {
             tok.strip()
             for tok in str(args.exclude_intermediate_nodes).split(",")
             if tok.strip()
         }
-        before = int(support_2024["metapath"].nunique())
-        support_2024 = support_2024[
-            ~support_2024["metapath"].map(lambda mp: _has_excluded_intermediate_node(mp, excluded_nodes))
+        before = int(support_year_df["metapath"].nunique())
+        support_year_df = support_year_df[
+            ~support_year_df["metapath"].map(lambda mp: _has_excluded_intermediate_node(mp, excluded_nodes))
         ].copy()
-        after = int(support_2024["metapath"].nunique())
+        after = int(support_year_df["metapath"].nunique())
         print(
             "Excluded internal-node metapaths: "
             f"{sorted(excluded_nodes)}; removed {before - after} unique metapaths, kept {after}"
@@ -293,8 +296,9 @@ def main() -> None:
     for top_k in top_k_values:
         summary_rows.append(
             _summarize_for_k(
+                target_year=int(args.year),
                 top_k=int(top_k),
-                support_2024=support_2024,
+                support_year_df=support_year_df,
                 added_df=added_df,
                 results_path=Path(args.results_path),
                 dwpc_threshold=float(args.dwpc_threshold),
