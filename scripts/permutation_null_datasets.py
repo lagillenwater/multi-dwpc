@@ -166,9 +166,11 @@ for perm_path in perm_files_2016:
     real_sizes = real_2016.groupby('go_id').size().sort_index()
     perm_sizes = perm_2016.groupby('go_id').size().sort_index()
 
-    # Extract permutation index from filename (e.g., perm_001.csv -> 1)
     stem_parts_2016 = perm_path.stem.split('_')
-    perm_label_2016 = stem_parts_2016[1].lstrip('0') if len(stem_parts_2016) > 1 else perm_path.stem
+    perm_label_2016 = (
+        stem_parts_2016[1].lstrip('0')
+        if len(stem_parts_2016) > 1 else perm_path.stem
+    )
     if not perm_label_2016:
         perm_label_2016 = '0'
 
@@ -176,7 +178,8 @@ for perm_path in perm_files_2016:
         print(f'  Permutation {perm_label_2016}: GO term sizes preserved')
     else:
         mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {perm_label_2016}: {mismatches} GO term size mismatches!')
+        print(f'  Permutation {perm_label_2016}: '
+              f'{mismatches} GO term size mismatches!')
 
 print('\n2024 Permutations:')
 perm_files_2024 = sorted(perm_dir_2024.glob('perm_*.csv'))
@@ -185,9 +188,11 @@ for perm_path in perm_files_2024:
     real_sizes = real_2024.groupby('go_id').size().sort_index()
     perm_sizes = perm_2024.groupby('go_id').size().sort_index()
 
-    # Extract permutation index from filename (e.g., perm_001.csv -> 1)
     stem_parts_2024 = perm_path.stem.split('_')
-    perm_label_2024 = stem_parts_2024[1].lstrip('0') if len(stem_parts_2024) > 1 else perm_path.stem
+    perm_label_2024 = (
+        stem_parts_2024[1].lstrip('0')
+        if len(stem_parts_2024) > 1 else perm_path.stem
+    )
     if not perm_label_2024:
         perm_label_2024 = '0'
 
@@ -195,7 +200,8 @@ for perm_path in perm_files_2024:
         print(f'  Permutation {perm_label_2024}: GO term sizes preserved')
     else:
         mismatches = len(real_sizes) - (real_sizes == perm_sizes).sum()
-        print(f'  Permutation {perm_label_2024}: {mismatches} GO term size mismatches!')
+        print(f'  Permutation {perm_label_2024}: '
+              f'{mismatches} GO term size mismatches!')
 
 # %%
 # Validation: Check genes unchanged (only labels shuffled)
