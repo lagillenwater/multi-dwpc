@@ -40,6 +40,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-paths", type=int, default=5)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
+        "--metapath-rank-metric",
+        default="consensus_score",
+        choices=["consensus_score", "consensus_rank", "min_d", "min_diff", "diff_perm", "diff_rand", "d_perm", "d_rand"],
+    )
+    parser.add_argument(
         "--analysis-dir",
         default=None,
         help="Optional LV rank-stability analysis directory for rank-based top-path plotting.",
@@ -76,6 +81,8 @@ def _plot_from_rank_runs(args: argparse.Namespace, output_dir: Path, analysis_di
             str(args.top_paths),
             "--degree-d",
             str(args.degree_d),
+            "--metapath-rank-metric",
+            str(args.metapath_rank_metric),
             "--pair-rank-metric",
             str(args.pair_rank_metric),
         ]

@@ -364,6 +364,7 @@ def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
         f"top_paths={args.top_paths}\n"
         f"damping={args.damping}\n"
         f"degree_d={args.degree_d}\n"
+        f"metapath_rank_metric={args.metapath_rank_metric}\n"
         f"pair_rank_metric={args.pair_rank_metric}\n"
     )
     if args.resume and top_pair_path.exists() and top_path_path.exists() and not args.force:
@@ -387,6 +388,7 @@ def run_top_subgraphs_stage(args: argparse.Namespace) -> None:
         top_paths=args.top_paths,
         damping=args.damping,
         degree_d=args.degree_d,
+        metapath_rank_metric=args.metapath_rank_metric,
         pair_rank_metric=args.pair_rank_metric,
     )
     cfg_path.write_text(cfg_text)
@@ -577,6 +579,16 @@ def main() -> None:
         type=int,
         default=5,
         help="Top path instances per selected pair.",
+    )
+    parser.add_argument(
+        "--metapath-rank-metric",
+        choices=["consensus_score", "consensus_rank", "min_d", "min_diff", "diff_perm", "diff_rand", "d_perm", "d_rand"],
+        default="consensus_score",
+        help=(
+            "Metric for selecting top metapaths within each LV/target set. "
+            "`consensus_score` mirrors the year workflow by averaging inverse "
+            "ranks from the permuted and random null contrasts."
+        ),
     )
     parser.add_argument(
         "--pair-rank-metric",

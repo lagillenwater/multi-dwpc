@@ -27,6 +27,27 @@ def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str) -> pd.DataFrame:
     return out
 
 
+def _add_consensus_rank_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    group_cols = ["lv_id", "target_set_id"]
+    out["rank_perm"] = (
+        out.groupby(group_cols)["diff_perm"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    out["rank_rand"] = (
+        out.groupby(group_cols)["diff_rand"]
+        .rank(method="average", ascending=False)
+        .astype(float)
+    )
+    out["consensus_rank"] = 0.5 * (out["rank_perm"] + out["rank_rand"])
+    out["consensus_score"] = 0.5 * (
+        (1.0 / out["rank_perm"].replace(0, np.nan))
+        + (1.0 / out["rank_rand"].replace(0, np.nan))
+    )
+    return out
+
+
 def build_final_stats(output_dir: Path) -> pd.DataFrame:
     """
     Merge real and null summaries into final metapath-level result table.
@@ -82,6 +103,7 @@ def build_final_stats(output_dir: Path) -> pd.DataFrame:
 
     merged = _apply_bh_fdr(merged, p_col="p_perm", out_col="p_perm_fdr")
     merged = _apply_bh_fdr(merged, p_col="p_rand", out_col="p_rand_fdr")
+    merged = _add_consensus_rank_columns(merged)
 
     merged["supported"] = (
         (merged["p_perm_fdr"] < 0.05)
@@ -91,8 +113,8 @@ def build_final_stats(output_dir: Path) -> pd.DataFrame:
     )
 
     merged = merged.sort_values(
-        ["lv_id", "target_set_id", "supported", "min_d", "min_diff"],
-        ascending=[True, True, False, False, False],
+        ["lv_id", "target_set_id", "supported", "consensus_score", "min_d", "min_diff"],
+        ascending=[True, True, False, False, False, False],
     ).reset_index(drop=True)
 
     out_path = output_dir / "lv_metapath_results.csv"

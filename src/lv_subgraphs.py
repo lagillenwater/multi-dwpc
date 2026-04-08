@@ -192,6 +192,7 @@ def extract_top_subgraphs(
     top_paths: int,
     damping: float = 0.5,
     degree_d: float = 0.5,
+    metapath_rank_metric: str = "consensus_score",
     pair_rank_metric: str = "dwpc",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -207,11 +208,32 @@ def extract_top_subgraphs(
         supported = results.copy()
 
     supported["fdr_sum"] = supported["p_perm_fdr"] + supported["p_rand_fdr"]
+    metric_to_sort = {
+        "consensus_score": ("consensus_score", False),
+        "consensus_rank": ("consensus_rank", True),
+        "min_d": ("min_d", False),
+        "min_diff": ("min_diff", False),
+        "diff_perm": ("diff_perm", False),
+        "diff_rand": ("diff_rand", False),
+        "d_perm": ("d_perm", False),
+        "d_rand": ("d_rand", False),
+    }
+    if metapath_rank_metric not in metric_to_sort:
+        valid = ", ".join(sorted(metric_to_sort))
+        raise ValueError(
+            f"Unsupported metapath_rank_metric='{metapath_rank_metric}'. Choose one of: {valid}"
+        )
+    sort_col, ascending = metric_to_sort[metapath_rank_metric]
+    if sort_col not in supported.columns:
+        raise ValueError(
+            f"Required metapath ranking column '{sort_col}' not found in {results_path}"
+        )
     supported = supported.sort_values(
-        ["lv_id", "target_set_id", "min_d", "min_diff", "fdr_sum"],
-        ascending=[True, True, False, False, True],
+        ["lv_id", "target_set_id", sort_col, "consensus_score", "min_d", "min_diff", "fdr_sum"],
+        ascending=[True, True, ascending, False, False, False, True],
     )
     top_mp = supported.groupby(["lv_id", "target_set_id"]).head(top_metapaths).copy()
+    top_mp["metapath_rank_metric"] = str(metapath_rank_metric)
 
     manifest_override = top_mp[["node_type", "metapath"]].drop_duplicates().copy()
 

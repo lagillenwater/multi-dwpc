@@ -32,6 +32,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-paths", type=int, default=5)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
+        "--metapath-rank-metric",
+        default="consensus_score",
+        choices=["consensus_score", "consensus_rank", "min_d", "min_diff", "diff_perm", "diff_rand", "d_perm", "d_rand"],
+    )
+    parser.add_argument(
         "--pair-rank-metric",
         default="dwpc",
         choices=["dwpc", "contrast_min", "contrast_perm", "contrast_rand", "contrast_mean"],
@@ -49,6 +54,7 @@ def main() -> None:
         top_pairs=args.top_pairs,
         top_paths=args.top_paths,
         degree_d=args.degree_d,
+        metapath_rank_metric=args.metapath_rank_metric,
         pair_rank_metric=args.pair_rank_metric,
     )
     print(f"Saved top pairs: {output_dir / 'top_pairs.csv'} ({len(top_pairs_df):,} rows)")
