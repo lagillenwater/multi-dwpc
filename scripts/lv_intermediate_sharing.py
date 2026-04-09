@@ -138,13 +138,15 @@ def _enumerate_gene_intermediates(
     genes_found = 0
     genes_with_paths = 0
 
+    gene_id_map = maps.id_to_pos.get("G", {})
+    if debug:
+        print(f"      Gene map has {len(gene_id_map)} entries, sample keys: {list(gene_id_map.keys())[:3]} (types: {[type(k) for k in list(gene_id_map.keys())[:3]]})")
+        print(f"      Input genes sample: {genes[:3]} (types: {[type(g) for g in genes[:3]]})")
+
     for gene_id in genes:
         # Try both int and string lookups since Gene.tsv identifiers may be int
-        gene_id_map = maps.id_to_pos.get("G", {})
         gene_pos = gene_id_map.get(gene_id) or gene_id_map.get(str(gene_id)) or gene_id_map.get(int(gene_id) if isinstance(gene_id, str) else gene_id)
         if gene_pos is None:
-            if debug and genes_found == 0:
-                print(f"      Gene {gene_id} (type {type(gene_id)}) not found in maps. Sample keys: {list(gene_id_map.keys())[:3]}")
             continue
         genes_found += 1
 
