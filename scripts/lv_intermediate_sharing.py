@@ -25,12 +25,14 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.lv_subgraphs import (  # noqa: E402
+from scripts.extract_top_paths_local import (  # noqa: E402
     EdgeLoader,
-    _load_node_maps,
-    _parse_metapath,
+    enumerate_paths,
+    load_node_maps,
+    parse_metapath,
+    reverse_metapath_abbrev,
+    select_paths,
 )
-from src.dwpc_direct import reverse_metapath_abbrev  # noqa: E402
 
 
 def _effective_number(scores: np.ndarray) -> float:
@@ -108,65 +110,6 @@ def _select_metapaths_by_effective_n(results_df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(selected_rows, ignore_index=True)
 
 
-def _enumerate_paths(
-    source_pos: int,
-    target_pos: int,
-    nodes: list[str],
-    edges: list[str],
-    edge_loader: EdgeLoader,
-    top_k: int = 100,
-    degree_d: float = 0.5,
-) -> list[tuple[float, list[int]]]:
-    """Enumerate top paths between source and target."""
-    import heapq
-
-    # Start with source node
-    # Each state: (-score, [positions])
-    heap = [(-1.0, [source_pos])]
-    results = []
-
-    while heap and len(results) < top_k:
-        neg_score, path = heapq.heappop(heap)
-        score = -neg_score
-
-        if len(path) == len(nodes):
-            # Complete path
-            if path[-1] == target_pos:
-                results.append((score, path))
-            continue
-
-        step_idx = len(path) - 1
-        current_pos = path[-1]
-        edge_token = edges[step_idx]
-        src_type = nodes[step_idx]
-        tgt_type = nodes[step_idx + 1]
-
-        # Get adjacency matrix
-        try:
-            mat = edge_loader.load(src_type, edge_token, tgt_type)
-        except FileNotFoundError:
-            continue
-
-        # Get neighbors
-        row = mat.getrow(current_pos)
-        neighbors = row.indices
-        if len(neighbors) == 0:
-            continue
-
-        # Get degrees for damping
-        degrees = edge_loader.degree(src_type, edge_token, tgt_type)
-        neighbor_degrees = degrees[neighbors]
-
-        # Score neighbors
-        for i, neighbor in enumerate(neighbors):
-            deg = max(1, neighbor_degrees[i])
-            new_score = score / (deg ** degree_d)
-            new_path = path + [neighbor]
-            heapq.heappush(heap, (-new_score, new_path))
-
-    return results
-
-
 def _enumerate_gene_intermediates(
     genes: list[int],
     target_pos: int,
@@ -178,12 +121,18 @@ def _enumerate_gene_intermediates(
     degree_d: float = 0.5,
     debug: bool = False,
 ) -> dict[int, set[str]]:
-    """Enumerate paths for genes and return {gene_id: set of intermediate_ids}."""
-    # Metapath goes Gene -> ... -> Target
-    nodes, edges = _parse_metapath(metapath)
+    """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
+
+    The metapath is Gene -> ... -> Target, but enumerate_paths expects
+    Target -> ... -> Gene, so we reverse the metapath for enumeration
+    and then reverse the resulting paths.
+    """
+    # Metapath goes Gene -> ... -> Target, reverse it for enumeration
+    reversed_mp = reverse_metapath_abbrev(metapath)
+    nodes, edges = parse_metapath(reversed_mp)
 
     if debug:
-        print(f"      Metapath {metapath}: nodes={nodes}, edges={edges}")
+        print(f"      Metapath {metapath} -> reversed {reversed_mp}: nodes={nodes}, edges={edges}")
 
     gene_intermediates: dict[int, set[str]] = {}
     genes_found = 0
@@ -196,8 +145,9 @@ def _enumerate_gene_intermediates(
         genes_found += 1
 
         try:
-            paths = _enumerate_paths(
-                gene_pos, target_pos, nodes, edges, edge_loader,
+            # enumerate_paths goes from target_pos -> gene_pos
+            paths = enumerate_paths(
+                target_pos, gene_pos, nodes, edges, edge_loader,
                 top_k=path_top_k, degree_d=degree_d,
             )
         except Exception as e:
@@ -210,17 +160,22 @@ def _enumerate_gene_intermediates(
             continue
         genes_with_paths += 1
 
-        scores = np.array([s for s, _ in paths])
-        eff_n = _effective_number(scores)
-        k = max(1, min(int(np.ceil(eff_n)), len(paths)))
-        top_paths = sorted(paths, key=lambda x: -x[0])[:k]
+        selected = select_paths(
+            paths,
+            selection_method="effective_number",
+            top_paths=path_top_k,
+            path_cumulative_frac=None,
+            path_min_count=1,
+            path_max_count=None,
+        )
 
         intermediates = set()
-        for score, pos_path in top_paths:
-            # Intermediate nodes are positions 1 to -2 (excluding first Gene and last Target)
+        for score, pos_path in selected:
+            # pos_path is [target_pos, intermediate1, intermediate2, ..., gene_pos]
+            # Intermediate nodes are positions 1 to -2
             for i, (node_type, pos) in enumerate(zip(nodes, pos_path)):
                 if 0 < i < len(nodes) - 1:  # intermediate positions
-                    node_id = maps.pos_to_id[node_type].get(int(pos))
+                    node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
                     if node_id is not None:
                         intermediates.add(f"{node_type}:{node_id}")
 
@@ -384,9 +339,9 @@ def main() -> None:
     # Get unique node types from selected metapaths
     all_node_types = set()
     for mp in selected_mp["metapath"].unique():
-        nodes, _ = _parse_metapath(mp)
+        nodes, _ = parse_metapath(mp)
         all_node_types.update(nodes)
-    maps = _load_node_maps(REPO_ROOT, list(all_node_types))
+    maps = load_node_maps(REPO_ROOT, list(all_node_types))
 
     # Process each (LV, target_set, metapath)
     sharing_rows = []
