@@ -21,6 +21,7 @@ NODE_TYPE_TO_ABBREV = {
     "Biological Process": "BP",
     "Anatomy": "A",
     "Disease": "D",
+    "Side Effect": "SE",
 }
 
 DIRECT_GENE_TO_TARGET_METAPATHS = {"GpBP", "GdA", "GeA", "GuA", "GaD", "GdD", "GuD"}
