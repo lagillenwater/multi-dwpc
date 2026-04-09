@@ -14,11 +14,11 @@ from typing import Iterable
 import pandas as pd
 
 ## NB need to parameterize these to avoid hardcoding in the target-set construction function. 3-3-2026
-NEUTROPHIL_TARGET_SET = "neutrophil_homeostasis"
+NEUTROPHILIA_TARGET_SET = "neutrophilia_se"
 ADIPOSE_TARGET_SET = "adipose_tissue"
 HYPOTHYROIDISM_TARGET_SET = "hypothyroidism"
 
-NEUTROPHIL_HOMEOSTASIS_ID = "GO:0001780"
+NEUTROPHILIA_SE_ID = "C3665444"
 ADIPOSE_ID = "UBERON:0001013"
 BROWN_ADIPOSE_ID = "UBERON:0001348"
 HYPOTHYROIDISM_ID = "DOID:1459"
@@ -84,17 +84,17 @@ def _build_rows(
     ]
 
 
-def _build_neutrophil_homeostasis_rows(bp_df: pd.DataFrame) -> pd.DataFrame:
-    neut_df = bp_df[bp_df["identifier"].astype(str) == NEUTROPHIL_HOMEOSTASIS_ID].copy()
+def _build_neutrophilia_se_rows(se_df: pd.DataFrame) -> pd.DataFrame:
+    neut_df = se_df[se_df["identifier"].astype(str) == NEUTROPHILIA_SE_ID].copy()
     if neut_df.empty:
         raise ValueError(
-            f"Neutrophil homeostasis term {NEUTROPHIL_HOMEOSTASIS_ID} not found in Biological Process.tsv"
+            f"Neutrophilia side effect {NEUTROPHILIA_SE_ID} not found in Side Effect.tsv"
         )
     return _build_rows(
         node_df=neut_df,
-        node_type="Biological Process",
-        target_set_id=NEUTROPHIL_TARGET_SET,
-        target_set_label="Neutrophil homeostasis biological process term",
+        node_type="Side Effect",
+        target_set_id=NEUTROPHILIA_TARGET_SET,
+        target_set_label="Neutrophilia side effect term",
     )
 
 
@@ -157,7 +157,7 @@ def _build_summary(target_sets_df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_lv_target_map_rows(lv_ids: Iterable[str]) -> pd.DataFrame:
     lv_to_target = {
-        "LV603": NEUTROPHIL_TARGET_SET,
+        "LV603": NEUTROPHILIA_TARGET_SET,
         "LV246": ADIPOSE_TARGET_SET,
         "LV57": HYPOTHYROIDISM_TARGET_SET,
     }
@@ -206,13 +206,13 @@ def build_target_sets(
     """
     Construct fixed biological target sets and write outputs.
     """
-    bp_df = _load_nodes_table(nodes_dir / "Biological Process.tsv")
+    se_df = _load_nodes_table(nodes_dir / "Side Effect.tsv")
     anatomy_df = _load_nodes_table(nodes_dir / "Anatomy.tsv")
     disease_df = _load_nodes_table(nodes_dir / "Disease.tsv")
 
     targets_df = pd.concat(
         [
-            _build_neutrophil_homeostasis_rows(bp_df),
+            _build_neutrophilia_se_rows(se_df),
             _build_adipose_rows(anatomy_df, include_brown_adipose),
             _build_hypothyroidism_rows(disease_df),
         ],
