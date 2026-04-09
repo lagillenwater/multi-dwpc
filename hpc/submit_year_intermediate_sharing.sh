@@ -19,7 +19,7 @@ SUPPORT_PATH="${YEAR_INT_SHARE_SUPPORT:-output/year_direct_go_term_support_b5.cs
 ADDED_PATH="${YEAR_INT_SHARE_ADDED:-output/intermediate/upd_go_bp_2024_added.csv}"
 SELECTION_COL="${YEAR_INT_SHARE_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${YEAR_INT_SHARE_MAX_RANK:-5}"
-DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-1.723}"
+DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
 mkdir -p "$OUTPUT_DIR" hpc/logs
 

@@ -24,7 +24,7 @@ SUPPORT_PATH="${YEAR_INT_SHARE_SUPPORT:-output/year_direct_go_term_support_b5.cs
 ADDED_PATH="${YEAR_INT_SHARE_ADDED:-output/intermediate/upd_go_bp_2024_added.csv}"
 DIRECT_DIR="${YEAR_INT_SHARE_DIRECT_DIR:-output/dwpc_direct/all_GO_positive_growth/results}"
 MAX_RANK="${YEAR_INT_SHARE_MAX_RANK:-5}"
-DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-1.723}"
+DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
 GO_ID=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "$GO_LIST")
 

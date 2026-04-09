@@ -22,7 +22,7 @@ cd "$REPO_ROOT"
 OUTPUT_DIR="${LV_INT_SHARE_OUTPUT_DIR:-output/lv_intermediate_sharing}"
 LV_OUTPUT_DIRS="${LV_INT_SHARE_OUTPUT_DIRS:-output/lv_experiment_more_B output/lv_experiment_lv603_se}"
 B_VALUE="${LV_INT_SHARE_B:-10}"
-DWPC_THRESHOLD="${LV_INT_SHARE_DWPC_THRESHOLD:-0.0}"
+DWPC_THRESHOLD="${LV_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
 mkdir -p "$OUTPUT_DIR" hpc/logs
 

@@ -330,8 +330,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
-        "--dwpc-threshold", type=float, default=0.0,
-        help="Minimum DWPC to include a gene (default: 0.0, use all non-zero).",
+        "--dwpc-threshold", type=str, default="0.0",
+        help="DWPC threshold: a number, or 'p75' for 75th percentile of non-zero values.",
     )
     parser.add_argument("--output-dir", default="output/lv_intermediate_sharing")
     return parser.parse_args()
@@ -386,10 +386,24 @@ def main() -> None:
     else:
         print("\nWarning: No DWPC data found, DWPC filtering disabled")
 
+    # Parse DWPC threshold - can be a number or percentile spec like 'p75'
+    threshold_str = args.dwpc_threshold
+    if threshold_str.startswith("p"):
+        percentile = float(threshold_str[1:])
+        if dwpc_lookup:
+            nonzero_dwpc = np.array([v for v in dwpc_lookup.values() if v > 0])
+            dwpc_threshold = float(np.percentile(nonzero_dwpc, percentile))
+            print(f"DWPC threshold: {percentile}th percentile = {dwpc_threshold:.3f}")
+        else:
+            dwpc_threshold = 0.0
+            print("DWPC threshold: 0.0 (no DWPC data for percentile)")
+    else:
+        dwpc_threshold = float(threshold_str)
+        print(f"DWPC threshold: {dwpc_threshold}")
+
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
     print(f"Loaded {len(target_sets)} target set entries")
-    print(f"DWPC threshold: {args.dwpc_threshold}")
 
     # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
     selected_mp = _select_metapaths_by_effective_n(results_df)
@@ -460,7 +474,7 @@ def main() -> None:
                     path_top_k=args.path_top_k, degree_d=args.degree_d,
                     debug=is_first_mp,
                     dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                    dwpc_threshold=args.dwpc_threshold,
+                    dwpc_threshold=dwpc_threshold,
                     lv_id=lv_id,
                     target_set_id=ts_id,
                 )

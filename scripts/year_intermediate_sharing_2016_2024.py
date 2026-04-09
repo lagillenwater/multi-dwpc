@@ -259,8 +259,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-max-count", type=int, default=None)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
-        "--dwpc-threshold", type=float, default=0.0,
-        help="Minimum DWPC to include a gene (default: 0.0, use all non-zero).",
+        "--dwpc-threshold", type=str, default="0.0",
+        help="DWPC threshold: a number, or 'p75' for 75th percentile of non-zero values.",
     )
     parser.add_argument(
         "--go-id", default=None,
@@ -302,7 +302,6 @@ def main() -> None:
 
     go_ids = consensus_mp["go_id"].unique()
     print(f"Processing {len(go_ids)} GO terms")
-    print(f"DWPC threshold: {args.dwpc_threshold}")
 
     # Load DWPC data for 2016 (to identify 2016 genes)
     pattern_2016 = "dwpc_*_2016_real.csv"
@@ -345,6 +344,17 @@ def main() -> None:
         dwpc_lookup[(row["go_id"], row["metapath"], int(row["entrez_gene_id"]))] = row["dwpc"]
     print(f"DWPC lookup: {len(dwpc_lookup):,} entries")
 
+    # Parse DWPC threshold - can be a number or percentile spec like 'p75'
+    threshold_str = args.dwpc_threshold
+    if threshold_str.startswith("p"):
+        percentile = float(threshold_str[1:])
+        nonzero_dwpc = dwpc_2016[dwpc_2016["dwpc"] > 0]["dwpc"].values
+        dwpc_threshold = float(np.percentile(nonzero_dwpc, percentile))
+        print(f"DWPC threshold: {percentile}th percentile = {dwpc_threshold:.3f}")
+    else:
+        dwpc_threshold = float(threshold_str)
+        print(f"DWPC threshold: {dwpc_threshold}")
+
     # Load node maps once
     node_types = ["BP", "G", "C", "PW", "MF", "CC", "A", "D"]  # common types
     maps = load_node_maps(REPO_ROOT, node_types)
@@ -376,7 +386,7 @@ def main() -> None:
                 path_min_count=args.path_min_count,
                 path_max_count=args.path_max_count,
                 degree_d=args.degree_d,
-                dwpc_threshold=args.dwpc_threshold,
+                dwpc_threshold=dwpc_threshold,
             )
 
             # Enumerate intermediates for 2024-added genes
@@ -386,7 +396,7 @@ def main() -> None:
                 path_min_count=args.path_min_count,
                 path_max_count=args.path_max_count,
                 degree_d=args.degree_d,
-                dwpc_threshold=args.dwpc_threshold,
+                dwpc_threshold=dwpc_threshold,
             )
 
             if not genes_2016_intermediates and not genes_2024_intermediates:
