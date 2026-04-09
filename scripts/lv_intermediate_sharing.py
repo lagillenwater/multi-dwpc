@@ -255,22 +255,49 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     }
 
 
+def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
+    """Load all_runs_long.csv and compute diff_perm/diff_rand at specified b.
+
+    Averages diff across seeds for each control type, then pivots to get
+    diff_perm and diff_rand columns.
+    """
+    runs_df = pd.read_csv(runs_path)
+
+    # Filter to specified b
+    runs_df = runs_df[runs_df["b"] == b].copy()
+    if runs_df.empty:
+        raise ValueError(f"No rows found for b={b} in {runs_path}")
+
+    # Average diff across seeds for each (control, lv_id, target_set_id, metapath)
+    group_cols = ["control", "lv_id", "target_set_id", "target_set_label", "node_type", "metapath"]
+    mean_diff = runs_df.groupby(group_cols, as_index=False)["diff"].mean()
+
+    # Pivot to get diff_perm and diff_rand columns
+    pivot_cols = ["lv_id", "target_set_id", "target_set_label", "node_type", "metapath"]
+    perm_df = mean_diff[mean_diff["control"] == "permuted"][pivot_cols + ["diff"]].copy()
+    perm_df = perm_df.rename(columns={"diff": "diff_perm"})
+
+    rand_df = mean_diff[mean_diff["control"] == "random"][pivot_cols + ["diff"]].copy()
+    rand_df = rand_df.rename(columns={"diff": "diff_rand"})
+
+    # Merge permuted and random
+    result = perm_df.merge(rand_df, on=pivot_cols, how="outer")
+    return result
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--lv-results-path",
-        default="output/lv_multidwpc/lv_metapath_results.csv",
-        help="Path to metapath-level results with p-values.",
+        "--lv-output-dirs",
+        nargs="+",
+        default=["output/lv_experiment"],
+        help="Paths to LV experiment output directories (can specify multiple).",
     )
     parser.add_argument(
-        "--lv-pair-dwpc-path",
-        default="output/lv_multidwpc/lv_pair_dwpc_top_selected.csv",
-        help="Path to pair-level DWPC values.",
-    )
-    parser.add_argument(
-        "--lv-top-genes-path",
-        default="output/lv_multidwpc/lv_top_genes.csv",
-        help="Path to top genes per LV.",
+        "--b",
+        type=int,
+        default=10,
+        help="B value for metapath selection (default: 10).",
     )
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
@@ -283,14 +310,38 @@ def main() -> None:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load data
-    results_df = pd.read_csv(args.lv_results_path)
-    pair_dwpc = pd.read_csv(args.lv_pair_dwpc_path)
-    top_genes = pd.read_csv(args.lv_top_genes_path)
+    # Load and concatenate data from all LV output directories
+    results_frames = []
+    top_genes_frames = []
+    target_sets_frames = []
 
-    print(f"Loaded {len(results_df)} metapath results")
-    print(f"Loaded {len(pair_dwpc)} pair DWPC rows")
+    for lv_output_dir_str in args.lv_output_dirs:
+        lv_output_dir = Path(lv_output_dir_str)
+        print(f"\nLoading from: {lv_output_dir}")
+
+        runs_path = lv_output_dir / "lv_rank_stability_experiment" / "all_runs_long.csv"
+        top_genes_path = lv_output_dir / "lv_top_genes.csv"
+        target_sets_path = lv_output_dir / "target_sets.csv"
+
+        if not runs_path.exists():
+            print(f"  Warning: {runs_path} not found, skipping")
+            continue
+
+        results_frames.append(_load_runs_at_b(runs_path, args.b))
+        top_genes_frames.append(pd.read_csv(top_genes_path))
+        target_sets_frames.append(pd.read_csv(target_sets_path))
+
+    if not results_frames:
+        print("No valid LV output directories found.")
+        return
+
+    results_df = pd.concat(results_frames, ignore_index=True).drop_duplicates()
+    top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
+    target_sets = pd.concat(target_sets_frames, ignore_index=True).drop_duplicates()
+
+    print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
+    print(f"Loaded {len(target_sets)} target set entries")
 
     # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
     selected_mp = _select_metapaths_by_effective_n(results_df)
@@ -312,7 +363,7 @@ def main() -> None:
         target_set_label=("target_set_label", "first"),
         node_type=("node_type", "first"),
     ).reset_index()
-    print("\n=== Metapath selection summary (b=10) ===")
+    print(f"\n=== Metapath selection summary (b={args.b}) ===")
     print(selection_summary.to_string(index=False))
 
     # Setup for path enumeration
@@ -337,21 +388,15 @@ def main() -> None:
         lv_genes = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
         print(f"\n{lv_id} / {target_label}: {len(lv_genes)} genes, {len(group)} metapaths")
 
-        # Get target positions from pair_dwpc
-        lv_pairs = pair_dwpc[
-            (pair_dwpc["lv_id"] == lv_id) &
-            (pair_dwpc["target_set_id"] == ts_id)
-        ]
-        targets = lv_pairs[["target_id", "target_position"]].drop_duplicates()
+        # Get target positions from target_sets
+        ts_targets = target_sets[target_sets["target_set_id"] == ts_id]
+        target_positions = ts_targets["target_position"].unique()
 
         for _, mp_row in group.iterrows():
             metapath = mp_row["metapath"]
             mp_rank = mp_row["metapath_rank"]
-            effect_size = mp_row["min_d"]
-
-            # Get unique target positions for this metapath
-            mp_pairs = lv_pairs[lv_pairs["metapath"] == metapath]
-            target_positions = mp_pairs["target_position"].unique()
+            # Use mean of diff_perm and diff_rand as effect size
+            effect_size = 0.5 * (mp_row.get("diff_perm", 0) + mp_row.get("diff_rand", 0))
 
             # Aggregate intermediates across all targets
             all_gene_intermediates: dict[int, set[str]] = {}
