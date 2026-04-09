@@ -178,29 +178,39 @@ def _enumerate_gene_intermediates(
     *,
     path_top_k: int = 100,
     degree_d: float = 0.5,
+    debug: bool = False,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}."""
     # Metapath goes Gene -> ... -> Target
     nodes, edges = _parse_metapath(metapath)
 
+    if debug:
+        print(f"      Metapath {metapath}: nodes={nodes}, edges={edges}")
+
     gene_intermediates: dict[int, set[str]] = {}
+    genes_found = 0
+    genes_with_paths = 0
 
     for gene_id in genes:
         gene_pos = maps.id_to_pos.get("G", {}).get(str(gene_id))
         if gene_pos is None:
             continue
+        genes_found += 1
 
         try:
             paths = _enumerate_paths(
                 gene_pos, target_pos, nodes, edges, edge_loader,
                 top_k=path_top_k, degree_d=degree_d,
             )
-        except Exception:
+        except Exception as e:
+            if debug:
+                print(f"      Exception for gene {gene_id}: {e}")
             continue
 
         # Select top paths by effective number
         if not paths:
             continue
+        genes_with_paths += 1
 
         scores = np.array([s for s, _ in paths])
         eff_n = _effective_number(scores)
@@ -218,6 +228,9 @@ def _enumerate_gene_intermediates(
 
         if intermediates:
             gene_intermediates[gene_id] = intermediates
+
+    if debug:
+        print(f"      genes_found={genes_found}, genes_with_paths={genes_with_paths}, intermediates={len(gene_intermediates)}")
 
     return gene_intermediates
 
@@ -403,10 +416,12 @@ def main() -> None:
             # Aggregate intermediates across all targets
             all_gene_intermediates: dict[int, set[str]] = {}
 
+            is_first_mp = (mp_rank == 1)
             for target_pos in target_positions:
                 gene_ints = _enumerate_gene_intermediates(
                     lv_genes, int(target_pos), metapath, edge_loader, maps,
                     path_top_k=args.path_top_k, degree_d=args.degree_d,
+                    debug=is_first_mp,
                 )
                 if gene_ints:
                     print(f"    Found paths for {len(gene_ints)} genes at target_pos={target_pos}")
