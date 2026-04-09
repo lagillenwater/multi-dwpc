@@ -54,11 +54,26 @@ def _select_gene_to_target_metapaths(
     exclude_direct: bool,
     limit: int | None,
 ) -> list[str]:
+    # Try target->G metapaths first (e.g., BPpG for Biological Process)
     subset = stats_df[
         stats_df["metapath"].astype(str).str.startswith(target_abbrev)
         & stats_df["metapath"].astype(str).str.endswith("G")
         & (stats_df["length"] <= max_length)
     ].copy()
+
+    # If no target->G metapaths found, try G->target metapaths (e.g., GbCcSE for Side Effect)
+    # Some node types like SE only have metapaths stored in G->target direction
+    if subset.empty:
+        subset = stats_df[
+            stats_df["metapath"].astype(str).str.startswith("G")
+            & stats_df["metapath"].astype(str).str.endswith(target_abbrev)
+            & (stats_df["length"] <= max_length)
+        ].copy()
+        # These are already in G->target format, no need to reverse later
+        already_gene_to_target = True
+    else:
+        already_gene_to_target = False
+
     if subset.empty:
         return []
 
@@ -72,7 +87,10 @@ def _select_gene_to_target_metapaths(
     gene_to_target = []
     seen = set()
     for metapath in subset["metapath"]:
-        mp_g = reverse_metapath_abbrev(metapath)
+        if already_gene_to_target:
+            mp_g = metapath  # Already in G->target format
+        else:
+            mp_g = reverse_metapath_abbrev(metapath)
         if mp_g in seen:
             continue
         seen.add(mp_g)
