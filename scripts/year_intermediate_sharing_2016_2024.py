@@ -109,6 +109,7 @@ def _enumerate_gene_intermediates(
     path_min_count: int = 1,
     path_max_count: int | None = None,
     degree_d: float = 0.5,
+    dwpc_threshold: float = 0.0,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}."""
     metapath_bp = reverse_metapath_abbrev(metapath_g)
@@ -125,9 +126,9 @@ def _enumerate_gene_intermediates(
         if gene_pos is None:
             continue
 
-        # Get DWPC for this pair to determine effective n paths
+        # Get DWPC for this pair - filter by threshold
         dwpc = dwpc_lookup.get((go_id, metapath_g, gene_id), 0.0)
-        if dwpc <= 0:
+        if dwpc <= dwpc_threshold:
             continue
 
         try:
@@ -258,6 +259,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-max-count", type=int, default=None)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
+        "--dwpc-threshold", type=float, default=0.0,
+        help="Minimum DWPC to include a gene (default: 0.0, use all non-zero).",
+    )
+    parser.add_argument(
         "--go-id", default=None,
         help="Run a single GO term (for HPC array parallelization).",
     )
@@ -297,6 +302,7 @@ def main() -> None:
 
     go_ids = consensus_mp["go_id"].unique()
     print(f"Processing {len(go_ids)} GO terms")
+    print(f"DWPC threshold: {args.dwpc_threshold}")
 
     # Load DWPC data for 2016 (to identify 2016 genes)
     pattern_2016 = "dwpc_*_2016_real.csv"
@@ -370,6 +376,7 @@ def main() -> None:
                 path_min_count=args.path_min_count,
                 path_max_count=args.path_max_count,
                 degree_d=args.degree_d,
+                dwpc_threshold=args.dwpc_threshold,
             )
 
             # Enumerate intermediates for 2024-added genes
@@ -379,6 +386,7 @@ def main() -> None:
                 path_min_count=args.path_min_count,
                 path_max_count=args.path_max_count,
                 degree_d=args.degree_d,
+                dwpc_threshold=args.dwpc_threshold,
             )
 
             if not genes_2016_intermediates and not genes_2024_intermediates:

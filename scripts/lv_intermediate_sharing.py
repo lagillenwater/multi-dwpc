@@ -120,6 +120,10 @@ def _enumerate_gene_intermediates(
     path_top_k: int = 100,
     degree_d: float = 0.5,
     debug: bool = False,
+    dwpc_lookup: dict[tuple, float] | None = None,
+    dwpc_threshold: float = 0.0,
+    lv_id: str | None = None,
+    target_set_id: str | None = None,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
 
@@ -144,6 +148,12 @@ def _enumerate_gene_intermediates(
         print(f"      Input genes sample: {genes[:3]} (types: {[type(g) for g in genes[:3]]})")
 
     for gene_id in genes:
+        # Filter by DWPC threshold if lookup available
+        if dwpc_lookup is not None and lv_id is not None and target_set_id is not None:
+            dwpc = dwpc_lookup.get((lv_id, target_set_id, metapath, gene_id), 0.0)
+            if dwpc <= dwpc_threshold:
+                continue
+
         # Try both int and string lookups since Gene.tsv identifiers may be int
         gene_pos = gene_id_map.get(gene_id) or gene_id_map.get(str(gene_id)) or gene_id_map.get(int(gene_id) if isinstance(gene_id, str) else gene_id)
         if gene_pos is None:
@@ -284,6 +294,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
+    parser.add_argument(
+        "--dwpc-threshold", type=float, default=0.0,
+        help="Minimum DWPC to include a gene (default: 0.0, use all non-zero).",
+    )
     parser.add_argument("--output-dir", default="output/lv_intermediate_sharing")
     return parser.parse_args()
 
@@ -298,6 +312,8 @@ def main() -> None:
     top_genes_frames = []
     target_sets_frames = []
 
+    pair_dwpc_frames = []
+
     for lv_output_dir_str in args.lv_output_dirs:
         lv_output_dir = Path(lv_output_dir_str)
         print(f"\nLoading from: {lv_output_dir}")
@@ -305,6 +321,7 @@ def main() -> None:
         runs_path = lv_output_dir / "lv_rank_stability_experiment" / "all_runs_long.csv"
         top_genes_path = lv_output_dir / "lv_top_genes.csv"
         target_sets_path = lv_output_dir / "target_sets.csv"
+        pair_dwpc_path = lv_output_dir / "lv_pair_dwpc.csv"
 
         if not runs_path.exists():
             print(f"  Warning: {runs_path} not found, skipping")
@@ -314,6 +331,9 @@ def main() -> None:
         top_genes_frames.append(pd.read_csv(top_genes_path))
         target_sets_frames.append(pd.read_csv(target_sets_path))
 
+        if pair_dwpc_path.exists():
+            pair_dwpc_frames.append(pd.read_csv(pair_dwpc_path))
+
     if not results_frames:
         print("No valid LV output directories found.")
         return
@@ -322,9 +342,21 @@ def main() -> None:
     top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
     target_sets = pd.concat(target_sets_frames, ignore_index=True).drop_duplicates()
 
+    # Build DWPC lookup for filtering genes
+    dwpc_lookup: dict[tuple, float] = {}
+    if pair_dwpc_frames:
+        pair_dwpc = pd.concat(pair_dwpc_frames, ignore_index=True).drop_duplicates()
+        for _, row in pair_dwpc.iterrows():
+            key = (row["lv_id"], row["target_set_id"], row["metapath"], int(row["gene_identifier"]))
+            dwpc_lookup[key] = row["dwpc"]
+        print(f"Loaded {len(dwpc_lookup)} DWPC lookup entries")
+    else:
+        print("Warning: No pair DWPC files found, DWPC filtering disabled")
+
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
     print(f"Loaded {len(target_sets)} target set entries")
+    print(f"DWPC threshold: {args.dwpc_threshold}")
 
     # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
     selected_mp = _select_metapaths_by_effective_n(results_df)
@@ -394,6 +426,10 @@ def main() -> None:
                     lv_genes, int(target_pos), metapath, edge_loader, maps,
                     path_top_k=args.path_top_k, degree_d=args.degree_d,
                     debug=is_first_mp,
+                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
+                    dwpc_threshold=args.dwpc_threshold,
+                    lv_id=lv_id,
+                    target_set_id=ts_id,
                 )
                 if gene_ints:
                     print(f"    Found paths for {len(gene_ints)} genes at target_pos={target_pos}")

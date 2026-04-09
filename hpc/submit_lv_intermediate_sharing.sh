@@ -22,17 +22,19 @@ cd "$REPO_ROOT"
 OUTPUT_DIR="${LV_INT_SHARE_OUTPUT_DIR:-output/lv_intermediate_sharing}"
 LV_OUTPUT_DIRS="${LV_INT_SHARE_OUTPUT_DIRS:-output/lv_experiment_more_B output/lv_experiment_lv603_se}"
 B_VALUE="${LV_INT_SHARE_B:-10}"
+DWPC_THRESHOLD="${LV_INT_SHARE_DWPC_THRESHOLD:-0.0}"
 
 mkdir -p "$OUTPUT_DIR" hpc/logs
 
-echo "Repo root:       $REPO_ROOT"
-echo "Output dir:      $OUTPUT_DIR"
-echo "LV output dirs:  $LV_OUTPUT_DIRS"
-echo "B value:         $B_VALUE"
+echo "Repo root:        $REPO_ROOT"
+echo "Output dir:       $OUTPUT_DIR"
+echo "LV output dirs:   $LV_OUTPUT_DIRS"
+echo "B value:          $B_VALUE"
+echo "DWPC threshold:   $DWPC_THRESHOLD"
 echo
 
 # Single job (small analysis, only 2-3 LVs)
-JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIRS --b $B_VALUE --output-dir \"$OUTPUT_DIR\""
+JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIRS --b $B_VALUE --dwpc-threshold $DWPC_THRESHOLD --output-dir \"$OUTPUT_DIR\""
 
 JOB_ID=$(sbatch \
   --parsable \

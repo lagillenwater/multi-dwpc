@@ -19,6 +19,7 @@ SUPPORT_PATH="${YEAR_INT_SHARE_SUPPORT:-output/year_direct_go_term_support_b5.cs
 ADDED_PATH="${YEAR_INT_SHARE_ADDED:-output/intermediate/upd_go_bp_2024_added.csv}"
 SELECTION_COL="${YEAR_INT_SHARE_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${YEAR_INT_SHARE_MAX_RANK:-5}"
+DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-1.723}"
 
 mkdir -p "$OUTPUT_DIR" hpc/logs
 
@@ -52,18 +53,19 @@ if [[ "$N_GO" -le 0 ]]; then
   exit 1
 fi
 
-echo "Repo root:    $REPO_ROOT"
-echo "Output dir:   $OUTPUT_DIR"
-echo "Support path: $SUPPORT_PATH"
-echo "Added pairs:  $ADDED_PATH"
-echo "Max rank:     $MAX_RANK"
-echo "GO terms:     $N_GO"
+echo "Repo root:       $REPO_ROOT"
+echo "Output dir:      $OUTPUT_DIR"
+echo "Support path:    $SUPPORT_PATH"
+echo "Added pairs:     $ADDED_PATH"
+echo "Max rank:        $MAX_RANK"
+echo "DWPC threshold:  $DWPC_THRESHOLD"
+echo "GO terms:        $N_GO"
 echo
 
 # Submit array job
 ARRAY_JOB=$(sbatch \
   --parsable \
-  --export=ALL,YEAR_INT_SHARE_GO_LIST="$GO_LIST",YEAR_INT_SHARE_OUTPUT_DIR="$OUTPUT_DIR",YEAR_INT_SHARE_SUPPORT="$SUPPORT_PATH",YEAR_INT_SHARE_ADDED="$ADDED_PATH",YEAR_INT_SHARE_MAX_RANK="$MAX_RANK" \
+  --export=ALL,YEAR_INT_SHARE_GO_LIST="$GO_LIST",YEAR_INT_SHARE_OUTPUT_DIR="$OUTPUT_DIR",YEAR_INT_SHARE_SUPPORT="$SUPPORT_PATH",YEAR_INT_SHARE_ADDED="$ADDED_PATH",YEAR_INT_SHARE_MAX_RANK="$MAX_RANK",YEAR_INT_SHARE_DWPC_THRESHOLD="$DWPC_THRESHOLD" \
   --array="0-$((N_GO - 1))" \
   hpc/year_intermediate_sharing_array.sbatch)
 
