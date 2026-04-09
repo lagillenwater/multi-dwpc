@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -248,6 +249,40 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     }
 
 
+def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]:
+    """Load per-gene DWPC values from numpy arrays.
+
+    Returns dict mapping (lv_id, target_set_id, metapath, gene_id) -> dwpc
+    """
+    scores_path = lv_output_dir / "gene_feature_scores.npy"
+    genes_path = lv_output_dir / "gene_ids.npy"
+    manifest_path = lv_output_dir / "feature_manifest.csv"
+
+    if not all(p.exists() for p in [scores_path, genes_path, manifest_path]):
+        return {}
+
+    scores = np.load(scores_path)  # (n_genes, n_features)
+    gene_ids = np.load(genes_path)  # (n_genes,)
+    manifest = pd.read_csv(manifest_path)  # feature_idx -> (target_set_id, metapath)
+
+    dwpc_lookup = {}
+    for _, row in manifest.iterrows():
+        feature_idx = row["feature_idx"]
+        target_set_id = row["target_set_id"]
+        metapath = row["metapath"]
+
+        # Get DWPC values for all genes for this feature
+        feature_scores = scores[:, feature_idx]
+
+        for gene_idx, gene_id in enumerate(gene_ids):
+            dwpc = feature_scores[gene_idx]
+            if dwpc > 0:  # Only store non-zero values
+                key = (lv_id, target_set_id, metapath, int(gene_id))
+                dwpc_lookup[key] = float(dwpc)
+
+    return dwpc_lookup
+
+
 def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
     """Load all_runs_long.csv and compute diff_perm/diff_rand at specified b.
 
@@ -311,8 +346,7 @@ def main() -> None:
     results_frames = []
     top_genes_frames = []
     target_sets_frames = []
-
-    pair_dwpc_frames = []
+    dwpc_lookup: dict[tuple, float] = {}
 
     for lv_output_dir_str in args.lv_output_dirs:
         lv_output_dir = Path(lv_output_dir_str)
@@ -321,18 +355,23 @@ def main() -> None:
         runs_path = lv_output_dir / "lv_rank_stability_experiment" / "all_runs_long.csv"
         top_genes_path = lv_output_dir / "lv_top_genes.csv"
         target_sets_path = lv_output_dir / "target_sets.csv"
-        pair_dwpc_path = lv_output_dir / "lv_pair_dwpc.csv"
 
         if not runs_path.exists():
             print(f"  Warning: {runs_path} not found, skipping")
             continue
 
         results_frames.append(_load_runs_at_b(runs_path, args.b))
-        top_genes_frames.append(pd.read_csv(top_genes_path))
+        top_genes_df = pd.read_csv(top_genes_path)
+        top_genes_frames.append(top_genes_df)
         target_sets_frames.append(pd.read_csv(target_sets_path))
 
-        if pair_dwpc_path.exists():
-            pair_dwpc_frames.append(pd.read_csv(pair_dwpc_path))
+        # Load per-gene DWPC from numpy arrays
+        lv_ids = top_genes_df["lv_id"].unique()
+        for lv_id in lv_ids:
+            lv_dwpc = _load_dwpc_from_numpy(lv_output_dir, lv_id)
+            dwpc_lookup.update(lv_dwpc)
+            if lv_dwpc:
+                print(f"  Loaded {len(lv_dwpc)} DWPC entries for {lv_id}")
 
     if not results_frames:
         print("No valid LV output directories found.")
@@ -342,16 +381,10 @@ def main() -> None:
     top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
     target_sets = pd.concat(target_sets_frames, ignore_index=True).drop_duplicates()
 
-    # Build DWPC lookup for filtering genes
-    dwpc_lookup: dict[tuple, float] = {}
-    if pair_dwpc_frames:
-        pair_dwpc = pd.concat(pair_dwpc_frames, ignore_index=True).drop_duplicates()
-        for _, row in pair_dwpc.iterrows():
-            key = (row["lv_id"], row["target_set_id"], row["metapath"], int(row["gene_identifier"]))
-            dwpc_lookup[key] = row["dwpc"]
-        print(f"Loaded {len(dwpc_lookup)} DWPC lookup entries")
+    if dwpc_lookup:
+        print(f"\nTotal DWPC lookup entries: {len(dwpc_lookup)}")
     else:
-        print("Warning: No pair DWPC files found, DWPC filtering disabled")
+        print("\nWarning: No DWPC data found, DWPC filtering disabled")
 
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
