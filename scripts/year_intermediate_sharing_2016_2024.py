@@ -174,8 +174,10 @@ def _compute_sharing_stats(
         all_2016_intermediates.update(ints)
 
     # 2016-2016 sharing: % of 2016 genes that share an intermediate with another 2016 gene
+    # Also compute gene-to-group Jaccard
     n_2016 = len(genes_2016_intermediates)
     n_2016_sharing = 0
+    jaccard_2016_to_2016 = []
     for gene_id, ints in genes_2016_intermediates.items():
         other_ints = set()
         for other_gene, other_gene_ints in genes_2016_intermediates.items():
@@ -183,16 +185,27 @@ def _compute_sharing_stats(
                 other_ints.update(other_gene_ints)
         if ints & other_ints:
             n_2016_sharing += 1
+        # Jaccard: |intersection| / |union|
+        union = ints | other_ints
+        if union:
+            jaccard_2016_to_2016.append(len(ints & other_ints) / len(union))
 
     # 2024-2016 sharing: % of 2024-added genes that share an intermediate with any 2016 gene
+    # Also compute Jaccard of each 2024 gene to the 2016 intermediate pool
     n_2024 = len(genes_2024_intermediates)
     n_2024_sharing_with_2016 = 0
+    jaccard_2024_to_2016 = []
     for gene_id, ints in genes_2024_intermediates.items():
         if ints & all_2016_intermediates:
             n_2024_sharing_with_2016 += 1
+        # Jaccard to 2016 pool
+        union = ints | all_2016_intermediates
+        if union:
+            jaccard_2024_to_2016.append(len(ints & all_2016_intermediates) / len(union))
 
     # 2024-2024 sharing: % of 2024 genes sharing with another 2024 gene
     n_2024_sharing_with_2024 = 0
+    jaccard_2024_to_2024 = []
     for gene_id, ints in genes_2024_intermediates.items():
         other_ints = set()
         for other_gene, other_gene_ints in genes_2024_intermediates.items():
@@ -200,18 +213,25 @@ def _compute_sharing_stats(
                 other_ints.update(other_gene_ints)
         if ints & other_ints:
             n_2024_sharing_with_2024 += 1
+        # Jaccard to other 2024 genes
+        union = ints | other_ints
+        if union:
+            jaccard_2024_to_2024.append(len(ints & other_ints) / len(union))
 
     return {
         "n_genes_2016": n_genes_2016_total,
         "n_genes_2016_with_paths": n_2016,
         "n_genes_2016_sharing_with_2016": n_2016_sharing,
         "pct_2016_sharing_with_2016": n_2016_sharing / n_2016 * 100 if n_2016 > 0 else None,
+        "median_jaccard_2016_to_2016": float(np.median(jaccard_2016_to_2016)) if jaccard_2016_to_2016 else None,
         "n_genes_2024_added": n_genes_2024_total,
         "n_genes_2024_with_paths": n_2024,
         "n_genes_2024_sharing_with_2016": n_2024_sharing_with_2016,
         "pct_2024_sharing_with_2016": n_2024_sharing_with_2016 / n_2024 * 100 if n_2024 > 0 else None,
+        "median_jaccard_2024_to_2016": float(np.median(jaccard_2024_to_2016)) if jaccard_2024_to_2016 else None,
         "n_genes_2024_sharing_with_2024": n_2024_sharing_with_2024,
         "pct_2024_sharing_with_2024": n_2024_sharing_with_2024 / n_2024 * 100 if n_2024 > 0 else None,
+        "median_jaccard_2024_to_2024": float(np.median(jaccard_2024_to_2024)) if jaccard_2024_to_2024 else None,
         "n_unique_intermediates_2016": len(all_2016_intermediates),
         "n_unique_intermediates_2024": len(set().union(*genes_2024_intermediates.values())) if genes_2024_intermediates else 0,
     }
@@ -383,9 +403,12 @@ def main() -> None:
             "go_id", "metapath",
             "n_genes_2016", "n_genes_2016_with_paths",
             "n_genes_2016_sharing_with_2016", "pct_2016_sharing_with_2016",
+            "median_jaccard_2016_to_2016",
             "n_genes_2024_added", "n_genes_2024_with_paths",
             "n_genes_2024_sharing_with_2016", "pct_2024_sharing_with_2016",
+            "median_jaccard_2024_to_2016",
             "n_genes_2024_sharing_with_2024", "pct_2024_sharing_with_2024",
+            "median_jaccard_2024_to_2024",
             "n_unique_intermediates_2016", "n_unique_intermediates_2024",
         ]
         summary_df = summary_df[[c for c in col_order if c in summary_df.columns]]
@@ -406,6 +429,15 @@ def main() -> None:
         valid_2024 = summary_df["pct_2024_sharing_with_2016"].dropna()
         if len(valid_2024) > 0:
             print(f"2024-2016 sharing: median {valid_2024.median():.1f}%, mean {valid_2024.mean():.1f}%")
+
+        # Jaccard summaries
+        jaccard_2016 = summary_df["median_jaccard_2016_to_2016"].dropna()
+        if len(jaccard_2016) > 0:
+            print(f"2016-2016 Jaccard: median {jaccard_2016.median():.3f}, mean {jaccard_2016.mean():.3f}")
+
+        jaccard_2024_to_2016 = summary_df["median_jaccard_2024_to_2016"].dropna()
+        if len(jaccard_2024_to_2016) > 0:
+            print(f"2024-2016 Jaccard: median {jaccard_2024_to_2016.median():.3f}, mean {jaccard_2024_to_2016.mean():.3f}")
     else:
         print("No results to save.")
 

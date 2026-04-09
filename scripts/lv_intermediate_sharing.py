@@ -203,10 +203,14 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
             "n_genes_sharing": 0,
             "pct_genes_sharing": None,
             "n_unique_intermediates": 0,
+            "median_jaccard_to_group": None,
+            "mean_jaccard_to_group": None,
         }
 
     # Count genes that share at least one intermediate with another gene
+    # Also compute gene-to-group Jaccard similarity
     n_sharing = 0
+    jaccard_scores = []
     for gene_id, ints in gene_intermediates.items():
         other_ints = set()
         for other_gene, other_gene_ints in gene_intermediates.items():
@@ -214,6 +218,11 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
                 other_ints.update(other_gene_ints)
         if ints & other_ints:
             n_sharing += 1
+        # Jaccard: |intersection| / |union|
+        union = ints | other_ints
+        if union:
+            jaccard = len(ints & other_ints) / len(union)
+            jaccard_scores.append(jaccard)
 
     all_intermediates = set()
     for ints in gene_intermediates.values():
@@ -224,6 +233,8 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
         "n_genes_sharing": n_sharing,
         "pct_genes_sharing": n_sharing / n_genes * 100 if n_genes > 0 else None,
         "n_unique_intermediates": len(all_intermediates),
+        "median_jaccard_to_group": float(np.median(jaccard_scores)) if jaccard_scores else None,
+        "mean_jaccard_to_group": float(np.mean(jaccard_scores)) if jaccard_scores else None,
     }
 
 
@@ -415,6 +426,7 @@ def main() -> None:
         "metapath", "metapath_rank", "effect_size_d",
         "n_genes_total", "n_targets",
         "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
+        "median_jaccard_to_group", "mean_jaccard_to_group",
         "n_unique_intermediates",
     ]
     sharing_df = sharing_df[[c for c in col_order if c in sharing_df.columns]]
@@ -428,6 +440,8 @@ def main() -> None:
         median_pct_sharing=("pct_genes_sharing", "median"),
         mean_pct_sharing=("pct_genes_sharing", "mean"),
         max_pct_sharing=("pct_genes_sharing", "max"),
+        median_jaccard=("median_jaccard_to_group", "median"),
+        mean_jaccard=("mean_jaccard_to_group", "mean"),
         median_n_intermediates=("n_unique_intermediates", "median"),
     ).reset_index()
     summary.to_csv(out_dir / "intermediate_sharing_summary.csv", index=False)
@@ -443,6 +457,8 @@ def main() -> None:
         print(f"  {row['n_genes_total']} genes in set")
         print(f"  Median {row['median_pct_sharing']:.1f}% of genes share intermediates")
         print(f"  Max {row['max_pct_sharing']:.1f}% sharing for best metapath")
+        if pd.notna(row['median_jaccard']):
+            print(f"  Median Jaccard to group: {row['median_jaccard']:.3f}")
 
 
 if __name__ == "__main__":
