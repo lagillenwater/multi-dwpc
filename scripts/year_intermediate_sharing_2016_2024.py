@@ -276,23 +276,39 @@ def main() -> None:
     go_ids = consensus_mp["go_id"].unique()
     print(f"Processing {len(go_ids)} GO terms")
 
-    # Load DWPC data for 2024 (to look up pair scores)
+    # Load DWPC data for 2016 (to identify 2016 genes)
+    pattern_2016 = "dwpc_*_2016_real.csv"
+    matches_2016 = sorted(direct_dir.glob(pattern_2016))
+    if not matches_2016:
+        print(f"Error: no files matching {pattern_2016}", file=sys.stderr)
+        sys.exit(1)
+
+    chunks_2016 = []
+    for path in matches_2016:
+        for chunk in pd.read_csv(path, chunksize=args.chunksize):
+            chunk = chunk[chunk["go_id"].isin(go_ids)]
+            if not chunk.empty:
+                chunks_2016.append(chunk)
+    dwpc_2016 = pd.concat(chunks_2016, ignore_index=True)
+    print(f"Loaded 2016 DWPC: {len(dwpc_2016):,} rows")
+
+    # Load DWPC data for 2024 (to look up pair scores for path enumeration)
     pattern_2024 = "dwpc_*_2024_real.csv"
     matches_2024 = sorted(direct_dir.glob(pattern_2024))
     if not matches_2024:
         print(f"Error: no files matching {pattern_2024}", file=sys.stderr)
         sys.exit(1)
 
-    chunks = []
+    chunks_2024 = []
     for path in matches_2024:
         for chunk in pd.read_csv(path, chunksize=args.chunksize):
-            # Filter to relevant GO terms early
             chunk = chunk[chunk["go_id"].isin(go_ids)]
             if not chunk.empty:
-                chunks.append(chunk)
-    dwpc_2024 = pd.concat(chunks, ignore_index=True)
+                chunks_2024.append(chunk)
+    dwpc_2024 = pd.concat(chunks_2024, ignore_index=True)
+    print(f"Loaded 2024 DWPC: {len(dwpc_2024):,} rows")
 
-    # Create lookup for DWPC values
+    # Create lookup for DWPC values (use 2024 for path enumeration)
     dwpc_lookup = {
         (row["go_id"], row["metapath"], int(row["entrez_gene_id"])): row["dwpc"]
         for _, row in dwpc_2024.iterrows()
@@ -308,13 +324,12 @@ def main() -> None:
     for go_id in go_ids:
         go_metapaths = consensus_mp[consensus_mp["go_id"] == go_id]["metapath"].tolist()
 
-        # Get all genes for this GO term from 2024 DWPC
-        go_dwpc = dwpc_2024[dwpc_2024["go_id"] == go_id]
-        all_genes = set(go_dwpc["entrez_gene_id"].unique().astype(int))
+        # Get 2016 genes from 2016 DWPC data
+        go_dwpc_2016 = dwpc_2016[dwpc_2016["go_id"] == go_id]
+        genes_2016 = set(go_dwpc_2016["entrez_gene_id"].unique().astype(int))
 
-        # Partition into 2016 (not in added) vs 2024-added
-        genes_2024_added = {g for g in all_genes if (go_id, g) in added_pairs}
-        genes_2016 = all_genes - genes_2024_added
+        # Get 2024-added genes from added pairs file
+        genes_2024_added = {g for (gid, g) in added_pairs if gid == go_id}
 
         if not genes_2016:
             print(f"  {go_id}: No 2016 genes, skipping")
