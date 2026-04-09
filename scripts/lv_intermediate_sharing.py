@@ -142,8 +142,9 @@ def _enumerate_paths(
         tgt_type = nodes[step_idx + 1]
 
         # Get adjacency matrix
-        mat = edge_loader.get_matrix(src_type, tgt_type, edge_token)
-        if mat is None:
+        try:
+            mat = edge_loader.load(src_type, edge_token, tgt_type)
+        except FileNotFoundError:
             continue
 
         # Get neighbors
@@ -153,11 +154,8 @@ def _enumerate_paths(
             continue
 
         # Get degrees for damping
-        degrees = edge_loader.get_degrees(src_type, tgt_type, edge_token)
-        if degrees is None:
-            neighbor_degrees = np.ones(len(neighbors))
-        else:
-            neighbor_degrees = degrees[neighbors]
+        degrees = edge_loader.degree(src_type, edge_token, tgt_type)
+        neighbor_degrees = degrees[neighbors]
 
         # Score neighbors
         for i, neighbor in enumerate(neighbors):
