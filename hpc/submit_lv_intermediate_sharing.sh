@@ -3,10 +3,15 @@
 # Submit LV intermediate sharing analysis.
 #
 # Computes % of genes sharing intermediates for supported metapaths
-# using effective number selection at b=10.
+# using effective number selection at specified b value.
 #
 # Usage:
 #   bash hpc/submit_lv_intermediate_sharing.sh
+#
+# Environment variables:
+#   LV_INT_SHARE_OUTPUT_DIRS - Space-separated list of LV experiment output dirs
+#   LV_INT_SHARE_OUTPUT_DIR  - Output directory for results
+#   LV_INT_SHARE_B           - B value for metapath selection (default: 10)
 #
 
 set -euo pipefail
@@ -15,21 +20,19 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
 OUTPUT_DIR="${LV_INT_SHARE_OUTPUT_DIR:-output/lv_intermediate_sharing}"
-LV_RESULTS="${LV_INT_SHARE_RESULTS:-output/lv_multidwpc/lv_metapath_results.csv}"
-LV_PAIR_DWPC="${LV_INT_SHARE_PAIR_DWPC:-output/lv_multidwpc/lv_pair_dwpc_top_selected.csv}"
-LV_TOP_GENES="${LV_INT_SHARE_TOP_GENES:-output/lv_multidwpc/lv_top_genes.csv}"
+LV_OUTPUT_DIRS="${LV_INT_SHARE_OUTPUT_DIRS:-output/lv_experiment_more_B output/lv_experiment_lv603_se}"
+B_VALUE="${LV_INT_SHARE_B:-10}"
 
 mkdir -p "$OUTPUT_DIR" hpc/logs
 
-echo "Repo root:      $REPO_ROOT"
-echo "Output dir:     $OUTPUT_DIR"
-echo "LV results:     $LV_RESULTS"
-echo "LV pair DWPC:   $LV_PAIR_DWPC"
-echo "LV top genes:   $LV_TOP_GENES"
+echo "Repo root:       $REPO_ROOT"
+echo "Output dir:      $OUTPUT_DIR"
+echo "LV output dirs:  $LV_OUTPUT_DIRS"
+echo "B value:         $B_VALUE"
 echo
 
 # Single job (small analysis, only 2-3 LVs)
-JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-results-path \"$LV_RESULTS\" --lv-pair-dwpc-path \"$LV_PAIR_DWPC\" --lv-top-genes-path \"$LV_TOP_GENES\" --output-dir \"$OUTPUT_DIR\""
+JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIRS --b $B_VALUE --output-dir \"$OUTPUT_DIR\""
 
 JOB_ID=$(sbatch \
   --parsable \
