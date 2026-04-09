@@ -139,8 +139,12 @@ def _enumerate_gene_intermediates(
     genes_with_paths = 0
 
     for gene_id in genes:
-        gene_pos = maps.id_to_pos.get("G", {}).get(str(gene_id))
+        # Try both int and string lookups since Gene.tsv identifiers may be int
+        gene_id_map = maps.id_to_pos.get("G", {})
+        gene_pos = gene_id_map.get(gene_id) or gene_id_map.get(str(gene_id)) or gene_id_map.get(int(gene_id) if isinstance(gene_id, str) else gene_id)
         if gene_pos is None:
+            if debug and genes_found == 0:
+                print(f"      Gene {gene_id} (type {type(gene_id)}) not found in maps. Sample keys: {list(gene_id_map.keys())[:3]}")
             continue
         genes_found += 1
 
@@ -341,7 +345,9 @@ def main() -> None:
     for mp in selected_mp["metapath"].unique():
         nodes, _ = parse_metapath(mp)
         all_node_types.update(nodes)
+    print(f"Loading node maps for: {sorted(all_node_types)}")
     maps = load_node_maps(REPO_ROOT, list(all_node_types))
+    print(f"Gene map has {len(maps.id_to_pos.get('G', {}))} entries")
 
     # Process each (LV, target_set, metapath)
     sharing_rows = []
