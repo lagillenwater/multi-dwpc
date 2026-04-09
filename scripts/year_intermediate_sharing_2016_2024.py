@@ -164,6 +164,8 @@ def _enumerate_gene_intermediates(
 def _compute_sharing_stats(
     genes_2016_intermediates: dict[int, set[str]],
     genes_2024_intermediates: dict[int, set[str]],
+    n_genes_2016_total: int,
+    n_genes_2024_total: int,
 ) -> dict:
     """Compute sharing statistics between 2016 and 2024-added genes."""
     # All intermediates from 2016 genes
@@ -200,11 +202,11 @@ def _compute_sharing_stats(
             n_2024_sharing_with_2024 += 1
 
     return {
-        "n_genes_2016": n_2016,
+        "n_genes_2016": n_genes_2016_total,
         "n_genes_2016_with_paths": n_2016,
         "n_genes_2016_sharing_with_2016": n_2016_sharing,
         "pct_2016_sharing_with_2016": n_2016_sharing / n_2016 * 100 if n_2016 > 0 else None,
-        "n_genes_2024_added": n_2024,
+        "n_genes_2024_added": n_genes_2024_total,
         "n_genes_2024_with_paths": n_2024,
         "n_genes_2024_sharing_with_2016": n_2024_sharing_with_2016,
         "pct_2024_sharing_with_2016": n_2024_sharing_with_2016 / n_2024 * 100 if n_2024 > 0 else None,
@@ -308,11 +310,14 @@ def main() -> None:
     dwpc_2024 = pd.concat(chunks_2024, ignore_index=True)
     print(f"Loaded 2024 DWPC: {len(dwpc_2024):,} rows")
 
-    # Create lookup for DWPC values (use 2024 for path enumeration)
-    dwpc_lookup = {
-        (row["go_id"], row["metapath"], int(row["entrez_gene_id"])): row["dwpc"]
-        for _, row in dwpc_2024.iterrows()
-    }
+    # Create lookup for DWPC values from BOTH files
+    # 2016 genes need 2016 DWPC; 2024-added genes need 2024 DWPC
+    dwpc_lookup = {}
+    for _, row in dwpc_2016.iterrows():
+        dwpc_lookup[(row["go_id"], row["metapath"], int(row["entrez_gene_id"]))] = row["dwpc"]
+    for _, row in dwpc_2024.iterrows():
+        dwpc_lookup[(row["go_id"], row["metapath"], int(row["entrez_gene_id"]))] = row["dwpc"]
+    print(f"DWPC lookup: {len(dwpc_lookup):,} entries")
 
     # Load node maps once
     node_types = ["BP", "G", "C", "PW", "MF", "CC", "A", "D"]  # common types
@@ -360,7 +365,12 @@ def main() -> None:
                 continue
 
             # Compute sharing statistics
-            stats = _compute_sharing_stats(genes_2016_intermediates, genes_2024_intermediates)
+            stats = _compute_sharing_stats(
+                genes_2016_intermediates,
+                genes_2024_intermediates,
+                n_genes_2016_total=len(genes_2016),
+                n_genes_2024_total=len(genes_2024_added),
+            )
             stats["go_id"] = go_id
             stats["metapath"] = metapath_g
             summary_rows.append(stats)
