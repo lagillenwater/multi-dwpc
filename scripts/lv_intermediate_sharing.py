@@ -384,13 +384,15 @@ def main() -> None:
         target_label = group["target_set_label"].iloc[0]
         node_type = group["node_type"].iloc[0]
 
-        # Get genes for this LV
-        lv_genes = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
+        # Get genes for this LV (convert to int for node map lookup)
+        lv_genes_raw = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
+        lv_genes = [int(g) for g in lv_genes_raw]
         print(f"\n{lv_id} / {target_label}: {len(lv_genes)} genes, {len(group)} metapaths")
 
         # Get target positions from target_sets
         ts_targets = target_sets[target_sets["target_set_id"] == ts_id]
         target_positions = ts_targets["target_position"].unique()
+        print(f"  Target positions: {target_positions[:5]}... (total: {len(target_positions)})")
 
         for _, mp_row in group.iterrows():
             metapath = mp_row["metapath"]
@@ -406,6 +408,8 @@ def main() -> None:
                     lv_genes, int(target_pos), metapath, edge_loader, maps,
                     path_top_k=args.path_top_k, degree_d=args.degree_d,
                 )
+                if gene_ints:
+                    print(f"    Found paths for {len(gene_ints)} genes at target_pos={target_pos}")
                 for gene_id, ints in gene_ints.items():
                     if gene_id not in all_gene_intermediates:
                         all_gene_intermediates[gene_id] = set()
