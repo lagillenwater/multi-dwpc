@@ -30,17 +30,21 @@ LV_LIST="$OUTPUT_DIR/lv_list.txt"
 > "$LV_LIST"
 
 for LV_DIR in $LV_OUTPUT_DIRS; do
-  if [[ ! -f "$LV_DIR/feature_manifest.csv" ]]; then
-    echo "Warning: No feature_manifest.csv in $LV_DIR"
+  if [[ ! -f "$LV_DIR/feature_manifest.csv" ]] || [[ ! -f "$LV_DIR/lv_top_genes.csv" ]]; then
+    echo "Warning: Missing required files in $LV_DIR"
     continue
   fi
 
   python3 -c "
 import pandas as pd
+# lv_id comes from lv_top_genes.csv, target_set_id from feature_manifest.csv
+top_genes = pd.read_csv('$LV_DIR/lv_top_genes.csv')
 manifest = pd.read_csv('$LV_DIR/feature_manifest.csv')
-pairs = manifest[['lv_id', 'target_set_id']].drop_duplicates()
-for _, row in pairs.iterrows():
-    print(f'$LV_DIR\t{row[\"lv_id\"]}\t{row[\"target_set_id\"]}')
+lv_ids = top_genes['lv_id'].unique()
+target_set_ids = manifest['target_set_id'].unique()
+for lv_id in lv_ids:
+    for target_set_id in target_set_ids:
+        print(f'$LV_DIR\t{lv_id}\t{target_set_id}')
 " >> "$LV_LIST"
 done
 

@@ -195,24 +195,30 @@ def _load_lv_data(
     target_set_id: str,
     lv_output_dir: Path,
     dwpc_threshold_str: str,
-) -> tuple[list[str], pd.DataFrame, dict, float, str]:
+) -> tuple[list[str], pd.DataFrame, dict, float, str, list[int]]:
     """Load data for LV analysis."""
     # Load feature manifest to get metapaths and target info
     manifest_path = lv_output_dir / "feature_manifest.csv"
+    top_genes_path = lv_output_dir / "lv_top_genes.csv"
     if not manifest_path.exists():
-        return [], pd.DataFrame(), {}, 0.0, ""
+        return [], pd.DataFrame(), {}, 0.0, "", []
 
     manifest = pd.read_csv(manifest_path)
-    manifest = manifest[
-        (manifest["lv_id"] == lv_id) &
-        (manifest["target_set_id"] == target_set_id)
-    ]
+    # Filter to target_set_id (manifest doesn't have lv_id column)
+    manifest = manifest[manifest["target_set_id"] == target_set_id]
 
     if manifest.empty:
-        return [], pd.DataFrame(), {}, 0.0, ""
+        return [], pd.DataFrame(), {}, 0.0, "", []
 
     target_type = manifest["node_type"].iloc[0]
     metapaths = manifest["metapath"].unique().tolist()
+
+    # Load top genes for this LV
+    lv_genes = []
+    if top_genes_path.exists():
+        top_genes_df = pd.read_csv(top_genes_path)
+        lv_genes_df = top_genes_df[top_genes_df["lv_id"] == lv_id]
+        lv_genes = lv_genes_df["gene_identifier"].astype(int).tolist()
 
     # Load gene scores
     scores_path = lv_output_dir / "gene_feature_scores.npy"
@@ -231,7 +237,8 @@ def _load_lv_data(
     for _, row in manifest.iterrows():
         feature_idx = row["feature_idx"]
         metapath = row["metapath"]
-        target_id = row["target_id"]
+        # Column is "target_ids" (may contain multiple, take first)
+        target_id = str(row["target_ids"]).split(",")[0].strip()
         feature_scores = scores[:, feature_idx]
 
         for gene_idx, gene_id in enumerate(gene_ids):
@@ -250,7 +257,7 @@ def _load_lv_data(
     # Create a simple DataFrame with gene info
     dwpc_df = pd.DataFrame({"gene_id": gene_ids})
 
-    return metapaths, dwpc_df, dwpc_lookup, dwpc_threshold, target_type
+    return metapaths, dwpc_df, dwpc_lookup, dwpc_threshold, target_type, lv_genes
 
 
 def parse_args() -> argparse.Namespace:
@@ -318,7 +325,7 @@ def main() -> None:
             print("Error: --lv-id and --target-set-id required for lv mode", file=sys.stderr)
             sys.exit(1)
 
-        metapaths, dwpc_df, dwpc_lookup, dwpc_threshold, target_type = _load_lv_data(
+        metapaths, dwpc_df, dwpc_lookup, dwpc_threshold, target_type, lv_genes = _load_lv_data(
             args.lv_id,
             args.target_set_id,
             Path(args.lv_output_dir),
@@ -328,7 +335,8 @@ def main() -> None:
         target_ids = list(set(k[0] for k in dwpc_lookup.keys()))
         target_id = target_ids[0] if target_ids else ""
         output_prefix = f"lv_{args.lv_id}_{args.target_set_id}"
-        genes = dwpc_df["gene_id"].unique().astype(int).tolist() if not dwpc_df.empty else []
+        # Use LV-specific genes from lv_top_genes.csv
+        genes = lv_genes if lv_genes else dwpc_df["gene_id"].unique().astype(int).tolist()
 
     if not metapaths:
         print(f"No selected metapaths found")
