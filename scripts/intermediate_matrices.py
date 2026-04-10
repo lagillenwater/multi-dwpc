@@ -79,6 +79,9 @@ def _enumerate_gene_intermediates(
         return []
 
     records = []
+    genes_above_threshold = 0
+    genes_with_paths = 0
+
     for gene_id in genes:
         gene_pos = maps.id_to_pos.get("G", {}).get(gene_id)
         if gene_pos is None:
@@ -88,6 +91,8 @@ def _enumerate_gene_intermediates(
         dwpc = dwpc_lookup.get((target_id, metapath_abbrev, gene_id), 0.0)
         if dwpc <= dwpc_threshold:
             continue
+
+        genes_above_threshold += 1
 
         try:
             candidate_paths = enumerate_paths(
@@ -102,7 +107,9 @@ def _enumerate_gene_intermediates(
                 path_min_count=path_min_count,
                 path_max_count=path_max_count,
             )
-        except Exception:
+            if paths:
+                genes_with_paths += 1
+        except Exception as e:
             continue
 
         for score, pos_path in paths:
@@ -122,6 +129,9 @@ def _enumerate_gene_intermediates(
                             "path_score": score,
                             "dwpc": dwpc,
                         })
+
+    if genes_above_threshold > 0 and genes_with_paths == 0:
+        print(f"    Warning: {genes_above_threshold} genes above threshold but 0 with paths")
 
     return records
 
@@ -210,7 +220,8 @@ def _load_lv_data(
     if manifest.empty:
         return [], pd.DataFrame(), {}, 0.0, "", []
 
-    target_type = manifest["node_type"].iloc[0]
+    # Use target_abbrev (e.g., "A") not node_type (e.g., "Anatomy") for map lookups
+    target_type = manifest["target_abbrev"].iloc[0]
     metapaths = manifest["metapath"].unique().tolist()
 
     # Load top genes for this LV
@@ -351,6 +362,17 @@ def main() -> None:
     # Load node maps
     node_types = ["BP", "G", "C", "PW", "MF", "CC", "A", "D", "SE"]
     maps = load_node_maps(REPO_ROOT, node_types)
+
+    # Verify target is in maps
+    if target_type not in maps.id_to_pos:
+        print(f"Error: target_type '{target_type}' not in node maps")
+        print(f"Available types: {list(maps.id_to_pos.keys())}")
+        sys.exit(1)
+    if target_id not in maps.id_to_pos[target_type]:
+        print(f"Error: target_id '{target_id}' not found in {target_type} map")
+        print(f"Sample IDs: {list(maps.id_to_pos[target_type].keys())[:5]}")
+        sys.exit(1)
+    print(f"Target verified in maps: {target_type}:{target_id}")
 
     # Enumerate intermediates for all metapaths
     all_records = []
