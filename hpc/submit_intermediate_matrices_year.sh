@@ -23,7 +23,8 @@ DWPC_THRESHOLD="${INT_MATRIX_DWPC_THRESHOLD:-p75}"
 mkdir -p "$OUTPUT_DIR" hpc/logs
 
 # Extract unique GO terms with selected metapaths
-GO_LIST="$OUTPUT_DIR/go_list_year.txt"
+# Use absolute path so sbatch jobs can find it
+GO_LIST="$REPO_ROOT/$OUTPUT_DIR/go_list_year.txt"
 python3 -c "
 import pandas as pd
 
@@ -56,10 +57,10 @@ echo "DWPC threshold:    $DWPC_THRESHOLD"
 echo "GO terms:          $N_GO"
 echo
 
-# Submit array job
+# Submit array job (use absolute paths)
 ARRAY_JOB=$(sbatch \
   --parsable \
-  --export=ALL,INT_MATRIX_GO_LIST="$GO_LIST",INT_MATRIX_OUTPUT_DIR="$OUTPUT_DIR",INT_MATRIX_SUPPORT="$SUPPORT_PATH",INT_MATRIX_DIRECT_RESULTS="$DIRECT_RESULTS_DIR",INT_MATRIX_MAX_RANK="$MAX_RANK",INT_MATRIX_DWPC_THRESHOLD="$DWPC_THRESHOLD",INT_MATRIX_SELECTION_COL="$SELECTION_COL" \
+  --export=ALL,REPO_ROOT="$REPO_ROOT",INT_MATRIX_GO_LIST="$GO_LIST",INT_MATRIX_OUTPUT_DIR="$REPO_ROOT/$OUTPUT_DIR",INT_MATRIX_SUPPORT="$REPO_ROOT/$SUPPORT_PATH",INT_MATRIX_DIRECT_RESULTS="$REPO_ROOT/$DIRECT_RESULTS_DIR",INT_MATRIX_MAX_RANK="$MAX_RANK",INT_MATRIX_DWPC_THRESHOLD="$DWPC_THRESHOLD",INT_MATRIX_SELECTION_COL="$SELECTION_COL" \
   --array="0-$((N_GO - 1))%50" \
   hpc/intermediate_matrices_year_array.sbatch)
 

@@ -11,13 +11,16 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# REPO_ROOT should be passed via --export, fallback to detection
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 cd "$REPO_ROOT"
 
-GO_LIST="${INT_MATRIX_GO_LIST:-output/intermediate_matrices/go_list_year.txt}"
-OUTPUT_DIR="${INT_MATRIX_OUTPUT_DIR:-output/intermediate_matrices}"
-SUPPORT_PATH="${INT_MATRIX_SUPPORT:-output/year_direct_go_term_support_b5.csv}"
-DIRECT_RESULTS_DIR="${INT_MATRIX_DIRECT_RESULTS:-output/dwpc_direct/all_GO_positive_growth/results}"
+GO_LIST="${INT_MATRIX_GO_LIST:-$REPO_ROOT/output/intermediate_matrices/go_list_year.txt}"
+OUTPUT_DIR="${INT_MATRIX_OUTPUT_DIR:-$REPO_ROOT/output/intermediate_matrices}"
+SUPPORT_PATH="${INT_MATRIX_SUPPORT:-$REPO_ROOT/output/year_direct_go_term_support_b5.csv}"
+DIRECT_RESULTS_DIR="${INT_MATRIX_DIRECT_RESULTS:-$REPO_ROOT/output/dwpc_direct/all_GO_positive_growth/results}"
 MAX_RANK="${INT_MATRIX_MAX_RANK:-5}"
 DWPC_THRESHOLD="${INT_MATRIX_DWPC_THRESHOLD:-p75}"
 SELECTION_COL="${INT_MATRIX_SELECTION_COL:-selected_by_effective_n_all}"

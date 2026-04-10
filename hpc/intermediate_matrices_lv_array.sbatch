@@ -11,11 +11,14 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# REPO_ROOT should be passed via --export, fallback to detection
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 cd "$REPO_ROOT"
 
-LV_LIST="${INT_MATRIX_LV_LIST:-output/intermediate_matrices/lv_list.txt}"
-OUTPUT_DIR="${INT_MATRIX_OUTPUT_DIR:-output/intermediate_matrices}"
+LV_LIST="${INT_MATRIX_LV_LIST:-$REPO_ROOT/output/intermediate_matrices/lv_list.txt}"
+OUTPUT_DIR="${INT_MATRIX_OUTPUT_DIR:-$REPO_ROOT/output/intermediate_matrices}"
 DWPC_THRESHOLD="${INT_MATRIX_DWPC_THRESHOLD:-p75}"
 MAX_RANK="${INT_MATRIX_MAX_RANK:-5}"
 
@@ -27,9 +30,12 @@ if [[ -z "$LINE" ]]; then
   exit 0
 fi
 
-LV_OUTPUT_DIR=$(echo "$LINE" | cut -f1)
+LV_OUTPUT_DIR_REL=$(echo "$LINE" | cut -f1)
 LV_ID=$(echo "$LINE" | cut -f2)
 TARGET_SET_ID=$(echo "$LINE" | cut -f3)
+
+# Make LV output dir absolute
+LV_OUTPUT_DIR="$REPO_ROOT/$LV_OUTPUT_DIR_REL"
 
 echo "Task $SLURM_ARRAY_TASK_ID: $LV_ID -> $TARGET_SET_ID"
 echo "LV output dir: $LV_OUTPUT_DIR"

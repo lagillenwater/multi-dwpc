@@ -26,7 +26,8 @@ MAX_RANK="${INT_MATRIX_MAX_RANK:-5}"
 mkdir -p "$OUTPUT_DIR" hpc/logs
 
 # Build list of (lv_output_dir, lv_id, target_set_id) combinations
-LV_LIST="$OUTPUT_DIR/lv_list.txt"
+# Use absolute path so sbatch jobs can find it
+LV_LIST="$REPO_ROOT/$OUTPUT_DIR/lv_list.txt"
 > "$LV_LIST"
 
 for LV_DIR in $LV_OUTPUT_DIRS; do
@@ -37,14 +38,26 @@ for LV_DIR in $LV_OUTPUT_DIRS; do
 
   python3 -c "
 import pandas as pd
-# lv_id comes from lv_top_genes.csv, target_set_id from feature_manifest.csv
-top_genes = pd.read_csv('$LV_DIR/lv_top_genes.csv')
-manifest = pd.read_csv('$LV_DIR/feature_manifest.csv')
-lv_ids = top_genes['lv_id'].unique()
-target_set_ids = manifest['target_set_id'].unique()
-for lv_id in lv_ids:
-    for target_set_id in target_set_ids:
-        print(f'$LV_DIR\t{lv_id}\t{target_set_id}')
+from pathlib import Path
+
+lv_dir = Path('$LV_DIR')
+
+# Try lv_target_map.csv first (best source of LV-target pairs)
+target_map_path = lv_dir / 'lv_target_map.csv'
+if target_map_path.exists():
+    pairs = pd.read_csv(target_map_path)
+    for _, row in pairs.iterrows():
+        print(f'$LV_DIR\t{row[\"lv_id\"]}\t{row[\"target_set_id\"]}')
+else:
+    # Fallback to lv_metapath_results.csv
+    results_path = lv_dir / 'lv_metapath_results.csv'
+    if results_path.exists():
+        results = pd.read_csv(results_path)
+        pairs = results[['lv_id', 'target_set_id']].drop_duplicates()
+        for _, row in pairs.iterrows():
+            print(f'$LV_DIR\t{row[\"lv_id\"]}\t{row[\"target_set_id\"]}')
+    else:
+        print(f'Warning: No lv_target_map.csv or lv_metapath_results.csv in $LV_DIR', file=__import__('sys').stderr)
 " >> "$LV_LIST"
 done
 
@@ -62,10 +75,10 @@ echo "Max rank:          $MAX_RANK"
 echo "LV-target pairs:   $N_LV"
 echo
 
-# Submit array job
+# Submit array job (use absolute paths)
 ARRAY_JOB=$(sbatch \
   --parsable \
-  --export=ALL,INT_MATRIX_LV_LIST="$LV_LIST",INT_MATRIX_OUTPUT_DIR="$OUTPUT_DIR",INT_MATRIX_DWPC_THRESHOLD="$DWPC_THRESHOLD",INT_MATRIX_MAX_RANK="$MAX_RANK" \
+  --export=ALL,REPO_ROOT="$REPO_ROOT",INT_MATRIX_LV_LIST="$LV_LIST",INT_MATRIX_OUTPUT_DIR="$REPO_ROOT/$OUTPUT_DIR",INT_MATRIX_DWPC_THRESHOLD="$DWPC_THRESHOLD",INT_MATRIX_MAX_RANK="$MAX_RANK" \
   --array="0-$((N_LV - 1))" \
   hpc/intermediate_matrices_lv_array.sbatch)
 
