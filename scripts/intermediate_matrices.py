@@ -548,8 +548,9 @@ def _generate_heatmaps(
     top_n = min(30, len(int_summary))
     plot_data = int_summary.nlargest(top_n, "n_genes")
 
-    colors = plt.cm.tab10([plt.cm.tab10.colors.index(c) % 10 for c in range(len(plot_data))])
-    type_colors = {t: plt.cm.Set2(i) for i, t in enumerate(plot_data["intermediate_type"].unique())}
+    # Color bars by intermediate type
+    unique_types = plot_data["intermediate_type"].unique()
+    type_colors = {t: plt.cm.Set2(i % 8) for i, t in enumerate(unique_types)}
     bar_colors = [type_colors[t] for t in plot_data["intermediate_type"]]
 
     bars = ax.barh(
