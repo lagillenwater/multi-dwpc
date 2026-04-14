@@ -353,23 +353,26 @@ def plot_coverage_metrics(
 
         if len(subset_valid) > 0:
             x = subset_valid["metapath_rank"]
+            # Only add labels on first panel to avoid duplicate legend warning
+            label_top1 = "Top-1" if idx == 0 else None
+            label_top5 = "Top-5" if idx == 0 else None
             ax.scatter(
                 x,
                 subset_valid["top1_intermediate_coverage"],
-                c=colors[idx % len(colors)],
-                alpha=0.7,
+                c="#e74c3c",  # Red for top-1
+                alpha=0.8,
                 s=50,
-                label="Top-1",
+                label=label_top1,
             )
             if "top5_intermediate_coverage" in subset_valid.columns:
                 ax.scatter(
                     x,
                     subset_valid["top5_intermediate_coverage"],
-                    c=colors[idx % len(colors)],
-                    alpha=0.4,
-                    s=30,
+                    c="#3498db",  # Blue for top-5
+                    alpha=0.8,
+                    s=40,
                     marker="s",
-                    label="Top-5",
+                    label=label_top5,
                 )
 
         ax.set_xlabel("Metapath Rank")
@@ -377,7 +380,8 @@ def plot_coverage_metrics(
         ax.set_title(f"{lv_id}: {target_name}")
         ax.set_ylim(-5, 105)
         ax.axhline(y=50, color="gray", linestyle="--", alpha=0.5)
-        ax.legend()
+        if idx == 0:
+            ax.legend()
 
     plt.tight_layout()
     save_figure(fig, fig_dir, "coverage_by_rank")
@@ -545,9 +549,11 @@ def plot_top_shared_intermediates_aggregated(
     fig_dir: Path,
     top_n: int = 15,
 ) -> None:
-    """Plot top shared intermediates aggregated across all metapaths for each LV.
+    """Plot top shared intermediates by % of metapaths where they appear as top-ranked.
 
-    Shows intermediates ranked by number of genes using them, colored by node type.
+    Shows intermediates ranked by how consistently they appear across metapaths,
+    colored by node type. X-axis shows % of metapaths where this intermediate
+    is among the top-ranked (rank <= 5).
     """
     if top_int_df is None or top_int_df.empty:
         return
@@ -563,15 +569,26 @@ def plot_top_shared_intermediates_aggregated(
         if subset.empty:
             continue
 
-        # Aggregate across metapaths: for each intermediate, get max n_genes_using
-        # (since the same intermediate may appear in multiple metapaths)
-        agg = subset.groupby(["intermediate_id", "intermediate_name"]).agg(
-            n_genes_using=("n_genes_using", "max"),
-            pct_genes_using=("pct_genes_using", "max"),
+        # Count total metapaths for this LV
+        n_metapaths = subset["metapath"].nunique()
+
+        # Filter to top-ranked intermediates per metapath (rank <= 5)
+        top_ranked = subset[subset["intermediate_rank"] <= 5].copy()
+
+        if top_ranked.empty:
+            continue
+
+        # Count how many metapaths each intermediate appears in (as top-ranked)
+        agg = top_ranked.groupby(["intermediate_id", "intermediate_name"]).agg(
+            n_metapaths_top_ranked=("metapath", "nunique"),
+            median_pct_genes=("pct_genes_using", "median"),
         ).reset_index()
 
-        # Sort by n_genes_using descending and take top N
-        agg = agg.sort_values("n_genes_using", ascending=False).head(top_n)
+        # Compute % of metapaths where this intermediate is top-ranked
+        agg["pct_metapaths_top_ranked"] = agg["n_metapaths_top_ranked"] / n_metapaths * 100
+
+        # Sort by % metapaths descending and take top N
+        agg = agg.sort_values("pct_metapaths_top_ranked", ascending=False).head(top_n)
 
         if agg.empty:
             continue
@@ -601,12 +618,13 @@ def plot_top_shared_intermediates_aggregated(
         bar_colors = [NODE_TYPE_COLORS.get(nt, "#999999") for nt in agg["node_type"]]
 
         y_pos = np.arange(len(agg))
-        bars = ax.barh(y_pos, agg["n_genes_using"], color=bar_colors, alpha=0.85)
+        bars = ax.barh(y_pos, agg["pct_metapaths_top_ranked"], color=bar_colors, alpha=0.85)
 
         ax.set_yticks(y_pos)
         ax.set_yticklabels(agg["label"], fontsize=9)
-        ax.set_xlabel("Number of genes")
-        ax.set_title(f"Top {len(agg)} shared intermediate nodes\n{target_name}")
+        ax.set_xlabel("% of metapaths where top-5 ranked")
+        ax.set_xlim(0, 105)
+        ax.set_title(f"Most consistent intermediate nodes (n={n_metapaths} metapaths)\n{target_name}")
         ax.invert_yaxis()
 
         # Add legend for node types present in the data
