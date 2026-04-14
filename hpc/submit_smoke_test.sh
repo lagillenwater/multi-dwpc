@@ -1,0 +1,316 @@
+#!/bin/bash
+#
+# HPC Smoke Test - Validate and profile before full deployment
+#
+# Runs minimal test jobs to:
+# 1. Validate end-to-end pipeline works
+# 2. Measure memory and time for resource estimation
+# 3. Check all expected output files are created
+#
+# Usage:
+#   bash hpc/submit_smoke_test.sh
+#
+# After completion, check logs for resource usage to extrapolate for full runs.
+#
+
+set -euo pipefail
+
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+cd "$REPO_ROOT"
+
+# Configuration
+SMOKE_OUTPUT_DIR="${SMOKE_OUTPUT_DIR:-output/smoke_test}"
+B_VALUE="${SMOKE_B:-10}"  # Single B value for smoke test
+LV_ID="${SMOKE_LV_ID:-LV246}"  # Single LV for testing
+GO_ID="${SMOKE_GO_ID:-}"  # Single GO term for year testing (optional)
+
+# Create directories
+LOG_DIR="hpc/logs/smoke_test"
+mkdir -p "$SMOKE_OUTPUT_DIR" "$LOG_DIR"
+
+echo "=============================================="
+echo "HPC Smoke Test"
+echo "=============================================="
+echo "Repo root:    $REPO_ROOT"
+echo "Output dir:   $SMOKE_OUTPUT_DIR"
+echo "B value:      $B_VALUE"
+echo "LV ID:        $LV_ID"
+echo "GO ID:        ${GO_ID:-'(auto-select first available)'}"
+echo "Log dir:      $LOG_DIR"
+echo
+
+# Helper function to submit job with timing wrapper
+submit_timed_job() {
+    local job_name="$1"
+    local mem="$2"
+    local time_limit="$3"
+    local cmd="$4"
+
+    # Wrap command to capture timing and memory stats
+    local timed_cmd="
+cd \"$REPO_ROOT\"
+module load anaconda
+source \"\$(conda info --base)/etc/profile.d/conda.sh\"
+conda activate multi_dwpc
+
+echo '=== Job Start: $(date) ==='
+echo 'Memory limit: $mem'
+
+# Run with timing
+start_time=\$(date +%s)
+
+$cmd
+
+exit_code=\$?
+end_time=\$(date +%s)
+runtime=\$((end_time - start_time))
+
+echo ''
+echo '=== Job Complete ==='
+echo \"Exit code: \$exit_code\"
+echo \"Runtime: \${runtime}s (\$((\${runtime}/60))m \$((\${runtime}%60))s)\"
+echo \"Peak memory: \$(grep -i 'maxrss' /proc/self/status 2>/dev/null || echo 'N/A')\"
+
+exit \$exit_code
+"
+
+    local job_id
+    job_id=$(sbatch \
+        --parsable \
+        --export=ALL \
+        --job-name="smoke-$job_name" \
+        --partition=amilan \
+        --qos=normal \
+        --cpus-per-task=4 \
+        --mem="$mem" \
+        --time="$time_limit" \
+        --output="$LOG_DIR/${job_name}_%j.out" \
+        --wrap="bash -c '$timed_cmd'")
+
+    echo "$job_id"
+}
+
+# ============================================
+# Stage 1: LV Intermediate Sharing (single LV, single B)
+# ============================================
+echo "Stage 1: LV Intermediate Sharing"
+echo "--------------------------------"
+
+LV_OUTPUT_DIR="output/lv_single_target_refactor"  # Existing LV experiment output
+
+# Check if source data exists
+if [[ ! -d "$LV_OUTPUT_DIR" ]]; then
+    echo "Warning: LV output directory not found: $LV_OUTPUT_DIR"
+    echo "Skipping LV smoke test. Run LV experiments first."
+    LV_JOB_ID=""
+else
+    LV_CMD="python3 scripts/lv_intermediate_sharing.py \\
+        --lv-output-dirs $LV_OUTPUT_DIR \\
+        --b $B_VALUE \\
+        --effect-size-threshold 0.2 \\
+        --dwpc-percentile 75 \\
+        --output-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\""
+
+    LV_JOB_ID=$(submit_timed_job "lv-int" "16G" "01:00:00" "$LV_CMD")
+    echo "Submitted LV intermediate sharing: $LV_JOB_ID"
+fi
+
+# ============================================
+# Stage 2: Global Summary (depends on Stage 1)
+# ============================================
+echo ""
+echo "Stage 2: Global Summary"
+echo "-----------------------"
+
+if [[ -n "${LV_JOB_ID:-}" ]]; then
+    SUMMARY_CMD="python3 scripts/generate_global_summary.py \\
+        --analysis-type lv \\
+        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
+        --output-dir \"$SMOKE_OUTPUT_DIR/lv_global_summary\""
+
+    SUMMARY_JOB_ID=$(sbatch \
+        --parsable \
+        --dependency=afterok:$LV_JOB_ID \
+        --export=ALL \
+        --job-name="smoke-summary" \
+        --partition=amilan \
+        --qos=normal \
+        --cpus-per-task=2 \
+        --mem="4G" \
+        --time="00:15:00" \
+        --output="$LOG_DIR/summary_%j.out" \
+        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $SUMMARY_CMD")
+
+    echo "Submitted global summary: $SUMMARY_JOB_ID (depends on $LV_JOB_ID)"
+else
+    SUMMARY_JOB_ID=""
+fi
+
+# ============================================
+# Stage 3: Gene Table (depends on Stage 1)
+# ============================================
+echo ""
+echo "Stage 3: Gene Connectivity Table"
+echo "---------------------------------"
+
+if [[ -n "${LV_JOB_ID:-}" ]]; then
+    GENE_CMD="python3 scripts/generate_gene_table.py \\
+        --analysis-type lv \\
+        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
+        --lv-output-dirs $LV_OUTPUT_DIR \\
+        --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable\""
+
+    GENE_JOB_ID=$(sbatch \
+        --parsable \
+        --dependency=afterok:$LV_JOB_ID \
+        --export=ALL \
+        --job-name="smoke-gene" \
+        --partition=amilan \
+        --qos=normal \
+        --cpus-per-task=2 \
+        --mem="8G" \
+        --time="00:30:00" \
+        --output="$LOG_DIR/gene_%j.out" \
+        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $GENE_CMD")
+
+    echo "Submitted gene table: $GENE_JOB_ID (depends on $LV_JOB_ID)"
+else
+    GENE_JOB_ID=""
+fi
+
+# ============================================
+# Stage 4: Subgraph Visualization (depends on Stage 3)
+# ============================================
+echo ""
+echo "Stage 4: Subgraph Visualization"
+echo "--------------------------------"
+
+if [[ -n "${GENE_JOB_ID:-}" ]]; then
+    VIZ_CMD="python3 scripts/plot_metapath_subgraphs.py \\
+        --analysis-type lv \\
+        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
+        --gene-table \"$SMOKE_OUTPUT_DIR/lv_consumable/gene_connectivity_table.csv\" \\
+        --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs\" \\
+        --top-k 2"
+
+    VIZ_JOB_ID=$(sbatch \
+        --parsable \
+        --dependency=afterok:$GENE_JOB_ID \
+        --export=ALL \
+        --job-name="smoke-viz" \
+        --partition=amilan \
+        --qos=normal \
+        --cpus-per-task=2 \
+        --mem="4G" \
+        --time="00:15:00" \
+        --output="$LOG_DIR/viz_%j.out" \
+        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $VIZ_CMD")
+
+    echo "Submitted visualization: $VIZ_JOB_ID (depends on $GENE_JOB_ID)"
+else
+    VIZ_JOB_ID=""
+fi
+
+# ============================================
+# Stage 5: Validation Job (depends on all previous)
+# ============================================
+echo ""
+echo "Stage 5: Validation"
+echo "-------------------"
+
+# Build dependency string
+DEPS=""
+[[ -n "${SUMMARY_JOB_ID:-}" ]] && DEPS="${DEPS}:${SUMMARY_JOB_ID}"
+[[ -n "${VIZ_JOB_ID:-}" ]] && DEPS="${DEPS}:${VIZ_JOB_ID}"
+DEPS="${DEPS#:}"  # Remove leading colon
+
+if [[ -n "$DEPS" ]]; then
+    VALIDATE_CMD="
+echo '=============================================='
+echo 'Smoke Test Validation'
+echo '=============================================='
+
+# Check expected output files
+expected_files=(
+    '$SMOKE_OUTPUT_DIR/lv_intermediate_sharing/intermediate_sharing_by_metapath.csv'
+    '$SMOKE_OUTPUT_DIR/lv_intermediate_sharing/intermediate_sharing_summary.csv'
+    '$SMOKE_OUTPUT_DIR/lv_global_summary/global_summary.csv'
+    '$SMOKE_OUTPUT_DIR/lv_consumable/gene_connectivity_table.csv'
+)
+
+all_ok=true
+for f in \"\${expected_files[@]}\"; do
+    if [[ -f \"\$f\" ]]; then
+        size=\$(wc -c < \"\$f\")
+        lines=\$(wc -l < \"\$f\")
+        echo \"[OK] \$f (\$lines lines, \$size bytes)\"
+    else
+        echo \"[MISSING] \$f\"
+        all_ok=false
+    fi
+done
+
+# Check for subgraph images
+n_images=\$(find '$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs' -name '*.png' 2>/dev/null | wc -l)
+echo \"\"
+echo \"Subgraph images generated: \$n_images\"
+
+echo ''
+if \$all_ok; then
+    echo '=============================================='
+    echo 'SMOKE TEST PASSED'
+    echo '=============================================='
+else
+    echo '=============================================='
+    echo 'SMOKE TEST FAILED - Missing files'
+    echo '=============================================='
+    exit 1
+fi
+
+# Collect timing info from logs
+echo ''
+echo 'Resource Usage Summary:'
+echo '-----------------------'
+for log in $LOG_DIR/*.out; do
+    if [[ -f \"\$log\" ]]; then
+        name=\$(basename \"\$log\" .out)
+        runtime=\$(grep 'Runtime:' \"\$log\" 2>/dev/null | tail -1 || echo 'N/A')
+        echo \"\$name: \$runtime\"
+    fi
+done
+"
+
+    VALIDATE_JOB_ID=$(sbatch \
+        --parsable \
+        --dependency=afterok:$DEPS \
+        --export=ALL \
+        --job-name="smoke-validate" \
+        --partition=amilan \
+        --qos=normal \
+        --cpus-per-task=1 \
+        --mem="1G" \
+        --time="00:05:00" \
+        --output="$LOG_DIR/validate_%j.out" \
+        --wrap="bash -c '$VALIDATE_CMD'")
+
+    echo "Submitted validation: $VALIDATE_JOB_ID (depends on $DEPS)"
+fi
+
+# ============================================
+# Summary
+# ============================================
+echo ""
+echo "=============================================="
+echo "Smoke Test Jobs Submitted"
+echo "=============================================="
+echo ""
+echo "Monitor progress:"
+echo "  squeue -u \$USER"
+echo ""
+echo "View logs:"
+echo "  ls -la $LOG_DIR/"
+echo ""
+echo "After completion, check validation log:"
+[[ -n "${VALIDATE_JOB_ID:-}" ]] && echo "  cat $LOG_DIR/validate_${VALIDATE_JOB_ID}.out"
+echo ""
+echo "Resource estimates for full runs will be in the validation log."
