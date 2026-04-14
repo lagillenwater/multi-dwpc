@@ -655,10 +655,11 @@ def main() -> None:
                 })
 
             if stats['pct_genes_sharing'] is not None:
+                pct_maj = stats.get('pct_intermediates_shared_majority', 0) or 0
+                top1 = stats.get('top1_intermediate_coverage', 0) or 0
                 print(f"  {metapath} (rank {mp_rank}): {stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
-                      f"{stats['pct_genes_sharing']:.1f}% sharing, "
-                      f"{stats['pct_intermediates_shared']:.1f}% intermediates shared, "
-                      f"top1 covers {stats['top1_intermediate_coverage']:.1f}%")
+                      f"top1 covers {top1:.1f}%, "
+                      f"{pct_maj:.1f}% intermediates used by >50% genes")
             else:
                 print(f"  {metapath} (rank {mp_rank}): no paths")
 
