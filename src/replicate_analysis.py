@@ -29,7 +29,11 @@ def build_b_seed_runs(
     score_col: str = "mean_score",
     real_control: str = "real",
 ) -> pd.DataFrame:
-    """Generic B/seed resampling for explicit real-vs-null replicate analyses."""
+    """Generic B/seed resampling for explicit real-vs-null replicate analyses.
+
+    Computes both raw difference (diff) and effect size (d = diff / null_std).
+    Effect size uses the standard deviation of null scores across sampled replicates.
+    """
     if summary_df.empty:
         return pd.DataFrame()
 
@@ -77,10 +81,10 @@ def build_b_seed_runs(
                 rng = np.random.RandomState(seed)
                 selected = rng.choice(rep_ids_arr, size=b, replace=False)
                 subset = group[group[replicate_col].isin(selected)].copy()
+                # Compute mean and std of null scores across sampled replicates
                 agg = (
                     subset.groupby(join_keys, as_index=False)[score_col]
-                    .mean()
-                    .rename(columns={score_col: "null_mean_score"})
+                    .agg(null_mean_score=("mean"), null_std_score=("std"))
                 )
                 merged = agg.merge(real_df, on=join_keys, how="inner")
                 for key, value in pool_meta.items():
@@ -89,13 +93,20 @@ def build_b_seed_runs(
                 merged["b"] = int(b)
                 merged["seed"] = int(seed)
                 merged["diff"] = merged["real_mean_score"] - merged["null_mean_score"]
+                # Compute effect size (Cohen's d)
+                # Use ddof=1 for sample std; handle cases where std=0 or NaN
+                merged["null_std_score"] = merged["null_std_score"].replace(0, np.nan)
+                merged["effect_size_d"] = merged["diff"] / merged["null_std_score"]
                 rows.append(merged)
 
     if not rows:
         return pd.DataFrame()
 
     out = pd.concat(rows, ignore_index=True)
-    ordered = [*replicate_pool_keys, "b", "seed", *join_keys, "real_mean_score", "null_mean_score", "diff"]
+    ordered = [
+        *replicate_pool_keys, "b", "seed", *join_keys,
+        "real_mean_score", "null_mean_score", "null_std_score", "diff", "effect_size_d"
+    ]
     ordered = [col for idx, col in enumerate(ordered) if col in out.columns and col not in ordered[:idx]]
     return out[ordered]
 

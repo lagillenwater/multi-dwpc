@@ -196,10 +196,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="output/lv_experiment")
     parser.add_argument("--analysis-output-dir", default=None)
-    parser.add_argument("--b-values", default="1,2,5,10,20")
+    parser.add_argument("--b-values", default="2,4,6,8,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
     parser.add_argument("--top-k-metapaths", default="5,10")
     parser.add_argument("--rbo-p", default="0.9", help="RBO persistence in (0,1), or 'none' to disable")
+    parser.add_argument(
+        "--rank-metric",
+        default="effect_size_d",
+        choices=["diff", "effect_size_d"],
+        help="Metric to use for ranking metapaths (default: effect_size_d)"
+    )
     return parser.parse_args()
 
 
@@ -211,11 +217,18 @@ def main() -> None:
 
     summary_df = load_summary_bank(output_dir)
     runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+
+    # Select ranking metric (effect_size_d or diff)
+    rank_metric = str(args.rank_metric)
+    if rank_metric not in runs_df.columns:
+        print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
+        rank_metric = "diff"
+
     rank_df = rank_features(
         runs_df,
         rank_group_keys=["control", "b", "seed", "lv_id", "target_set_id"],
         feature_col="metapath",
-        score_col="diff",
+        score_col=rank_metric,
         rank_col="metapath_rank",
     )
     pairwise_df, entity_df, overall_df = summarize_rank_stability(

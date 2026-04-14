@@ -234,10 +234,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workspace-dir", default=None)
     parser.add_argument("--summaries-dir", default=None)
     parser.add_argument("--output-dir", default="output/year_rank_stability_exp")
-    parser.add_argument("--b-values", default="1,2,5,10,20")
+    parser.add_argument("--b-values", default="2,4,6,8,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
     parser.add_argument("--top-k-metapaths", default="5,10")
     parser.add_argument("--rbo-p", default="0.9", help="RBO persistence in (0,1), or 'none' to disable")
+    parser.add_argument(
+        "--rank-metric",
+        default="effect_size_d",
+        choices=["diff", "effect_size_d"],
+        help="Metric to use for ranking metapaths (default: effect_size_d)"
+    )
     return parser.parse_args()
 
 
@@ -270,11 +276,18 @@ def main() -> None:
     exp_dir = Path(args.output_dir) / "year_rank_stability_experiment"
     exp_dir.mkdir(parents=True, exist_ok=True)
     runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+
+    # Select ranking metric (effect_size_d or diff)
+    rank_metric = str(args.rank_metric)
+    if rank_metric not in runs_df.columns:
+        print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
+        rank_metric = "diff"
+
     rank_df = rank_features(
         runs_df,
         rank_group_keys=["year", "control", "b", "seed", "go_id"],
         feature_col="metapath",
-        score_col="diff",
+        score_col=rank_metric,
         rank_col="metapath_rank",
     )
     pairwise_df, go_summary_df, overall_df = summarize_rank_stability(
