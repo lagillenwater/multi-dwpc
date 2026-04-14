@@ -212,16 +212,70 @@ else
 fi
 
 # ============================================
-# Stage 5: Validation Job (depends on all previous)
+# Stage 5: Year Intermediate Sharing (single GO term)
 # ============================================
 echo ""
-echo "Stage 5: Validation"
+echo "Stage 5: Year Intermediate Sharing"
+echo "-----------------------------------"
+
+YEAR_OUTPUT_DIR="${YEAR_OUTPUT_DIR:-output/year_experiment}"
+ADDED_PAIRS_PATH="${ADDED_PAIRS_PATH:-output/intermediate/upd_go_bp_2024_added.csv}"
+YEAR_JOB_ID=""
+
+if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
+    # If no GO_ID specified, auto-select first available from rank stability results
+    if [[ -z "${GO_ID:-}" ]]; then
+        RUNS_PATH="$YEAR_OUTPUT_DIR/year_rank_stability_experiment/all_runs_long.csv"
+        if [[ -f "$RUNS_PATH" ]]; then
+            GO_ID=$(head -2 "$RUNS_PATH" | tail -1 | cut -d',' -f1 | tr -d '"')
+            echo "Auto-selected GO term: $GO_ID"
+        fi
+    fi
+
+    if [[ -n "${GO_ID:-}" ]]; then
+        YEAR_CMD="python3 scripts/year_intermediate_sharing.py \\
+            --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
+            --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
+            --b $B_VALUE \\
+            --effect-size-threshold 0.2 \\
+            --dwpc-percentile 75 \\
+            --go-id \"$GO_ID\" \\
+            --output-dir \"$SMOKE_OUTPUT_DIR/year_intermediate_sharing\""
+
+        YEAR_JOB_ID=$(sbatch \
+            --parsable \
+            --export=ALL \
+            --job-name="smoke-year" \
+            --partition=amilan \
+            --qos=normal \
+            --cpus-per-task=4 \
+            --mem="16G" \
+            --time="01:00:00" \
+            --output="$LOG_DIR/year_%j.out" \
+            --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $YEAR_CMD")
+
+        echo "Submitted Year intermediate sharing: $YEAR_JOB_ID (GO term: $GO_ID)"
+    else
+        echo "Warning: Could not determine GO term for Year smoke test"
+    fi
+else
+    echo "Warning: Year output directory or added pairs not found, skipping Year smoke test"
+    echo "  Year output dir: $YEAR_OUTPUT_DIR"
+    echo "  Added pairs: $ADDED_PAIRS_PATH"
+fi
+
+# ============================================
+# Stage 6: Validation Job (depends on all previous)
+# ============================================
+echo ""
+echo "Stage 6: Validation"
 echo "-------------------"
 
 # Build dependency string
 DEPS=""
 [[ -n "${SUMMARY_JOB_ID:-}" ]] && DEPS="${DEPS}:${SUMMARY_JOB_ID}"
 [[ -n "${VIZ_JOB_ID:-}" ]] && DEPS="${DEPS}:${VIZ_JOB_ID}"
+[[ -n "${YEAR_JOB_ID:-}" ]] && DEPS="${DEPS}:${YEAR_JOB_ID}"
 DEPS="${DEPS#:}"  # Remove leading colon
 
 if [[ -n "$DEPS" ]]; then
@@ -230,8 +284,10 @@ echo '=============================================='
 echo 'Smoke Test Validation'
 echo '=============================================='
 
-# Check expected output files
-expected_files=(
+# Check LV output files
+echo ''
+echo '--- LV Analysis ---'
+lv_files=(
     '$SMOKE_OUTPUT_DIR/lv_intermediate_sharing/intermediate_sharing_by_metapath.csv'
     '$SMOKE_OUTPUT_DIR/lv_intermediate_sharing/intermediate_sharing_summary.csv'
     '$SMOKE_OUTPUT_DIR/lv_global_summary/global_summary.csv'
@@ -239,7 +295,7 @@ expected_files=(
 )
 
 all_ok=true
-for f in \"\${expected_files[@]}\"; do
+for f in \"\${lv_files[@]}\"; do
     if [[ -f \"\$f\" ]]; then
         size=\$(wc -c < \"\$f\")
         lines=\$(wc -l < \"\$f\")
@@ -250,10 +306,27 @@ for f in \"\${expected_files[@]}\"; do
     fi
 done
 
-# Check for subgraph images
-n_images=\$(find '$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs' -name '*.png' 2>/dev/null | wc -l)
-echo \"\"
-echo \"Subgraph images generated: \$n_images\"
+# Check for LV subgraph images
+n_lv_images=\$(find '$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs' -name '*.png' 2>/dev/null | wc -l)
+echo \"LV subgraph images: \$n_lv_images\"
+
+# Check Year output files
+echo ''
+echo '--- Year Analysis ---'
+year_files=(
+    '$SMOKE_OUTPUT_DIR/year_intermediate_sharing/intermediate_sharing_by_metapath.csv'
+    '$SMOKE_OUTPUT_DIR/year_intermediate_sharing/intermediate_sharing_summary.csv'
+)
+
+for f in \"\${year_files[@]}\"; do
+    if [[ -f \"\$f\" ]]; then
+        size=\$(wc -c < \"\$f\")
+        lines=\$(wc -l < \"\$f\")
+        echo \"[OK] \$f (\$lines lines, \$size bytes)\"
+    else
+        echo \"[SKIPPED] \$f (Year analysis may not have run)\"
+    fi
+done
 
 echo ''
 if \$all_ok; then
@@ -262,7 +335,7 @@ if \$all_ok; then
     echo '=============================================='
 else
     echo '=============================================='
-    echo 'SMOKE TEST FAILED - Missing files'
+    echo 'SMOKE TEST FAILED - Missing LV files'
     echo '=============================================='
     exit 1
 fi
