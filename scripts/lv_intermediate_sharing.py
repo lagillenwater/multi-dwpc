@@ -2,11 +2,29 @@
 """Compute intermediate sharing statistics for LV gene sets.
 
 For each LV with supported metapaths:
-1. Select metapaths using effective number at b=10
-2. Enumerate path instances for top genes
-3. Compute % of genes sharing intermediates
+1. Select metapaths by effect size (Cohen's d > threshold) at specified B value(s)
+2. Filter genes by DWPC percentile (default: top 25% per metapath)
+3. Enumerate path instances for filtered genes
+4. Compute intermediate coverage and sharing metrics
 
-Outputs summary statistics for abstract-level reporting.
+Supports multi-B mode for running analysis across multiple B values.
+
+Usage:
+    # Single B value (default B=10)
+    python scripts/lv_intermediate_sharing.py --b 10 --output-dir output/lv_int_share
+
+    # Multiple B values
+    python scripts/lv_intermediate_sharing.py --b-values 2,5,10,20,30 --output-dir output/lv_int_share
+
+    # With custom DWPC percentile threshold
+    python scripts/lv_intermediate_sharing.py --b 10 --dwpc-percentile 75 --output-dir output/lv_int_share
+
+Outputs:
+    - intermediate_sharing_by_metapath.csv: Per-metapath sharing statistics
+    - intermediate_sharing_summary.csv: Aggregated summary per LV
+    - top_intermediates_by_metapath.csv: Top 20 intermediates per metapath
+    - selected_metapaths.csv: Metapaths selected by effect size threshold
+    - dropped_lvs.csv: LVs dropped due to no metapaths meeting threshold
 """
 
 from __future__ import annotations
@@ -149,7 +167,7 @@ def _enumerate_gene_intermediates(
     degree_d: float = 0.5,
     debug: bool = False,
     dwpc_lookup: dict[tuple, float] | None = None,
-    dwpc_threshold: float = 0.0,
+    dwpc_thresholds: dict[tuple, float] | None = None,
     lv_id: str | None = None,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
@@ -157,6 +175,19 @@ def _enumerate_gene_intermediates(
     The metapath is Gene -> ... -> Target, but enumerate_paths expects
     Target -> ... -> Gene, so we reverse the metapath for enumeration
     and then reverse the resulting paths.
+
+    Args:
+        genes: List of gene IDs to process
+        target_pos: Target node position
+        metapath: Metapath string (Gene -> ... -> Target)
+        edge_loader: EdgeLoader instance
+        maps: Node maps
+        path_top_k: Number of top paths to enumerate
+        degree_d: Degree damping factor
+        debug: Print debug info
+        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
+        dwpc_thresholds: dict mapping (lv_id, metapath) -> percentile threshold
+        lv_id: LV identifier for DWPC lookup
     """
     # Metapath goes Gene -> ... -> Target, reverse it for enumeration
     reversed_mp = reverse_metapath_abbrev(metapath)
@@ -168,17 +199,26 @@ def _enumerate_gene_intermediates(
     gene_intermediates: dict[int, set[str]] = {}
     genes_found = 0
     genes_with_paths = 0
+    genes_filtered_by_dwpc = 0
 
     gene_id_map = maps.id_to_pos.get("G", {})
     if debug:
         print(f"      Gene map has {len(gene_id_map)} entries, sample keys: {list(gene_id_map.keys())[:3]} (types: {[type(k) for k in list(gene_id_map.keys())[:3]]})")
         print(f"      Input genes sample: {genes[:3]} (types: {[type(g) for g in genes[:3]]})")
 
+    # Get DWPC threshold for this (lv_id, metapath) if available
+    dwpc_threshold = 0.0
+    if dwpc_thresholds is not None and lv_id is not None:
+        dwpc_threshold = dwpc_thresholds.get((lv_id, metapath), 0.0)
+        if debug and dwpc_threshold > 0:
+            print(f"      DWPC threshold for {lv_id}/{metapath}: {dwpc_threshold:.4f}")
+
     for gene_id in genes:
-        # Filter by DWPC threshold if lookup available
-        if dwpc_lookup is not None and lv_id is not None:
+        # Filter by DWPC percentile threshold if available
+        if dwpc_lookup is not None and lv_id is not None and dwpc_threshold > 0:
             dwpc = dwpc_lookup.get((lv_id, metapath, gene_id), 0.0)
-            if dwpc <= dwpc_threshold:
+            if dwpc < dwpc_threshold:
+                genes_filtered_by_dwpc += 1
                 continue
 
         # Try both int and string lookups since Gene.tsv identifiers may be int
@@ -226,7 +266,7 @@ def _enumerate_gene_intermediates(
             gene_intermediates[gene_id] = intermediates
 
     if debug:
-        print(f"      genes_found={genes_found}, genes_with_paths={genes_with_paths}, intermediates={len(gene_intermediates)}")
+        print(f"      genes_found={genes_found}, genes_with_paths={genes_with_paths}, intermediates={len(gene_intermediates)}, filtered_by_dwpc={genes_filtered_by_dwpc}")
 
     return gene_intermediates
 
@@ -424,6 +464,36 @@ def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]
     return dwpc_lookup
 
 
+def _compute_dwpc_thresholds(
+    dwpc_lookup: Dict[Tuple, float],
+    percentile: float,
+) -> Dict[Tuple[str, str], float]:
+    """Compute DWPC percentile thresholds for each (lv_id, metapath).
+
+    Args:
+        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
+        percentile: percentile threshold (e.g., 75 means keep top 25%)
+
+    Returns:
+        dict mapping (lv_id, metapath) -> threshold_value
+    """
+    # Group DWPC values by (lv_id, metapath)
+    grouped: Dict[Tuple[str, str], list] = {}
+    for (lv_id, metapath, gene_id), dwpc in dwpc_lookup.items():
+        key = (lv_id, metapath)
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(dwpc)
+
+    # Compute percentile threshold for each group
+    thresholds: Dict[Tuple[str, str], float] = {}
+    for key, values in grouped.items():
+        if values:
+            thresholds[key] = float(np.percentile(values, percentile))
+
+    return thresholds
+
+
 def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
     """Load all_runs_long.csv and get effect sizes from permutation null.
 
@@ -475,14 +545,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--b",
         type=int,
-        default=10,
-        help="B value for metapath selection (default: 10).",
+        default=None,
+        help="Single B value for metapath selection. Use --b-values for multiple.",
+    )
+    parser.add_argument(
+        "--b-values",
+        default=None,
+        help="Comma-separated B values to run (e.g., '2,5,10,20,30'). Creates subdirectories per B.",
     )
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
         "--effect-size-threshold", type=float, default=0.2,
         help="Minimum effect size (Cohen's d) for metapath selection. Default 0.2 (small effect).",
+    )
+    parser.add_argument(
+        "--dwpc-percentile", type=float, default=75.0,
+        help="DWPC percentile threshold within (gene_set, metapath). Default 75 (top 25%%).",
     )
     parser.add_argument("--output-dir", default="output/lv_intermediate_sharing")
     return parser.parse_args()
@@ -494,7 +573,8 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Load and concatenate data from all LV output directories
-    results_frames = []
+    # Note: results_df is loaded per-B value later, but we collect runs_paths here
+    runs_paths = []
     top_genes_frames = []
     lv_targets_frames = []
     dwpc_lookup: dict[tuple, float] = {}
@@ -511,7 +591,7 @@ def main() -> None:
             print(f"  Warning: {runs_path} not found, skipping")
             continue
 
-        results_frames.append(_load_runs_at_b(runs_path, args.b))
+        runs_paths.append(runs_path)
         top_genes_df = pd.read_csv(top_genes_path)
         top_genes_frames.append(top_genes_df)
         lv_targets_frames.append(pd.read_csv(lv_targets_path))
@@ -524,11 +604,10 @@ def main() -> None:
             if lv_dwpc:
                 print(f"  Loaded {len(lv_dwpc)} DWPC entries for {lv_id}")
 
-    if not results_frames:
+    if not runs_paths:
         print("No valid LV output directories found.")
         return
 
-    results_df = pd.concat(results_frames, ignore_index=True).drop_duplicates()
     top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
     lv_targets = pd.concat(lv_targets_frames, ignore_index=True).drop_duplicates()
 
@@ -537,13 +616,29 @@ def main() -> None:
     else:
         print("\nWarning: No DWPC data found, DWPC filtering disabled")
 
-    # DWPC threshold: use dwpc > 0 (any non-zero connectivity)
-    # Per web_tool_discussion.md section 1.1d: metapath-level d > 0.2 filtering
-    # already selects meaningful metapaths; for genes we just need non-zero DWPC
-    dwpc_threshold = 0.0
-    print(f"DWPC threshold: {dwpc_threshold} (genes with any connectivity)")
+    # Compute DWPC percentile thresholds for filtering
+    # For each (gene_set, metapath), include only genes above the specified percentile
+    dwpc_percentile = args.dwpc_percentile
+    if dwpc_lookup and dwpc_percentile > 0:
+        dwpc_thresholds = _compute_dwpc_thresholds(dwpc_lookup, dwpc_percentile)
+        print(f"DWPC percentile threshold: {dwpc_percentile} (top {100 - dwpc_percentile:.0f}% of genes per metapath)")
+        print(f"Computed thresholds for {len(dwpc_thresholds)} (lv_id, metapath) pairs")
+    else:
+        dwpc_thresholds = {}
+        print("DWPC filtering disabled (no DWPC data or percentile=0)")
 
-    print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
+    # Determine B values to run
+    if args.b_values:
+        b_values = [int(b.strip()) for b in args.b_values.split(",")]
+        print(f"\nMulti-B mode: running for B = {b_values}")
+    elif args.b is not None:
+        b_values = [args.b]
+    else:
+        b_values = [10]  # Default
+        print("\nUsing default B = 10")
+
+    print(f"\nLoaded {len(top_genes)} top genes")
+    print(f"Loaded {len(lv_targets)} LV target entries")
     print(f"Loaded {len(top_genes)} top genes")
     print(f"Loaded {len(lv_targets)} LV target entries")
 
@@ -551,219 +646,259 @@ def main() -> None:
     node_name_maps = _load_node_names(REPO_ROOT)
     print(f"Loaded node name maps for: {list(node_name_maps.keys())}")
 
-    # Select metapaths by effect size (per web_tool_discussion.md section 1.1c)
-    # Uses permutation null only, ranks by Cohen's d
-    # Default threshold 0.2 = small effect per Cohen's benchmarks
-    selected_mp, dropped_lvs = _select_metapaths_by_effect_size(
-        results_df, d_threshold=args.effect_size_threshold
-    )
-
-    # Report dropped LVs
-    if not dropped_lvs.empty:
-        print(f"\n=== Dropped LVs (no metapaths with d > {args.effect_size_threshold}) ===")
-        for _, row in dropped_lvs.iterrows():
-            print(f"  {row['lv_id']} / {row['target_name']}: "
-                  f"{row['n_metapaths_total']} metapaths, max d = {row['max_effect_size_d']:.3f}")
-        dropped_lvs.to_csv(out_dir / "dropped_lvs.csv", index=False)
-        print(f"\nSaved: {out_dir / 'dropped_lvs.csv'}")
-
-    if selected_mp.empty:
-        print(f"\nNo metapaths found with effect size d > {args.effect_size_threshold}")
-        return
-
-    print(f"\nSelected {len(selected_mp)} metapaths across {selected_mp['lv_id'].nunique()} LVs")
-
-    # Save selected metapaths
-    selected_mp.to_csv(out_dir / "selected_metapaths.csv", index=False)
-    print(f"Saved: {out_dir / 'selected_metapaths.csv'}")
-
-    # Summarize selection
-    selection_summary = selected_mp.groupby("lv_id").agg(
-        n_metapaths_selected=("metapath", "count"),
-        median_effect_size_d=("effect_size_d", "median"),
-        max_effect_size_d=("effect_size_d", "max"),
-        target_name=("target_name", "first"),
-        node_type=("node_type", "first"),
-    ).reset_index()
-    print(f"\n=== Metapath selection summary (b={args.b}, d > {args.effect_size_threshold}) ===")
-    print(selection_summary.to_string(index=False))
-
-    # Setup for path enumeration
+    # Setup for path enumeration (shared across B values)
     edges_dir = REPO_ROOT / "data" / "edges"
     edge_loader = EdgeLoader(edges_dir)
 
-    # Get unique node types from selected metapaths
-    all_node_types = set()
-    for mp in selected_mp["metapath"].unique():
-        nodes, _ = parse_metapath(mp)
-        all_node_types.update(nodes)
-    print(f"Loading node maps for: {sorted(all_node_types)}")
-    maps = load_node_maps(REPO_ROOT, list(all_node_types))
-    print(f"Gene map has {len(maps.id_to_pos.get('G', {}))} entries")
+    # Initialize node maps (will be populated on first B iteration)
+    maps = None
 
-    # Process each LV
-    sharing_rows = []
-    top_intermediates_rows = []
+    # Process each B value
+    for b_value in b_values:
+        print(f"\n{'='*60}")
+        print(f"Processing B = {b_value}")
+        print("=" * 60)
 
-    for lv_id, group in selected_mp.groupby("lv_id"):
-        target_name = group["target_name"].iloc[0]
-        node_type = group["node_type"].iloc[0]
+        # Determine output directory for this B value
+        if len(b_values) > 1:
+            b_out_dir = out_dir / f"b{b_value}"
+        else:
+            b_out_dir = out_dir
+        b_out_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get genes for this LV (convert to int for node map lookup)
-        lv_genes_raw = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
-        lv_genes = [int(g) for g in lv_genes_raw]
-        print(f"\n{lv_id} / {target_name}: {len(lv_genes)} genes, {len(group)} metapaths")
+        # Load results at this B value
+        results_frames = []
+        for runs_path in runs_paths:
+            try:
+                results_frames.append(_load_runs_at_b(runs_path, b_value))
+            except ValueError as e:
+                print(f"  Warning: {e}")
+                continue
 
-        # Get target position from lv_targets (single target per LV)
-        lv_target_row = lv_targets[lv_targets["lv_id"] == lv_id]
-        if lv_target_row.empty:
-            print(f"  Warning: No target found for {lv_id}")
+        if not results_frames:
+            print(f"No results found for B = {b_value}, skipping")
             continue
-        target_position = lv_target_row["target_position"].iloc[0]
-        print(f"  Target position: {target_position}")
 
-        for _, mp_row in group.iterrows():
-            metapath = mp_row["metapath"]
-            mp_rank = mp_row["metapath_rank"]
-            # Effect size from permutation null (already computed)
-            effect_size = mp_row.get("effect_size_d", 0)
+        results_df = pd.concat(results_frames, ignore_index=True).drop_duplicates()
+        print(f"Loaded {len(results_df)} metapath results at b={b_value}")
 
-            is_first_mp = (mp_rank == 1)
+        # Select metapaths by effect size (per web_tool_discussion.md section 1.1c)
+        # Uses permutation null only, ranks by Cohen's d
+        # Default threshold 0.2 = small effect per Cohen's benchmarks
+        selected_mp, dropped_lvs = _select_metapaths_by_effect_size(
+            results_df, d_threshold=args.effect_size_threshold
+        )
 
-            gene_ints = _enumerate_gene_intermediates(
-                lv_genes, int(target_position), metapath, edge_loader, maps,
-                path_top_k=args.path_top_k, degree_d=args.degree_d,
-                debug=is_first_mp,
-                dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                dwpc_threshold=dwpc_threshold,
-                lv_id=lv_id,
-            )
-            if gene_ints:
-                print(f"    Found paths for {len(gene_ints)} genes")
+        # Report dropped LVs
+        if not dropped_lvs.empty:
+            print(f"\n=== Dropped LVs (no metapaths with d > {args.effect_size_threshold}) ===")
+            for _, row in dropped_lvs.iterrows():
+                print(f"  {row['lv_id']} / {row['target_name']}: "
+                      f"{row['n_metapaths_total']} metapaths, max d = {row['max_effect_size_d']:.3f}")
+            dropped_lvs.to_csv(b_out_dir / "dropped_lvs.csv", index=False)
+            print(f"Saved: {b_out_dir / 'dropped_lvs.csv'}")
 
-            stats = _compute_sharing_stats(gene_ints)
-            coverage_stats, intermediate_stats = _compute_intermediate_coverage(
-                gene_ints, node_name_maps=node_name_maps
-            )
-            stats.update(coverage_stats)
-            stats.update({
-                "lv_id": lv_id,
-                "target_id": lv_target_row["target_id"].iloc[0],
-                "target_name": target_name,
-                "node_type": node_type,
-                "metapath": metapath,
-                "metapath_rank": mp_rank,
-                "effect_size_d": effect_size,
-                "n_genes_total": len(lv_genes),
-            })
-            sharing_rows.append(stats)
+        if selected_mp.empty:
+            print(f"No metapaths found with effect size d > {args.effect_size_threshold}")
+            continue
 
-            # Store top intermediates (top 20 per metapath)
-            for rank, int_stat in enumerate(intermediate_stats[:20], 1):
-                top_intermediates_rows.append({
+        print(f"\nSelected {len(selected_mp)} metapaths across {selected_mp['lv_id'].nunique()} LVs")
+
+        # Save selected metapaths
+        selected_mp.to_csv(b_out_dir / "selected_metapaths.csv", index=False)
+        print(f"Saved: {b_out_dir / 'selected_metapaths.csv'}")
+
+        # Summarize selection
+        selection_summary = selected_mp.groupby("lv_id").agg(
+            n_metapaths_selected=("metapath", "count"),
+            median_effect_size_d=("effect_size_d", "median"),
+            max_effect_size_d=("effect_size_d", "max"),
+            target_name=("target_name", "first"),
+            node_type=("node_type", "first"),
+        ).reset_index()
+        print(f"\n=== Metapath selection summary (b={b_value}, d > {args.effect_size_threshold}) ===")
+        print(selection_summary.to_string(index=False))
+
+        # Load node maps on first iteration (shared across B values)
+        if maps is None:
+            all_node_types = set()
+            for mp in selected_mp["metapath"].unique():
+                nodes, _ = parse_metapath(mp)
+                all_node_types.update(nodes)
+            print(f"Loading node maps for: {sorted(all_node_types)}")
+            maps = load_node_maps(REPO_ROOT, list(all_node_types))
+            print(f"Gene map has {len(maps.id_to_pos.get('G', {}))} entries")
+
+        # Process each LV
+        sharing_rows = []
+        top_intermediates_rows = []
+
+        for lv_id, group in selected_mp.groupby("lv_id"):
+            target_name = group["target_name"].iloc[0]
+            node_type = group["node_type"].iloc[0]
+
+            # Get genes for this LV (convert to int for node map lookup)
+            lv_genes_raw = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
+            lv_genes = [int(g) for g in lv_genes_raw]
+            print(f"\n{lv_id} / {target_name}: {len(lv_genes)} genes, {len(group)} metapaths")
+
+            # Get target position from lv_targets (single target per LV)
+            lv_target_row = lv_targets[lv_targets["lv_id"] == lv_id]
+            if lv_target_row.empty:
+                print(f"  Warning: No target found for {lv_id}")
+                continue
+            target_position = lv_target_row["target_position"].iloc[0]
+            print(f"  Target position: {target_position}")
+
+            for _, mp_row in group.iterrows():
+                metapath = mp_row["metapath"]
+                mp_rank = mp_row["metapath_rank"]
+                # Effect size from permutation null (already computed)
+                effect_size = mp_row.get("effect_size_d", 0)
+
+                is_first_mp = (mp_rank == 1)
+
+                gene_ints = _enumerate_gene_intermediates(
+                    lv_genes, int(target_position), metapath, edge_loader, maps,
+                    path_top_k=args.path_top_k, degree_d=args.degree_d,
+                    debug=is_first_mp,
+                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
+                    dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
+                    lv_id=lv_id,
+                )
+                if gene_ints:
+                    print(f"    Found paths for {len(gene_ints)} genes")
+
+                stats = _compute_sharing_stats(gene_ints)
+                coverage_stats, intermediate_stats = _compute_intermediate_coverage(
+                    gene_ints, node_name_maps=node_name_maps
+                )
+                stats.update(coverage_stats)
+                stats.update({
                     "lv_id": lv_id,
                     "target_id": lv_target_row["target_id"].iloc[0],
                     "target_name": target_name,
+                    "node_type": node_type,
                     "metapath": metapath,
                     "metapath_rank": mp_rank,
-                    "intermediate_rank": rank,
-                    "intermediate_id": int_stat["intermediate_id"],
-                    "intermediate_name": int_stat.get("intermediate_name"),
-                    "n_genes_using": int_stat["n_genes_using"],
-                    "pct_genes_using": int_stat["pct_genes_using"],
+                    "effect_size_d": effect_size,
+                    "n_genes_total": len(lv_genes),
                 })
+                sharing_rows.append(stats)
 
-            # Classify effect size per Cohen's benchmarks
-            d_category = "large" if effect_size >= 0.8 else "medium" if effect_size >= 0.5 else "small"
+                # Store top intermediates (top 20 per metapath)
+                for rank, int_stat in enumerate(intermediate_stats[:20], 1):
+                    top_intermediates_rows.append({
+                        "lv_id": lv_id,
+                        "target_id": lv_target_row["target_id"].iloc[0],
+                        "target_name": target_name,
+                        "metapath": metapath,
+                        "metapath_rank": mp_rank,
+                        "intermediate_rank": rank,
+                        "intermediate_id": int_stat["intermediate_id"],
+                        "intermediate_name": int_stat.get("intermediate_name"),
+                        "n_genes_using": int_stat["n_genes_using"],
+                        "pct_genes_using": int_stat["pct_genes_using"],
+                    })
 
-            if stats['n_genes_with_paths'] > 0:
-                pct_maj = stats.get('pct_intermediates_shared_majority', 0) or 0
-                top1 = stats.get('top1_intermediate_coverage', 0) or 0
-                print(f"  {metapath} (d={effect_size:.2f}, {d_category}): "
-                      f"{stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
-                      f"top1={top1:.0f}%, maj_shared={pct_maj:.0f}%")
-            else:
-                print(f"  {metapath} (d={effect_size:.2f}, {d_category}): no paths")
+                # Classify effect size per Cohen's benchmarks
+                d_category = "large" if effect_size >= 0.8 else "medium" if effect_size >= 0.5 else "small"
 
-    # Save detailed results
-    sharing_df = pd.DataFrame(sharing_rows)
-    col_order = [
-        "lv_id", "target_id", "target_name", "node_type",
-        "metapath", "metapath_rank", "effect_size_d",
-        "n_genes_total",
-        "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
-        "median_jaccard_to_group", "mean_jaccard_to_group",
-        "n_unique_intermediates",
-        "n_shared_intermediates_2plus", "n_shared_intermediates_quarter",
-        "n_shared_intermediates_majority", "n_shared_intermediates_all",
-        "pct_intermediates_shared_2plus", "pct_intermediates_shared_quarter",
-        "pct_intermediates_shared_majority", "pct_intermediates_shared_all",
-        "n_intermediates_cover_50pct", "n_intermediates_cover_80pct",
-        "top1_intermediate_coverage", "top5_intermediate_coverage",
-    ]
-    sharing_df = sharing_df[[c for c in col_order if c in sharing_df.columns]]
-    sharing_df.to_csv(out_dir / "intermediate_sharing_by_metapath.csv", index=False)
-    print(f"\nSaved: {out_dir / 'intermediate_sharing_by_metapath.csv'}")
+                if stats['n_genes_with_paths'] > 0:
+                    pct_maj = stats.get('pct_intermediates_shared_majority', 0) or 0
+                    top1 = stats.get('top1_intermediate_coverage', 0) or 0
+                    print(f"  {metapath} (d={effect_size:.2f}, {d_category}): "
+                          f"{stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
+                          f"top1={top1:.0f}%, maj_shared={pct_maj:.0f}%")
+                else:
+                    print(f"  {metapath} (d={effect_size:.2f}, {d_category}): no paths")
 
-    # Save top intermediates
-    if top_intermediates_rows:
-        top_int_df = pd.DataFrame(top_intermediates_rows)
-        top_int_df.to_csv(out_dir / "top_intermediates_by_metapath.csv", index=False)
-        print(f"Saved: {out_dir / 'top_intermediates_by_metapath.csv'}")
+        # Save detailed results for this B value
+        sharing_df = pd.DataFrame(sharing_rows)
+        sharing_df["b"] = b_value  # Add B value column
+        col_order = [
+            "lv_id", "target_id", "target_name", "node_type", "b",
+            "metapath", "metapath_rank", "effect_size_d",
+            "n_genes_total",
+            "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
+            "median_jaccard_to_group", "mean_jaccard_to_group",
+            "n_unique_intermediates",
+            "n_shared_intermediates_2plus", "n_shared_intermediates_quarter",
+            "n_shared_intermediates_majority", "n_shared_intermediates_all",
+            "pct_intermediates_shared_2plus", "pct_intermediates_shared_quarter",
+            "pct_intermediates_shared_majority", "pct_intermediates_shared_all",
+            "n_intermediates_cover_50pct", "n_intermediates_cover_80pct",
+            "top1_intermediate_coverage", "top5_intermediate_coverage",
+        ]
+        sharing_df = sharing_df[[c for c in col_order if c in sharing_df.columns]]
+        sharing_df.to_csv(b_out_dir / "intermediate_sharing_by_metapath.csv", index=False)
+        print(f"\nSaved: {b_out_dir / 'intermediate_sharing_by_metapath.csv'}")
 
-    # Aggregate summary per LV
-    summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
-        n_metapaths=("metapath", "count"),
-        n_genes_total=("n_genes_total", "first"),
-        # Effect size stats
-        median_effect_size_d=("effect_size_d", "median"),
-        max_effect_size_d=("effect_size_d", "max"),
-        # Sharing stats
-        median_pct_sharing=("pct_genes_sharing", "median"),
-        mean_pct_sharing=("pct_genes_sharing", "mean"),
-        max_pct_sharing=("pct_genes_sharing", "max"),
-        median_jaccard=("median_jaccard_to_group", "median"),
-        mean_jaccard=("mean_jaccard_to_group", "mean"),
-        median_n_intermediates=("n_unique_intermediates", "median"),
-        median_pct_intermediates_shared_quarter=("pct_intermediates_shared_quarter", "median"),
-        median_pct_intermediates_shared_majority=("pct_intermediates_shared_majority", "median"),
-        median_pct_intermediates_shared_all=("pct_intermediates_shared_all", "median"),
-        median_top1_coverage=("top1_intermediate_coverage", "median"),
-        median_top5_coverage=("top5_intermediate_coverage", "median"),
-        median_n_for_50pct=("n_intermediates_cover_50pct", "median"),
-        median_n_for_80pct=("n_intermediates_cover_80pct", "median"),
-    ).reset_index()
-    summary.to_csv(out_dir / "intermediate_sharing_summary.csv", index=False)
-    print(f"Saved: {out_dir / 'intermediate_sharing_summary.csv'}")
+        # Save top intermediates
+        if top_intermediates_rows:
+            top_int_df = pd.DataFrame(top_intermediates_rows)
+            top_int_df["b"] = b_value
+            top_int_df.to_csv(b_out_dir / "top_intermediates_by_metapath.csv", index=False)
+            print(f"Saved: {b_out_dir / 'top_intermediates_by_metapath.csv'}")
 
-    # Print summary for abstract
+        # Aggregate summary per LV
+        summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
+            n_metapaths=("metapath", "count"),
+            n_genes_total=("n_genes_total", "first"),
+            # Effect size stats
+            median_effect_size_d=("effect_size_d", "median"),
+            max_effect_size_d=("effect_size_d", "max"),
+            # Sharing stats
+            median_pct_sharing=("pct_genes_sharing", "median"),
+            mean_pct_sharing=("pct_genes_sharing", "mean"),
+            max_pct_sharing=("pct_genes_sharing", "max"),
+            median_jaccard=("median_jaccard_to_group", "median"),
+            mean_jaccard=("mean_jaccard_to_group", "mean"),
+            median_n_intermediates=("n_unique_intermediates", "median"),
+            median_pct_intermediates_shared_quarter=("pct_intermediates_shared_quarter", "median"),
+            median_pct_intermediates_shared_majority=("pct_intermediates_shared_majority", "median"),
+            median_pct_intermediates_shared_all=("pct_intermediates_shared_all", "median"),
+            median_top1_coverage=("top1_intermediate_coverage", "median"),
+            median_top5_coverage=("top5_intermediate_coverage", "median"),
+            median_n_for_50pct=("n_intermediates_cover_50pct", "median"),
+            median_n_for_80pct=("n_intermediates_cover_80pct", "median"),
+        ).reset_index()
+        summary["b"] = b_value
+        summary.to_csv(b_out_dir / "intermediate_sharing_summary.csv", index=False)
+        print(f"Saved: {b_out_dir / 'intermediate_sharing_summary.csv'}")
+
+        # Print summary for abstract
+        print("\n" + "=" * 60)
+        print(f"=== Summary for B = {b_value} ===")
+        print("=" * 60)
+        print("Effect size categories (Cohen's d): large >= 0.8, medium >= 0.5, small >= 0.2")
+        for _, row in summary.iterrows():
+            median_d = row.get('median_effect_size_d', 0)
+            max_d = row.get('max_effect_size_d', 0)
+            d_cat = "large" if median_d >= 0.8 else "medium" if median_d >= 0.5 else "small"
+            print(f"\n{row['lv_id']} / {row['target_name']}:")
+            print(f"  {row['n_metapaths']} metapaths with effect size d > {args.effect_size_threshold}")
+            print(f"  Median effect size d = {median_d:.2f} ({d_cat}), max d = {max_d:.2f}")
+            print(f"  {row['n_genes_total']} genes in set")
+            print(f"  Median {row['median_n_intermediates']:.0f} unique intermediates per metapath")
+            if pd.notna(row.get('median_top1_coverage')):
+                print(f"  Median top-1 intermediate covers {row['median_top1_coverage']:.1f}% of genes")
+            if pd.notna(row.get('median_top5_coverage')):
+                print(f"  Median top-5 intermediates cover {row['median_top5_coverage']:.1f}% of genes")
+            if pd.notna(row.get('median_pct_intermediates_shared_quarter')):
+                print(f"  Median {row['median_pct_intermediates_shared_quarter']:.1f}% of intermediates used by >25% of genes")
+            if pd.notna(row.get('median_pct_intermediates_shared_majority')):
+                print(f"  Median {row['median_pct_intermediates_shared_majority']:.1f}% of intermediates used by >50% of genes")
+            if pd.notna(row.get('median_pct_intermediates_shared_all')):
+                print(f"  Median {row['median_pct_intermediates_shared_all']:.1f}% of intermediates used by ALL genes")
+            if pd.notna(row.get('median_n_for_80pct')):
+                print(f"  Median {row['median_n_for_80pct']:.0f} intermediates needed to cover 80% of genes")
+            if pd.notna(row['median_jaccard']):
+                print(f"  Median Jaccard similarity: {row['median_jaccard']:.3f}")
+
     print("\n" + "=" * 60)
-    print("=== Summary for abstract ===")
+    print("All B values processed.")
     print("=" * 60)
-    print("Effect size categories (Cohen's d): large >= 0.8, medium >= 0.5, small >= 0.2")
-    for _, row in summary.iterrows():
-        median_d = row.get('median_effect_size_d', 0)
-        max_d = row.get('max_effect_size_d', 0)
-        d_cat = "large" if median_d >= 0.8 else "medium" if median_d >= 0.5 else "small"
-        print(f"\n{row['lv_id']} / {row['target_name']}:")
-        print(f"  {row['n_metapaths']} metapaths with effect size d > {args.effect_size_threshold}")
-        print(f"  Median effect size d = {median_d:.2f} ({d_cat}), max d = {max_d:.2f}")
-        print(f"  {row['n_genes_total']} genes in set")
-        print(f"  Median {row['median_n_intermediates']:.0f} unique intermediates per metapath")
-        if pd.notna(row.get('median_top1_coverage')):
-            print(f"  Median top-1 intermediate covers {row['median_top1_coverage']:.1f}% of genes")
-        if pd.notna(row.get('median_top5_coverage')):
-            print(f"  Median top-5 intermediates cover {row['median_top5_coverage']:.1f}% of genes")
-        if pd.notna(row.get('median_pct_intermediates_shared_quarter')):
-            print(f"  Median {row['median_pct_intermediates_shared_quarter']:.1f}% of intermediates used by >25% of genes")
-        if pd.notna(row.get('median_pct_intermediates_shared_majority')):
-            print(f"  Median {row['median_pct_intermediates_shared_majority']:.1f}% of intermediates used by >50% of genes")
-        if pd.notna(row.get('median_pct_intermediates_shared_all')):
-            print(f"  Median {row['median_pct_intermediates_shared_all']:.1f}% of intermediates used by ALL genes")
-        if pd.notna(row.get('median_n_for_80pct')):
-            print(f"  Median {row['median_n_for_80pct']:.0f} intermediates needed to cover 80% of genes")
-        if pd.notna(row['median_jaccard']):
-            print(f"  Median Jaccard similarity: {row['median_jaccard']:.3f}")
 
 
 if __name__ == "__main__":
