@@ -72,107 +72,49 @@ def _load_node_names(repo_root: Path) -> dict[str, dict[str, str]]:
     return name_maps
 
 
-def _effective_number(scores: np.ndarray) -> float:
-    """Compute effective number from score distribution."""
-    vals = scores[np.isfinite(scores)]
-    vals = vals[vals > 0]
-    if vals.size == 0:
-        return 1.0
-    weights = vals / vals.sum()
-    entropy = float(-(weights * np.log(weights)).sum())
-    return float(np.exp(entropy))
+def _select_metapaths_by_effect_size(
+    results_df: pd.DataFrame,
+    d_threshold: float = 0.2,
+) -> pd.DataFrame:
+    """Select metapaths by effect size (Cohen's d) from permutation null.
 
+    Per web_tool_discussion.md (section 1.1c, 1.2):
+    - Use permutation null only (not random, not consensus)
+    - Rank metapaths by effect size d
+    - Select metapaths with d > 0.2 (small+ effect per Cohen's benchmarks)
 
-def _add_consensus_score(df: pd.DataFrame) -> pd.DataFrame:
-    """Add consensus_score column, consistent with year_go_term_support.py.
+    Args:
+        results_df: DataFrame with columns including 'effect_size_d' and 'lv_id'
+        d_threshold: Minimum effect size to include (default 0.2 = small effect)
 
-    consensus_score = 0.5 * (1/rank_perm + 1/rank_rand)
-    where ranks are based on diff_perm and diff_rand within each group.
-    """
-    out = df.copy()
-
-    out["rank_perm"] = (
-        out.groupby("lv_id")["diff_perm"]
-        .rank(method="average", ascending=False)
-        .astype(float)
-    )
-    out["rank_rand"] = (
-        out.groupby("lv_id")["diff_rand"]
-        .rank(method="average", ascending=False)
-        .astype(float)
-    )
-    out["consensus_rank"] = 0.5 * (out["rank_perm"] + out["rank_rand"])
-    out["consensus_score"] = 0.5 * (
-        (1.0 / out["rank_perm"].replace(0, np.nan))
-        + (1.0 / out["rank_rand"].replace(0, np.nan))
-    )
-    return out
-
-
-def _select_metapaths_by_effective_n(results_df: pd.DataFrame) -> pd.DataFrame:
-    """Select metapaths by effective number of consensus scores.
-
-    Consistent with year analysis (year_go_term_support.py):
-    - Uses consensus_score (based on ranks of diff_perm and diff_rand)
-    - Selects top ceil(effective_n) metapaths
-    - If effective_n is 0 (no positive scores), no metapaths are selected
+    Returns:
+        DataFrame of selected metapaths with metapath_rank column
     """
     if results_df.empty:
         return pd.DataFrame()
 
-    # Add consensus score columns
-    results_df = _add_consensus_score(results_df)
-
-    # For each lv_id, select top effective_n metapaths
     selected_rows = []
     for lv_id, group in results_df.groupby("lv_id"):
         if group.empty:
             continue
-        # Sort by consensus_score descending
-        group = group.sort_values("consensus_score", ascending=False).reset_index(drop=True)
-        scores = group["consensus_score"].fillna(0.0).clip(lower=0.0).to_numpy()
-        eff_n = _effective_number(scores)
-        k = int(np.ceil(eff_n))
-        if k == 0:
+
+        # Filter to metapaths with d > threshold
+        above_threshold = group[group["effect_size_d"] > d_threshold].copy()
+
+        if above_threshold.empty:
             continue
-        top_k = group.head(k).copy()
-        top_k["effective_n_metapaths"] = eff_n
-        top_k["metapath_rank"] = range(1, len(top_k) + 1)
-        selected_rows.append(top_k)
+
+        # Sort by effect size descending and assign ranks
+        above_threshold = above_threshold.sort_values(
+            "effect_size_d", ascending=False
+        ).reset_index(drop=True)
+        above_threshold["metapath_rank"] = range(1, len(above_threshold) + 1)
+        selected_rows.append(above_threshold)
 
     if not selected_rows:
         return pd.DataFrame()
 
     return pd.concat(selected_rows, ignore_index=True)
-
-
-def _compute_metapath_threshold(
-    dwpc_lookup: dict[tuple, float],
-    lv_id: str,
-    metapath: str,
-    percentile: float,
-) -> float:
-    """Compute DWPC threshold for a specific metapath.
-
-    Args:
-        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
-        lv_id: LV identifier
-        metapath: metapath abbreviation
-        percentile: percentile to use (e.g., 75 for p75)
-
-    Returns:
-        DWPC threshold for this metapath
-    """
-    # Get all DWPC values for this LV and metapath
-    metapath_dwpc = [
-        v for (lid, mp, gid), v in dwpc_lookup.items()
-        if lid == lv_id and mp == metapath and v > 0
-    ]
-
-    if not metapath_dwpc:
-        return 0.0
-
-    return float(np.percentile(metapath_dwpc, percentile))
 
 
 def _enumerate_gene_intermediates(
@@ -332,9 +274,11 @@ def _compute_intermediate_coverage(
         # Return 0 (not None) so metapaths without paths are included in median calculations
         return {
             "n_shared_intermediates_2plus": 0,
+            "n_shared_intermediates_quarter": 0,
             "n_shared_intermediates_majority": 0,
             "n_shared_intermediates_all": 0,
             "pct_intermediates_shared_2plus": 0.0,
+            "pct_intermediates_shared_quarter": 0.0,
             "pct_intermediates_shared_majority": 0.0,
             "pct_intermediates_shared_all": 0.0,
             "n_intermediates_cover_50pct": None,
@@ -378,6 +322,7 @@ def _compute_intermediate_coverage(
 
     # Count intermediates at different sharing thresholds
     n_shared_2plus = sum(1 for genes in intermediate_gene_counts.values() if len(genes) >= 2)
+    n_shared_quarter = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 4)
     n_shared_majority = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 2)
     n_shared_all = sum(1 for genes in intermediate_gene_counts.values() if len(genes) == n_genes)
 
@@ -409,9 +354,11 @@ def _compute_intermediate_coverage(
 
     coverage_stats = {
         "n_shared_intermediates_2plus": n_shared_2plus,
+        "n_shared_intermediates_quarter": n_shared_quarter,
         "n_shared_intermediates_majority": n_shared_majority,
         "n_shared_intermediates_all": n_shared_all,
         "pct_intermediates_shared_2plus": n_shared_2plus / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
+        "pct_intermediates_shared_quarter": n_shared_quarter / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
         "pct_intermediates_shared_majority": n_shared_majority / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
         "pct_intermediates_shared_all": n_shared_all / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
         "n_intermediates_cover_50pct": n_for_50pct,
@@ -457,32 +404,42 @@ def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]
 
 
 def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
-    """Load all_runs_long.csv and compute diff_perm/diff_rand at specified b.
+    """Load all_runs_long.csv and get effect sizes from permutation null.
 
-    Averages diff across seeds for each control type, then pivots to get
-    diff_perm and diff_rand columns.
+    Per web_tool_discussion.md (section 1.2):
+    - Use permutation null only (drop random null)
+    - Effect size d is already computed in the data
+
+    Args:
+        runs_path: Path to all_runs_long.csv
+        b: Number of replicates to use
+
+    Returns:
+        DataFrame with effect_size_d for permutation null
     """
     runs_df = pd.read_csv(runs_path)
 
-    # Filter to specified b
-    runs_df = runs_df[runs_df["b"] == b].copy()
+    # Filter to specified b and permutation null only
+    runs_df = runs_df[(runs_df["b"] == b) & (runs_df["control"] == "permuted")].copy()
     if runs_df.empty:
-        raise ValueError(f"No rows found for b={b} in {runs_path}")
+        raise ValueError(f"No permuted rows found for b={b} in {runs_path}")
 
-    # Average diff across seeds for each (control, lv_id, metapath)
-    group_cols = ["control", "lv_id", "target_id", "target_name", "node_type", "metapath"]
-    mean_diff = runs_df.groupby(group_cols, as_index=False)["diff"].mean()
+    # Average effect size d across seeds for each (lv_id, metapath)
+    group_cols = ["lv_id", "target_id", "target_name", "node_type", "metapath"]
 
-    # Pivot to get diff_perm and diff_rand columns
-    pivot_cols = ["lv_id", "target_id", "target_name", "node_type", "metapath"]
-    perm_df = mean_diff[mean_diff["control"] == "permuted"][pivot_cols + ["diff"]].copy()
-    perm_df = perm_df.rename(columns={"diff": "diff_perm"})
+    # Check if 'd' column exists (effect size), otherwise compute from diff
+    if "d" in runs_df.columns:
+        result = runs_df.groupby(group_cols, as_index=False).agg(
+            effect_size_d=("d", "mean"),
+            diff_perm=("diff", "mean"),
+        )
+    else:
+        # Fallback: just use diff (no std available)
+        result = runs_df.groupby(group_cols, as_index=False).agg(
+            diff_perm=("diff", "mean"),
+        )
+        result["effect_size_d"] = result["diff_perm"]  # Use diff as proxy
 
-    rand_df = mean_diff[mean_diff["control"] == "random"][pivot_cols + ["diff"]].copy()
-    rand_df = rand_df.rename(columns={"diff": "diff_rand"})
-
-    # Merge permuted and random
-    result = perm_df.merge(rand_df, on=pivot_cols, how="outer")
     return result
 
 
@@ -503,8 +460,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
-        "--dwpc-threshold", type=str, default="0.0",
-        help="DWPC threshold: a number, or 'p75' for 75th percentile of non-zero values.",
+        "--effect-size-threshold", type=float, default=0.2,
+        help="Minimum effect size (Cohen's d) for metapath selection. Default 0.2 (small effect).",
     )
     parser.add_argument("--output-dir", default="output/lv_intermediate_sharing")
     return parser.parse_args()
@@ -559,19 +516,11 @@ def main() -> None:
     else:
         print("\nWarning: No DWPC data found, DWPC filtering disabled")
 
-    # Parse DWPC threshold - can be a number or percentile spec like 'p75'
-    threshold_str = args.dwpc_threshold
-    use_per_metapath_threshold = False
-    dwpc_percentile = None
+    # DWPC threshold: use dwpc > 0 (any non-zero connectivity)
+    # Per web_tool_discussion.md section 1.1d: metapath-level d > 0.2 filtering
+    # already selects meaningful metapaths; for genes we just need non-zero DWPC
     dwpc_threshold = 0.0
-
-    if threshold_str.startswith("p"):
-        dwpc_percentile = float(threshold_str[1:])
-        use_per_metapath_threshold = True
-        print(f"DWPC threshold: {dwpc_percentile}th percentile (computed per-metapath)")
-    else:
-        dwpc_threshold = float(threshold_str)
-        print(f"DWPC threshold: {dwpc_threshold} (global)")
+    print(f"DWPC threshold: {dwpc_threshold} (genes with any connectivity)")
 
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
@@ -581,11 +530,15 @@ def main() -> None:
     node_name_maps = _load_node_names(REPO_ROOT)
     print(f"Loaded node name maps for: {list(node_name_maps.keys())}")
 
-    # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
-    selected_mp = _select_metapaths_by_effective_n(results_df)
+    # Select metapaths by effect size (per web_tool_discussion.md section 1.1c)
+    # Uses permutation null only, ranks by Cohen's d
+    # Default threshold 0.2 = small effect per Cohen's benchmarks
+    selected_mp = _select_metapaths_by_effect_size(
+        results_df, d_threshold=args.effect_size_threshold
+    )
 
     if selected_mp.empty:
-        print("No supported metapaths found.")
+        print("No metapaths found with effect size d > 0.2")
         return
 
     print(f"\nSelected {len(selected_mp)} metapaths across {selected_mp['lv_id'].nunique()} LVs")
@@ -641,16 +594,8 @@ def main() -> None:
         for _, mp_row in group.iterrows():
             metapath = mp_row["metapath"]
             mp_rank = mp_row["metapath_rank"]
-            # Use mean of diff_perm and diff_rand as effect size
-            effect_size = 0.5 * (mp_row.get("diff_perm", 0) + mp_row.get("diff_rand", 0))
-
-            # Compute per-metapath threshold if using percentile
-            if use_per_metapath_threshold and dwpc_lookup and dwpc_percentile is not None:
-                mp_threshold = _compute_metapath_threshold(
-                    dwpc_lookup, lv_id, metapath, dwpc_percentile
-                )
-            else:
-                mp_threshold = dwpc_threshold
+            # Effect size from permutation null (already computed)
+            effect_size = mp_row.get("effect_size_d", 0)
 
             is_first_mp = (mp_rank == 1)
 
@@ -659,7 +604,7 @@ def main() -> None:
                 path_top_k=args.path_top_k, degree_d=args.degree_d,
                 debug=is_first_mp,
                 dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                dwpc_threshold=mp_threshold,
+                dwpc_threshold=dwpc_threshold,
                 lv_id=lv_id,
             )
             if gene_ints:
@@ -697,14 +642,17 @@ def main() -> None:
                     "pct_genes_using": int_stat["pct_genes_using"],
                 })
 
-            if stats['pct_genes_sharing'] is not None:
+            # Classify effect size per Cohen's benchmarks
+            d_category = "large" if effect_size >= 0.8 else "medium" if effect_size >= 0.5 else "small"
+
+            if stats['n_genes_with_paths'] > 0:
                 pct_maj = stats.get('pct_intermediates_shared_majority', 0) or 0
                 top1 = stats.get('top1_intermediate_coverage', 0) or 0
-                print(f"  {metapath} (rank {mp_rank}): {stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
-                      f"top1 covers {top1:.1f}%, "
-                      f"{pct_maj:.1f}% intermediates used by >50% genes")
+                print(f"  {metapath} (d={effect_size:.2f}, {d_category}): "
+                      f"{stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
+                      f"top1={top1:.0f}%, maj_shared={pct_maj:.0f}%")
             else:
-                print(f"  {metapath} (rank {mp_rank}): no paths")
+                print(f"  {metapath} (d={effect_size:.2f}, {d_category}): no paths")
 
     # Save detailed results
     sharing_df = pd.DataFrame(sharing_rows)
@@ -734,12 +682,17 @@ def main() -> None:
     summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
         n_metapaths=("metapath", "count"),
         n_genes_total=("n_genes_total", "first"),
+        # Effect size stats
+        median_effect_size_d=("effect_size_d", "median"),
+        max_effect_size_d=("effect_size_d", "max"),
+        # Sharing stats
         median_pct_sharing=("pct_genes_sharing", "median"),
         mean_pct_sharing=("pct_genes_sharing", "mean"),
         max_pct_sharing=("pct_genes_sharing", "max"),
         median_jaccard=("median_jaccard_to_group", "median"),
         mean_jaccard=("mean_jaccard_to_group", "mean"),
         median_n_intermediates=("n_unique_intermediates", "median"),
+        median_pct_intermediates_shared_quarter=("pct_intermediates_shared_quarter", "median"),
         median_pct_intermediates_shared_majority=("pct_intermediates_shared_majority", "median"),
         median_pct_intermediates_shared_all=("pct_intermediates_shared_all", "median"),
         median_top1_coverage=("top1_intermediate_coverage", "median"),
@@ -754,15 +707,22 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("=== Summary for abstract ===")
     print("=" * 60)
+    print("Effect size categories (Cohen's d): large >= 0.8, medium >= 0.5, small >= 0.2")
     for _, row in summary.iterrows():
+        median_d = row.get('median_effect_size_d', 0)
+        max_d = row.get('max_effect_size_d', 0)
+        d_cat = "large" if median_d >= 0.8 else "medium" if median_d >= 0.5 else "small"
         print(f"\n{row['lv_id']} / {row['target_name']}:")
-        print(f"  {row['n_metapaths']} metapaths selected by effective number")
+        print(f"  {row['n_metapaths']} metapaths with effect size d > {args.effect_size_threshold}")
+        print(f"  Median effect size d = {median_d:.2f} ({d_cat}), max d = {max_d:.2f}")
         print(f"  {row['n_genes_total']} genes in set")
         print(f"  Median {row['median_n_intermediates']:.0f} unique intermediates per metapath")
         if pd.notna(row.get('median_top1_coverage')):
             print(f"  Median top-1 intermediate covers {row['median_top1_coverage']:.1f}% of genes")
         if pd.notna(row.get('median_top5_coverage')):
             print(f"  Median top-5 intermediates cover {row['median_top5_coverage']:.1f}% of genes")
+        if pd.notna(row.get('median_pct_intermediates_shared_quarter')):
+            print(f"  Median {row['median_pct_intermediates_shared_quarter']:.1f}% of intermediates used by >25% of genes")
         if pd.notna(row.get('median_pct_intermediates_shared_majority')):
             print(f"  Median {row['median_pct_intermediates_shared_majority']:.1f}% of intermediates used by >50% of genes")
         if pd.notna(row.get('median_pct_intermediates_shared_all')):

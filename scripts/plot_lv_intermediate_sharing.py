@@ -26,7 +26,8 @@ def plot_summary_comparison(
     summary_df: pd.DataFrame, fig_dir: Path, colors: list[str]
 ) -> None:
     """Figure 1: Summary comparison across LV-target pairs."""
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes = axes.flatten()
 
     labels = [
         f"{row['lv_id']}\n{row['target_name']}" for _, row in summary_df.iterrows()
@@ -47,8 +48,21 @@ def plot_summary_comparison(
         if pd.notna(v):
             ax.text(i, v + 2, f"{v:.0f}%", ha="center", fontsize=10)
 
-    # % of intermediates used by majority (>50%) of genes
+    # % of intermediates used by >25% of genes
     ax = axes[1]
+    values = summary_df.get("median_pct_intermediates_shared_quarter", pd.Series([0] * n_bars))
+    ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
+    ax.set_xticks(range(n_bars))
+    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_ylabel("Median % Intermediates")
+    ax.set_title("% Intermediates Used by >25% of Genes")
+    ax.set_ylim(0, 105)
+    for i, v in enumerate(values):
+        if pd.notna(v):
+            ax.text(i, v + 2, f"{v:.1f}%", ha="center", fontsize=10)
+
+    # % of intermediates used by majority (>50%) of genes
+    ax = axes[2]
     values = summary_df.get("median_pct_intermediates_shared_majority", pd.Series([0] * n_bars))
     ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
     ax.set_xticks(range(n_bars))
@@ -61,7 +75,7 @@ def plot_summary_comparison(
             ax.text(i, v + 2, f"{v:.1f}%", ha="center", fontsize=10)
 
     # % of intermediates used by ALL genes
-    ax = axes[2]
+    ax = axes[3]
     values = summary_df.get("median_pct_intermediates_shared_all", pd.Series([0] * n_bars))
     ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
     ax.set_xticks(range(n_bars))
@@ -507,6 +521,228 @@ def plot_top_intermediates(
         save_figure(fig, fig_dir, f"top_intermediates_{lv_id}")
 
 
+# Node type colors for consistent styling
+NODE_TYPE_COLORS = {
+    "G": "#6baed6",   # Gene - blue
+    "A": "#fd8d3c",   # Anatomy - orange
+    "BP": "#74c476",  # Biological Process - green
+    "CC": "#9e9ac8",  # Cellular Component - purple
+    "C": "#31a354",   # Compound - darker green
+    "D": "#fdae6b",   # Disease - light orange
+    "MF": "#bcbddc",  # Molecular Function - light purple
+    "PC": "#a1d99b",  # Pharmacologic Class - light green
+    "PW": "#e6550d",  # Pathway - red-orange
+    "SE": "#756bb1",  # Side Effect - purple
+    "S": "#d9d9d9",   # Symptom - gray
+}
+
+NODE_TYPE_NAMES = {
+    "G": "Gene",
+    "A": "Anatomy",
+    "BP": "Biological Process",
+    "CC": "Cellular Component",
+    "C": "Compound",
+    "D": "Disease",
+    "MF": "Molecular Function",
+    "PC": "Pharmacologic Class",
+    "PW": "Pathway",
+    "SE": "Side Effect",
+    "S": "Symptom",
+}
+
+
+def plot_top_shared_intermediates_aggregated(
+    top_int_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
+    fig_dir: Path,
+    top_n: int = 15,
+) -> None:
+    """Plot top shared intermediates aggregated across all metapaths for each LV.
+
+    Shows intermediates ranked by number of genes using them, colored by node type.
+    """
+    if top_int_df is None or top_int_df.empty:
+        return
+
+    lv_targets = list(
+        summary_df[["lv_id", "target_id", "target_name"]].itertuples(index=False, name=None)
+    )
+
+    for lv_id, target_id, target_name in lv_targets:
+        # Filter to this LV
+        subset = top_int_df[top_int_df["lv_id"] == lv_id].copy()
+
+        if subset.empty:
+            continue
+
+        # Aggregate across metapaths: for each intermediate, get max n_genes_using
+        # (since the same intermediate may appear in multiple metapaths)
+        agg = subset.groupby(["intermediate_id", "intermediate_name"]).agg(
+            n_genes_using=("n_genes_using", "max"),
+            pct_genes_using=("pct_genes_using", "max"),
+        ).reset_index()
+
+        # Sort by n_genes_using descending and take top N
+        agg = agg.sort_values("n_genes_using", ascending=False).head(top_n)
+
+        if agg.empty:
+            continue
+
+        # Extract node type from intermediate_id (format: "TYPE:ID")
+        agg["node_type"] = agg["intermediate_id"].apply(
+            lambda x: x.split(":")[0] if ":" in x else "?"
+        )
+
+        # Get display labels
+        agg["label"] = agg.apply(
+            lambda row: row["intermediate_name"] if pd.notna(row["intermediate_name"])
+            else row["intermediate_id"].split(":", 1)[1] if ":" in row["intermediate_id"]
+            else row["intermediate_id"],
+            axis=1
+        )
+
+        # Truncate long labels
+        agg["label"] = agg["label"].apply(
+            lambda x: x[:40] + "..." if len(str(x)) > 40 else x
+        )
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, max(6, len(agg) * 0.4)))
+
+        # Get colors based on node type
+        bar_colors = [NODE_TYPE_COLORS.get(nt, "#999999") for nt in agg["node_type"]]
+
+        y_pos = np.arange(len(agg))
+        bars = ax.barh(y_pos, agg["n_genes_using"], color=bar_colors, alpha=0.85)
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(agg["label"], fontsize=9)
+        ax.set_xlabel("Number of genes")
+        ax.set_title(f"Top {len(agg)} shared intermediate nodes\n{target_id}")
+        ax.invert_yaxis()
+
+        # Add legend for node types present in the data
+        present_types = agg["node_type"].unique()
+        legend_handles = [
+            plt.Rectangle((0, 0), 1, 1, color=NODE_TYPE_COLORS.get(nt, "#999999"), alpha=0.85)
+            for nt in sorted(present_types)
+        ]
+        legend_labels = [nt for nt in sorted(present_types)]
+        ax.legend(
+            legend_handles, legend_labels,
+            title="Node type",
+            loc="lower right",
+            fontsize=8,
+        )
+
+        plt.tight_layout()
+        save_figure(fig, fig_dir, f"top_shared_intermediates_{lv_id}")
+
+
+def plot_metapath_intermediate_heatmap(
+    top_int_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
+    fig_dir: Path,
+    top_n_intermediates: int = 20,
+) -> None:
+    """Plot heatmap of metapath x intermediate connectivity.
+
+    Shows which intermediates are used by which metapaths, with color intensity
+    representing the number of genes using that intermediate for that metapath.
+    """
+    if top_int_df is None or top_int_df.empty:
+        return
+
+    lv_targets = list(
+        summary_df[["lv_id", "target_id", "target_name"]].itertuples(index=False, name=None)
+    )
+
+    for lv_id, target_id, target_name in lv_targets:
+        # Filter to this LV
+        subset = top_int_df[top_int_df["lv_id"] == lv_id].copy()
+
+        if subset.empty:
+            continue
+
+        # Get top intermediates by total genes using across all metapaths
+        int_totals = subset.groupby("intermediate_id")["n_genes_using"].sum()
+        top_intermediates = int_totals.nlargest(top_n_intermediates).index.tolist()
+
+        # Filter to top intermediates
+        subset = subset[subset["intermediate_id"].isin(top_intermediates)]
+
+        if subset.empty:
+            continue
+
+        # Create pivot table: metapath x intermediate
+        # Get display labels for intermediates
+        int_labels = {}
+        for _, row in subset.drop_duplicates("intermediate_id").iterrows():
+            int_id = row["intermediate_id"]
+            if pd.notna(row.get("intermediate_name")) and row["intermediate_name"]:
+                label = str(row["intermediate_name"])
+            else:
+                label = int_id.split(":", 1)[1] if ":" in int_id else int_id
+            # Truncate long labels
+            if len(label) > 25:
+                label = label[:22] + "..."
+            int_labels[int_id] = label
+
+        subset["int_label"] = subset["intermediate_id"].map(int_labels)
+
+        pivot = subset.pivot_table(
+            index="metapath",
+            columns="int_label",
+            values="n_genes_using",
+            aggfunc="max",
+            fill_value=0,
+        )
+
+        if pivot.empty:
+            continue
+
+        # Sort metapaths by metapath_rank
+        metapath_order = (
+            subset.drop_duplicates("metapath")
+            .sort_values("metapath_rank")["metapath"]
+            .tolist()
+        )
+        pivot = pivot.reindex([mp for mp in metapath_order if mp in pivot.index])
+
+        # Sort intermediates by total genes using
+        int_order = (
+            subset.groupby("int_label")["n_genes_using"]
+            .sum()
+            .sort_values(ascending=False)
+            .index.tolist()
+        )
+        pivot = pivot[[col for col in int_order if col in pivot.columns]]
+
+        # Create figure
+        fig_width = max(10, len(pivot.columns) * 0.5)
+        fig_height = max(4, len(pivot) * 0.4)
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+        im = ax.imshow(pivot.values, cmap="YlGnBu", aspect="auto")
+
+        # Set ticks
+        ax.set_xticks(np.arange(len(pivot.columns)))
+        ax.set_yticks(np.arange(len(pivot.index)))
+        ax.set_xticklabels(pivot.columns, rotation=45, ha="right", fontsize=8)
+        ax.set_yticklabels(pivot.index, fontsize=8)
+
+        ax.set_xlabel("")
+        ax.set_ylabel("Metapath")
+        ax.set_title(f"Metapath x Intermediate connectivity\n{target_id}")
+
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label("Number of genes")
+
+        plt.tight_layout()
+        save_figure(fig, fig_dir, f"metapath_intermediate_heatmap_{lv_id}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Visualize LV intermediate sharing results."
@@ -579,6 +815,12 @@ def main() -> None:
 
     plot_top_intermediates(top_int_df, summary_df, fig_dir, colors)
     print("  - top_intermediates_*")
+
+    plot_top_shared_intermediates_aggregated(top_int_df, summary_df, fig_dir)
+    print("  - top_shared_intermediates_*")
+
+    plot_metapath_intermediate_heatmap(top_int_df, summary_df, fig_dir)
+    print("  - metapath_intermediate_heatmap_*")
 
     print(f"\nFigures saved to: {fig_dir}")
     print("Generated files:")
