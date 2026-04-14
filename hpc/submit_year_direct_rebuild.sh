@@ -70,7 +70,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/%x_%j.out" \
+      --output="hpc/logs/year/%x_%j.out" \
       --wrap="bash -c '$wrapped'"
   else
     sbatch \
@@ -82,7 +82,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/%x_%j.out" \
+      --output="hpc/logs/year/%x_%j.out" \
       --wrap="bash -c '$wrapped'"
   fi
 }
@@ -166,7 +166,7 @@ controller_analysis() {
 
 submit_main() {
   cd "$REPO_ROOT"
-  mkdir -p hpc/logs "$YEAR_DWPC_OUTPUT_DIR"
+  mkdir -p hpc/logs/year "$YEAR_DWPC_OUTPUT_DIR"
   require_year_inputs
 
   local metapath_manifest="$YEAR_DWPC_OUTPUT_DIR/metapath_manifest.txt"

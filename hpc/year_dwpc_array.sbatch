@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
-#SBATCH --output=hpc/logs/%x_%A_%a.out
+#SBATCH --output=hpc/logs/year/%x_%A_%a.out
 
 set -euo pipefail
 
@@ -44,7 +44,7 @@ if [[ "${AUTO_AGGREGATE:-0}" == "1" && "$TASK_ID" == "0" ]]; then
   sbatch \
     --dependency="afterok:${SLURM_ARRAY_JOB_ID}" \
     --job-name="year-null-var-agg" \
-    --output="hpc/logs/year-null-var-agg_%j.out" \
+    --output="hpc/logs/year/year-null-var-agg_%j.out" \
     --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && YEAR_NULL_VAR_RESULTS_DIR=\"$OUTPUT_DIR/results\" ${PYTHON_EXE} scripts/year_null_variance_experiment.py --results-dir \"$OUTPUT_DIR/results\" --output-dir \"${YEAR_NULL_VAR_OUTPUT_DIR:-output/year_null_variance_exp}\"'"
 fi
 

@@ -99,7 +99,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/%x_%j.out" \
+      --output="hpc/logs/lv/%x_%j.out" \
       --wrap="bash -lc '$wrapped'"
   else
     sbatch \
@@ -111,7 +111,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/%x_%j.out" \
+      --output="hpc/logs/lv/%x_%j.out" \
       --wrap="bash -lc '$wrapped'"
   fi
 }
@@ -228,7 +228,7 @@ controller_summary() {
 
 submit_main() {
   cd "$REPO_ROOT"
-  mkdir -p hpc/logs "$LV_WORKSPACE_DIR"
+  mkdir -p hpc/logs/lv "$LV_WORKSPACE_DIR"
 
   echo "Repo root: $REPO_ROOT"
   echo "LV workspace: $LV_WORKSPACE_DIR"

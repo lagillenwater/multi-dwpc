@@ -24,7 +24,7 @@ LV_OUTPUT_DIRS="${LV_INT_SHARE_OUTPUT_DIRS:-output/lv_experiment_more_B output/l
 B_VALUE="${LV_INT_SHARE_B:-10}"
 DWPC_THRESHOLD="${LV_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
-mkdir -p "$OUTPUT_DIR" hpc/logs
+mkdir -p "$OUTPUT_DIR" hpc/logs/lv
 
 echo "Repo root:        $REPO_ROOT"
 echo "Output dir:       $OUTPUT_DIR"
@@ -45,8 +45,8 @@ JOB_ID=$(sbatch \
   --cpus-per-task=4 \
   --mem=16G \
   --time=02:00:00 \
-  --output="hpc/logs/lv-int-share_%j.out" \
+  --output="hpc/logs/lv/lv-int-share_%j.out" \
   --wrap="bash -c '$JOB_CMD'")
 
 echo "Submitted job: $JOB_ID"
-echo "Monitor with: tail -f hpc/logs/lv-int-share_${JOB_ID}.out"
+echo "Monitor with: tail -f hpc/logs/lv/lv-int-share_${JOB_ID}.out"

@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=00:30:00
-#SBATCH --output=hpc/logs/year-sgi_%A_%a.out
+#SBATCH --output=hpc/logs/year/year-sgi_%A_%a.out
 #SBATCH --qos=normal
 
 set -euo pipefail

@@ -21,7 +21,7 @@ SELECTION_COL="${YEAR_INT_SHARE_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${YEAR_INT_SHARE_MAX_RANK:-5}"
 DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
-mkdir -p "$OUTPUT_DIR" hpc/logs
+mkdir -p "$OUTPUT_DIR" hpc/logs/year
 
 # Extract unique GO terms that have consensus metapaths (selected in both 2016 and 2024)
 GO_LIST="$OUTPUT_DIR/go_list.txt"
@@ -84,7 +84,7 @@ AGG_JOB=$(sbatch \
   --cpus-per-task=1 \
   --mem=1G \
   --time=00:10:00 \
-  --output="hpc/logs/year-int-share-agg_%j.out" \
+  --output="hpc/logs/year/year-int-share-agg_%j.out" \
   --wrap="bash -c '$AGG_CMD'")
 
 echo "Submitted aggregation job: $AGG_JOB (depends on $ARRAY_JOB)"

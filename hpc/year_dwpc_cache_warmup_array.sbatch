@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
-#SBATCH --output=hpc/logs/%x_%A_%a.out
+#SBATCH --output=hpc/logs/year/%x_%A_%a.out
 
 set -euo pipefail
 

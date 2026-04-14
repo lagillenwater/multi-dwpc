@@ -16,7 +16,7 @@ SUPPORT_PATH="${YEAR_SGI_SUPPORT:-output/year_direct_go_term_support_b5.csv}"
 SELECTION_COL="${YEAR_SGI_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${YEAR_SGI_MAX_RANK:-5}"
 
-mkdir -p "$OUTPUT_DIR" hpc/logs
+mkdir -p "$OUTPUT_DIR" hpc/logs/year
 
 # Extract unique GO terms from 2016-selected metapaths in the support table
 GO_LIST="$OUTPUT_DIR/go_list.txt"
@@ -67,7 +67,7 @@ AGG_JOB=$(sbatch \
   --cpus-per-task=2 \
   --mem=8G \
   --time=00:30:00 \
-  --output="hpc/logs/year-sgi-aggregate_%j.out" \
+  --output="hpc/logs/year/year-sgi-aggregate_%j.out" \
   --wrap="bash -c '$AGG_CMD'")
 
 echo "Submitted aggregation job: $AGG_JOB (depends on $ARRAY_JOB)"
