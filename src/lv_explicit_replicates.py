@@ -36,7 +36,7 @@ def manifest_path(output_dir: Path) -> Path:
 def _required_metadata_files(output_dir: Path) -> list[Path]:
     return [
         Path(output_dir) / "lv_top_genes.csv",
-        Path(output_dir) / "lv_target_map.csv",
+        Path(output_dir) / "lv_targets.csv",
     ]
 
 
@@ -72,13 +72,14 @@ def assert_summary_prepared(output_dir: Path) -> None:
 
 
 def load_base_edges(output_dir: Path) -> pd.DataFrame:
+    """Load LV-gene edges for null generation."""
     assert_metadata_prepared(output_dir)
     top_genes = pd.read_csv(Path(output_dir) / "lv_top_genes.csv")
-    lv_map = pd.read_csv(Path(output_dir) / "lv_target_map.csv")
-    base = top_genes.merge(lv_map, on="lv_id", how="inner")
-    base = base[["lv_id", "target_set_id", "gene_identifier"]].drop_duplicates()
+    lv_targets = pd.read_csv(Path(output_dir) / "lv_targets.csv")
+    base = top_genes.merge(lv_targets[["lv_id", "target_id"]], on="lv_id", how="inner")
+    base = base[["lv_id", "target_id", "gene_identifier"]].drop_duplicates()
     if base.empty:
-        raise ValueError("No LV-gene edges available after merging lv_top_genes.csv with lv_target_map.csv")
+        raise ValueError("No LV-gene edges available after merging lv_top_genes.csv with lv_targets.csv")
     return base.sort_values(["lv_id", "gene_identifier"]).reset_index(drop=True)
 
 
@@ -217,7 +218,7 @@ def compute_summary_for_artifact(output_dir: Path, artifact_name: str, force: bo
         return out_path
 
     feature_manifest = pd.read_csv(output_dir / "feature_manifest.csv")
-    lv_map = pd.read_csv(output_dir / "lv_target_map.csv")
+    lv_targets = pd.read_csv(output_dir / "lv_targets.csv")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if str(meta["control"]) == "real":
@@ -233,15 +234,16 @@ def compute_summary_for_artifact(output_dir: Path, artifact_name: str, force: bo
     score_matrix = np.load(output_dir / "gene_feature_scores.npy", allow_pickle=False)
     gene_id_to_row = _gene_id_to_row_map(output_dir)
     artifact_df = pd.read_csv(meta["source_path"])
-    if "target_set_id" not in artifact_df.columns:
-        artifact_df = artifact_df.merge(lv_map, on="lv_id", how="left")
+
+    # Merge with lv_targets if target_id not present
+    if "target_id" not in artifact_df.columns:
+        artifact_df = artifact_df.merge(lv_targets[["lv_id", "target_id"]], on="lv_id", how="left")
 
     rows = []
     for lv_id, group in artifact_df.groupby("lv_id", sort=True):
-        target_set_id = str(group["target_set_id"].iloc[0])
-        feature_rows = feature_manifest[
-            feature_manifest["target_set_id"].astype(str) == target_set_id
-        ].copy()
+        # Get features for this LV
+        lv_features = feature_manifest[feature_manifest["lv_id"] == lv_id].copy()
+
         gene_row_idx = []
         for gene_id in group["gene_identifier"].tolist():
             token = str(gene_id)
@@ -254,8 +256,9 @@ def compute_summary_for_artifact(output_dir: Path, artifact_name: str, force: bo
                 gene_row_idx.append(int(idx))
         if not gene_row_idx:
             raise ValueError(f"No mapped genes found for artifact={artifact_name}, lv_id={lv_id}")
+
         lv_mean = score_matrix[np.asarray(gene_row_idx, dtype=np.int64)].mean(axis=0)
-        for feature in feature_rows.itertuples(index=False):
+        for feature in lv_features.itertuples(index=False):
             rows.append(
                 {
                     "domain": "lv",
@@ -263,8 +266,8 @@ def compute_summary_for_artifact(output_dir: Path, artifact_name: str, force: bo
                     "control": str(meta["control"]),
                     "replicate": int(meta["replicate"]),
                     "lv_id": lv_id,
-                    "target_set_id": feature.target_set_id,
-                    "target_set_label": feature.target_set_label,
+                    "target_id": feature.target_id,
+                    "target_name": feature.target_name,
                     "node_type": feature.node_type,
                     "feature_idx": int(feature.feature_idx),
                     "metapath": feature.metapath,

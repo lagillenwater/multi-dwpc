@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compute intermediate sharing statistics for LV gene sets.
 
-For each (LV, target_set) with supported metapaths:
+For each LV with supported metapaths:
 1. Select metapaths using effective number at b=10
 2. Enumerate path instances for top genes
 3. Compute % of genes sharing intermediates
@@ -54,15 +54,14 @@ def _add_consensus_score(df: pd.DataFrame) -> pd.DataFrame:
     where ranks are based on diff_perm and diff_rand within each group.
     """
     out = df.copy()
-    group_cols = ["lv_id", "target_set_id"]
 
     out["rank_perm"] = (
-        out.groupby(group_cols)["diff_perm"]
+        out.groupby("lv_id")["diff_perm"]
         .rank(method="average", ascending=False)
         .astype(float)
     )
     out["rank_rand"] = (
-        out.groupby(group_cols)["diff_rand"]
+        out.groupby("lv_id")["diff_rand"]
         .rank(method="average", ascending=False)
         .astype(float)
     )
@@ -88,9 +87,9 @@ def _select_metapaths_by_effective_n(results_df: pd.DataFrame) -> pd.DataFrame:
     # Add consensus score columns
     results_df = _add_consensus_score(results_df)
 
-    # For each (lv_id, target_set_id), select top effective_n metapaths
+    # For each lv_id, select top effective_n metapaths
     selected_rows = []
-    for (lv_id, ts_id), group in results_df.groupby(["lv_id", "target_set_id"]):
+    for lv_id, group in results_df.groupby("lv_id"):
         if group.empty:
             continue
         # Sort by consensus_score descending
@@ -124,7 +123,6 @@ def _enumerate_gene_intermediates(
     dwpc_lookup: dict[tuple, float] | None = None,
     dwpc_threshold: float = 0.0,
     lv_id: str | None = None,
-    target_set_id: str | None = None,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
 
@@ -150,8 +148,8 @@ def _enumerate_gene_intermediates(
 
     for gene_id in genes:
         # Filter by DWPC threshold if lookup available
-        if dwpc_lookup is not None and lv_id is not None and target_set_id is not None:
-            dwpc = dwpc_lookup.get((lv_id, target_set_id, metapath, gene_id), 0.0)
+        if dwpc_lookup is not None and lv_id is not None:
+            dwpc = dwpc_lookup.get((lv_id, metapath, gene_id), 0.0)
             if dwpc <= dwpc_threshold:
                 continue
 
@@ -252,7 +250,7 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
 def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]:
     """Load per-gene DWPC values from numpy arrays.
 
-    Returns dict mapping (lv_id, target_set_id, metapath, gene_id) -> dwpc
+    Returns dict mapping (lv_id, metapath, gene_id) -> dwpc
     """
     scores_path = lv_output_dir / "gene_feature_scores.npy"
     genes_path = lv_output_dir / "gene_ids.npy"
@@ -263,12 +261,11 @@ def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]
 
     scores = np.load(scores_path)  # (n_genes, n_features)
     gene_ids = np.load(genes_path)  # (n_genes,)
-    manifest = pd.read_csv(manifest_path)  # feature_idx -> (target_set_id, metapath)
+    manifest = pd.read_csv(manifest_path)  # feature_idx -> (lv_id, metapath)
 
     dwpc_lookup = {}
     for _, row in manifest.iterrows():
         feature_idx = row["feature_idx"]
-        target_set_id = row["target_set_id"]
         metapath = row["metapath"]
 
         # Get DWPC values for all genes for this feature
@@ -277,7 +274,7 @@ def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]
         for gene_idx, gene_id in enumerate(gene_ids):
             dwpc = feature_scores[gene_idx]
             if dwpc > 0:  # Only store non-zero values
-                key = (lv_id, target_set_id, metapath, int(gene_id))
+                key = (lv_id, metapath, int(gene_id))
                 dwpc_lookup[key] = float(dwpc)
 
     return dwpc_lookup
@@ -296,12 +293,12 @@ def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
     if runs_df.empty:
         raise ValueError(f"No rows found for b={b} in {runs_path}")
 
-    # Average diff across seeds for each (control, lv_id, target_set_id, metapath)
-    group_cols = ["control", "lv_id", "target_set_id", "target_set_label", "node_type", "metapath"]
+    # Average diff across seeds for each (control, lv_id, metapath)
+    group_cols = ["control", "lv_id", "target_id", "target_name", "node_type", "metapath"]
     mean_diff = runs_df.groupby(group_cols, as_index=False)["diff"].mean()
 
     # Pivot to get diff_perm and diff_rand columns
-    pivot_cols = ["lv_id", "target_set_id", "target_set_label", "node_type", "metapath"]
+    pivot_cols = ["lv_id", "target_id", "target_name", "node_type", "metapath"]
     perm_df = mean_diff[mean_diff["control"] == "permuted"][pivot_cols + ["diff"]].copy()
     perm_df = perm_df.rename(columns={"diff": "diff_perm"})
 
@@ -345,7 +342,7 @@ def main() -> None:
     # Load and concatenate data from all LV output directories
     results_frames = []
     top_genes_frames = []
-    target_sets_frames = []
+    lv_targets_frames = []
     dwpc_lookup: dict[tuple, float] = {}
 
     for lv_output_dir_str in args.lv_output_dirs:
@@ -354,7 +351,7 @@ def main() -> None:
 
         runs_path = lv_output_dir / "lv_rank_stability_experiment" / "all_runs_long.csv"
         top_genes_path = lv_output_dir / "lv_top_genes.csv"
-        target_sets_path = lv_output_dir / "target_sets.csv"
+        lv_targets_path = lv_output_dir / "lv_targets.csv"
 
         if not runs_path.exists():
             print(f"  Warning: {runs_path} not found, skipping")
@@ -363,7 +360,7 @@ def main() -> None:
         results_frames.append(_load_runs_at_b(runs_path, args.b))
         top_genes_df = pd.read_csv(top_genes_path)
         top_genes_frames.append(top_genes_df)
-        target_sets_frames.append(pd.read_csv(target_sets_path))
+        lv_targets_frames.append(pd.read_csv(lv_targets_path))
 
         # Load per-gene DWPC from numpy arrays
         lv_ids = top_genes_df["lv_id"].unique()
@@ -379,7 +376,7 @@ def main() -> None:
 
     results_df = pd.concat(results_frames, ignore_index=True).drop_duplicates()
     top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
-    target_sets = pd.concat(target_sets_frames, ignore_index=True).drop_duplicates()
+    lv_targets = pd.concat(lv_targets_frames, ignore_index=True).drop_duplicates()
 
     if dwpc_lookup:
         print(f"\nTotal DWPC lookup entries: {len(dwpc_lookup)}")
@@ -403,7 +400,7 @@ def main() -> None:
 
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
-    print(f"Loaded {len(target_sets)} target set entries")
+    print(f"Loaded {len(lv_targets)} LV target entries")
 
     # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
     selected_mp = _select_metapaths_by_effective_n(results_df)
@@ -419,10 +416,10 @@ def main() -> None:
     print(f"Saved: {out_dir / 'selected_metapaths_effective_n.csv'}")
 
     # Summarize selection
-    selection_summary = selected_mp.groupby(["lv_id", "target_set_id"]).agg(
+    selection_summary = selected_mp.groupby("lv_id").agg(
         n_metapaths_selected=("metapath", "count"),
         effective_n_metapaths=("effective_n_metapaths", "first"),
-        target_set_label=("target_set_label", "first"),
+        target_name=("target_name", "first"),
         node_type=("node_type", "first"),
     ).reset_index()
     print(f"\n=== Metapath selection summary (b={args.b}) ===")
@@ -441,22 +438,25 @@ def main() -> None:
     maps = load_node_maps(REPO_ROOT, list(all_node_types))
     print(f"Gene map has {len(maps.id_to_pos.get('G', {}))} entries")
 
-    # Process each (LV, target_set, metapath)
+    # Process each LV
     sharing_rows = []
 
-    for (lv_id, ts_id), group in selected_mp.groupby(["lv_id", "target_set_id"]):
-        target_label = group["target_set_label"].iloc[0]
+    for lv_id, group in selected_mp.groupby("lv_id"):
+        target_name = group["target_name"].iloc[0]
         node_type = group["node_type"].iloc[0]
 
         # Get genes for this LV (convert to int for node map lookup)
         lv_genes_raw = top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"].tolist()
         lv_genes = [int(g) for g in lv_genes_raw]
-        print(f"\n{lv_id} / {target_label}: {len(lv_genes)} genes, {len(group)} metapaths")
+        print(f"\n{lv_id} / {target_name}: {len(lv_genes)} genes, {len(group)} metapaths")
 
-        # Get target positions from target_sets
-        ts_targets = target_sets[target_sets["target_set_id"] == ts_id]
-        target_positions = ts_targets["target_position"].unique()
-        print(f"  Target positions: {target_positions[:5]}... (total: {len(target_positions)})")
+        # Get target position from lv_targets (single target per LV)
+        lv_target_row = lv_targets[lv_targets["lv_id"] == lv_id]
+        if lv_target_row.empty:
+            print(f"  Warning: No target found for {lv_id}")
+            continue
+        target_position = lv_target_row["target_position"].iloc[0]
+        print(f"  Target position: {target_position}")
 
         for _, mp_row in group.iterrows():
             metapath = mp_row["metapath"]
@@ -464,38 +464,28 @@ def main() -> None:
             # Use mean of diff_perm and diff_rand as effect size
             effect_size = 0.5 * (mp_row.get("diff_perm", 0) + mp_row.get("diff_rand", 0))
 
-            # Aggregate intermediates across all targets
-            all_gene_intermediates: dict[int, set[str]] = {}
-
             is_first_mp = (mp_rank == 1)
-            for target_pos in target_positions:
-                gene_ints = _enumerate_gene_intermediates(
-                    lv_genes, int(target_pos), metapath, edge_loader, maps,
-                    path_top_k=args.path_top_k, degree_d=args.degree_d,
-                    debug=is_first_mp,
-                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                    dwpc_threshold=dwpc_threshold,
-                    lv_id=lv_id,
-                    target_set_id=ts_id,
-                )
-                if gene_ints:
-                    print(f"    Found paths for {len(gene_ints)} genes at target_pos={target_pos}")
-                for gene_id, ints in gene_ints.items():
-                    if gene_id not in all_gene_intermediates:
-                        all_gene_intermediates[gene_id] = set()
-                    all_gene_intermediates[gene_id].update(ints)
+            gene_ints = _enumerate_gene_intermediates(
+                lv_genes, int(target_position), metapath, edge_loader, maps,
+                path_top_k=args.path_top_k, degree_d=args.degree_d,
+                debug=is_first_mp,
+                dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
+                dwpc_threshold=dwpc_threshold,
+                lv_id=lv_id,
+            )
+            if gene_ints:
+                print(f"    Found paths for {len(gene_ints)} genes")
 
-            stats = _compute_sharing_stats(all_gene_intermediates)
+            stats = _compute_sharing_stats(gene_ints)
             stats.update({
                 "lv_id": lv_id,
-                "target_set_id": ts_id,
-                "target_set_label": target_label,
+                "target_id": lv_target_row["target_id"].iloc[0],
+                "target_name": target_name,
                 "node_type": node_type,
                 "metapath": metapath,
                 "metapath_rank": mp_rank,
                 "effect_size_d": effect_size,
                 "n_genes_total": len(lv_genes),
-                "n_targets": len(target_positions),
             })
             sharing_rows.append(stats)
 
@@ -505,9 +495,9 @@ def main() -> None:
     # Save detailed results
     sharing_df = pd.DataFrame(sharing_rows)
     col_order = [
-        "lv_id", "target_set_id", "target_set_label", "node_type",
+        "lv_id", "target_id", "target_name", "node_type",
         "metapath", "metapath_rank", "effect_size_d",
-        "n_genes_total", "n_targets",
+        "n_genes_total",
         "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
         "median_jaccard_to_group", "mean_jaccard_to_group",
         "n_unique_intermediates",
@@ -516,8 +506,8 @@ def main() -> None:
     sharing_df.to_csv(out_dir / "intermediate_sharing_by_metapath.csv", index=False)
     print(f"\nSaved: {out_dir / 'intermediate_sharing_by_metapath.csv'}")
 
-    # Aggregate summary per (LV, target_set)
-    summary = sharing_df.groupby(["lv_id", "target_set_id", "target_set_label", "node_type"]).agg(
+    # Aggregate summary per LV
+    summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
         n_metapaths=("metapath", "count"),
         n_genes_total=("n_genes_total", "first"),
         median_pct_sharing=("pct_genes_sharing", "median"),
@@ -535,7 +525,7 @@ def main() -> None:
     print("=== Summary for abstract ===")
     print("=" * 60)
     for _, row in summary.iterrows():
-        print(f"\n{row['lv_id']} / {row['target_set_label']}:")
+        print(f"\n{row['lv_id']} / {row['target_name']}:")
         print(f"  {row['n_metapaths']} metapaths selected by effective number")
         print(f"  {row['n_genes_total']} genes in set")
         print(f"  Median {row['median_pct_sharing']:.1f}% of genes share intermediates")

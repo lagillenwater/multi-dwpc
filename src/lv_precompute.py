@@ -1,5 +1,7 @@
 """
 Precompute gene-by-feature score matrices for optimized LV analysis.
+
+Each LV maps to a single target. Features are (lv_id, metapath) pairs.
 """
 
 from __future__ import annotations
@@ -31,7 +33,6 @@ def _load_metapath_stats(stats_path: Path) -> pd.DataFrame:
     if stats_path.exists():
         df = pd.read_csv(stats_path, sep="\t")
     else:
-        # Keep LV stages robust by bootstrapping stats the same way HetMat does.
         try:
             df = load_metapath_stats(stats_path.parent)
         except Exception as exc:
@@ -61,15 +62,13 @@ def _select_gene_to_target_metapaths(
         & (stats_df["length"] <= max_length)
     ].copy()
 
-    # If no target->G metapaths found, try G->target metapaths (e.g., GbCcSE for Side Effect)
-    # Some node types like SE only have metapaths stored in G->target direction
+    # If no target->G metapaths found, try G->target metapaths
     if subset.empty:
         subset = stats_df[
             stats_df["metapath"].astype(str).str.startswith("G")
             & stats_df["metapath"].astype(str).str.endswith(target_abbrev)
             & (stats_df["length"] <= max_length)
         ].copy()
-        # These are already in G->target format, no need to reverse later
         already_gene_to_target = True
     else:
         already_gene_to_target = False
@@ -88,7 +87,7 @@ def _select_gene_to_target_metapaths(
     seen = set()
     for metapath in subset["metapath"]:
         if already_gene_to_target:
-            mp_g = metapath  # Already in G->target format
+            mp_g = metapath
         else:
             mp_g = reverse_metapath_abbrev(metapath)
         if mp_g in seen:
@@ -109,22 +108,27 @@ def _select_gene_to_target_metapaths(
 
 
 def _build_feature_manifest(
-    target_sets: pd.DataFrame,
+    lv_targets: pd.DataFrame,
     stats_df: pd.DataFrame,
     max_metapath_length: int,
     exclude_direct: bool,
     metapath_limit_per_target: int | None,
 ) -> pd.DataFrame:
-    rows = []
-    dedup_target_sets = target_sets[
-        ["target_set_id", "target_set_label", "node_type"]
-    ].drop_duplicates()
+    """
+    Build feature manifest from LV targets.
 
-    for _, target_meta in dedup_target_sets.iterrows():
-        target_set_id = target_meta["target_set_id"]
-        target_set_label = target_meta["target_set_label"]
-        node_type = target_meta["node_type"]
+    Each row is (lv_id, target_id, node_type, metapath).
+    """
+    rows = []
+
+    for _, target_row in lv_targets.iterrows():
+        lv_id = target_row["lv_id"]
+        target_id = target_row["target_id"]
+        target_name = target_row["target_name"]
+        node_type = target_row["node_type"]
+        target_position = target_row["target_position"]
         target_abbrev = NODE_TYPE_TO_ABBREV[node_type]
+
         metapaths = _select_gene_to_target_metapaths(
             stats_df=stats_df,
             target_abbrev=target_abbrev,
@@ -132,31 +136,23 @@ def _build_feature_manifest(
             exclude_direct=exclude_direct,
             limit=metapath_limit_per_target,
         )
-        target_rows = target_sets[target_sets["target_set_id"] == target_set_id]
-        target_ids = sorted(target_rows["target_id"].astype(str).tolist())
-        n_targets = len(target_ids)
-        target_id_list = "|".join(target_ids)
 
         for metapath in metapaths:
-            rows.append(
-                {
-                    "target_set_id": target_set_id,
-                    "target_set_label": target_set_label,
-                    "node_type": node_type,
-                    "target_abbrev": target_abbrev,
-                    "metapath": metapath,
-                    "n_targets": n_targets,
-                    "target_ids": target_id_list,
-                }
-            )
+            rows.append({
+                "lv_id": lv_id,
+                "target_id": target_id,
+                "target_name": target_name,
+                "node_type": node_type,
+                "target_abbrev": target_abbrev,
+                "target_position": target_position,
+                "metapath": metapath,
+            })
 
     manifest = pd.DataFrame(rows)
     if manifest.empty:
         raise ValueError("No features were generated for precompute stage.")
 
-    manifest = manifest.sort_values(
-        ["target_set_id", "metapath"]
-    ).reset_index(drop=True)
+    manifest = manifest.sort_values(["lv_id", "metapath"]).reset_index(drop=True)
     manifest.insert(0, "feature_idx", np.arange(len(manifest), dtype=np.int64))
     return manifest
 
@@ -172,22 +168,22 @@ def prepare_feature_manifest(
     Build and persist the LV feature manifest without computing score matrices.
     """
     output_dir = Path(output_dir)
-    target_sets_path = output_dir / "target_sets.csv"
-    lv_map_path = output_dir / "lv_target_map.csv"
+    lv_targets_path = output_dir / "lv_targets.csv"
 
-    for path in (target_sets_path, lv_map_path):
-        if not path.exists():
-            raise FileNotFoundError(f"Missing required input: {path}")
+    if not lv_targets_path.exists():
+        raise FileNotFoundError(f"Missing required input: {lv_targets_path}")
 
-    target_sets = pd.read_csv(target_sets_path)
+    lv_targets = pd.read_csv(lv_targets_path)
     stats_df = _load_metapath_stats(metapath_stats_path)
+
     feature_manifest = _build_feature_manifest(
-        target_sets=target_sets,
+        lv_targets=lv_targets,
         stats_df=stats_df,
         max_metapath_length=max_metapath_length,
         exclude_direct=not include_direct_metapaths,
         metapath_limit_per_target=metapath_limit_per_target,
     )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     feature_manifest_path = output_dir / "feature_manifest.csv"
     if feature_manifest_path.exists():
@@ -245,53 +241,46 @@ def warmup_feature_metapath_cache(
 
 def _map_target_positions(
     hetmat: HetMat,
-    target_sets: pd.DataFrame,
-) -> dict[str, np.ndarray]:
-    target_pos_by_set: dict[str, np.ndarray] = {}
-    for target_set_id, group in target_sets.groupby("target_set_id", sort=True):
-        node_type = group["node_type"].iloc[0]
+    lv_targets: pd.DataFrame,
+) -> dict[str, int]:
+    """Map each LV's target to its position in the node type's identifier array."""
+    target_pos_by_lv: dict[str, int] = {}
+
+    for _, row in lv_targets.iterrows():
+        lv_id = row["lv_id"]
+        target_id = row["target_id"]
+        node_type = row["node_type"]
+
         node_df = hetmat.get_nodes(node_type)
         id_to_idx = dict(zip(node_df["identifier"], node_df.index))
 
-        wanted_ids = []
-        for value in group["target_id"].tolist():
-            coerced = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
-            if pd.isna(coerced):
-                wanted_ids.append(str(value))
-            else:
-                wanted_ids.append(int(coerced))
+        # Try string match first
+        idx = id_to_idx.get(str(target_id))
+        if idx is None:
+            # Try numeric coercion
+            coerced = pd.to_numeric(pd.Series([target_id]), errors="coerce").iloc[0]
+            if not pd.isna(coerced):
+                idx = id_to_idx.get(int(coerced))
 
-        mapped = [id_to_idx.get(item) for item in wanted_ids]
-        mapped = [idx for idx in mapped if idx is not None]
-        if not mapped:
-            raise ValueError(f"No targets mapped for target_set_id={target_set_id}")
-        target_pos_by_set[target_set_id] = np.asarray(mapped, dtype=np.int64)
+        if idx is None:
+            raise ValueError(f"Target {target_id} ({node_type}) not found for {lv_id}")
 
-    return target_pos_by_set
+        target_pos_by_lv[lv_id] = int(idx)
+
+    return target_pos_by_lv
 
 
-def _mean_transformed_scores_for_targets(
+def _mean_transformed_score_for_target(
     dwpc_matrix_csc: sparse.csc_matrix,
-    target_positions: np.ndarray,
+    target_position: int,
     raw_mean: float,
     n_genes: int,
 ) -> np.ndarray:
     """
-    Compute per-gene mean arcsinh(DWPC/raw_mean) across target columns.
-
-    This avoids repeated dense column materialization by working in sparse form.
+    Compute per-gene arcsinh(DWPC/raw_mean) for a single target column.
     """
-    if len(target_positions) == 0:
-        return np.zeros(n_genes, dtype=np.float64)
-
-    sub = dwpc_matrix_csc[:, target_positions]
-    if sub.nnz == 0:
-        return np.zeros(n_genes, dtype=np.float64)
-
-    transformed = sub.copy()
-    transformed.data = np.arcsinh(transformed.data / raw_mean)
-    row_sum = np.asarray(transformed.sum(axis=1)).ravel()
-    return row_sum / float(len(target_positions))
+    col = dwpc_matrix_csc[:, target_position].toarray().ravel()
+    return np.arcsinh(col / raw_mean)
 
 
 def _write_json_atomic(path: Path, payload: dict) -> None:
@@ -379,20 +368,18 @@ def precompute_gene_feature_scores(
     include_direct_metapaths: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Precompute per-gene scores for each (target_set, metapath) feature.
+    Precompute per-gene scores for each (lv_id, metapath) feature.
     """
     output_dir = Path(output_dir)
     top_genes_path = output_dir / "lv_top_genes.csv"
-    target_sets_path = output_dir / "target_sets.csv"
-    lv_map_path = output_dir / "lv_target_map.csv"
+    lv_targets_path = output_dir / "lv_targets.csv"
 
-    for path in (top_genes_path, target_sets_path, lv_map_path):
+    for path in (top_genes_path, lv_targets_path):
         if not path.exists():
             raise FileNotFoundError(f"Missing required input: {path}")
 
     top_genes = pd.read_csv(top_genes_path)
-    target_sets = pd.read_csv(target_sets_path)
-    lv_map = pd.read_csv(lv_map_path)
+    lv_targets = pd.read_csv(lv_targets_path)
 
     feature_manifest = prepare_feature_manifest(
         output_dir=output_dir,
@@ -402,8 +389,6 @@ def precompute_gene_feature_scores(
         include_direct_metapaths=include_direct_metapaths,
     )
 
-    # Read existing DWPC disk cache entries but do not write new files.
-    # This preserves speedup from existing caches without unbounded disk growth.
     hetmat = HetMat(
         data_dir=data_dir,
         damping=damping,
@@ -414,9 +399,9 @@ def precompute_gene_feature_scores(
     gene_ids = gene_nodes["identifier"].to_numpy()
     n_genes = len(gene_ids)
     n_features = len(feature_manifest)
-    _ = n_workers_precompute  # retained for CLI compatibility in streamed precompute mode
+    _ = n_workers_precompute  # retained for CLI compatibility
 
-    target_pos_by_set = _map_target_positions(hetmat=hetmat, target_sets=target_sets)
+    target_pos_by_lv = _map_target_positions(hetmat=hetmat, lv_targets=lv_targets)
     score_matrix, completed, score_memmap_path, score_meta_path, progress_path = (
         _prepare_score_memmap(output_dir=output_dir, n_genes=n_genes, n_features=n_features)
     )
@@ -434,7 +419,6 @@ def precompute_gene_feature_scores(
         if not pending_rows:
             continue
 
-        # Use CSC once per metapath for repeated fast column slicing.
         dwpc_matrix_csc = hetmat.compute_dwpc_matrix_csc(metapath, damping=damping)
         raw_mean = get_dwpc_raw_mean(hetmat.metapath_stats, metapath)
         if raw_mean == 0:
@@ -442,19 +426,18 @@ def precompute_gene_feature_scores(
 
         for row in pending_rows:
             feature_idx = int(row.feature_idx)
-            target_positions = target_pos_by_set[row.target_set_id]
-            mean_scores = _mean_transformed_scores_for_targets(
+            target_position = target_pos_by_lv[row.lv_id]
+            scores = _mean_transformed_score_for_target(
                 dwpc_matrix_csc=dwpc_matrix_csc,
-                target_positions=target_positions,
+                target_position=target_position,
                 raw_mean=raw_mean,
                 n_genes=n_genes,
             )
-            score_matrix[:, feature_idx] = mean_scores.astype(np.float32)
+            score_matrix[:, feature_idx] = scores.astype(np.float32)
             completed.add(feature_idx)
 
         score_matrix.flush()
         _write_completed_atomic(progress_path, completed)
-        # Stream by metapath: free matrix memory before the next metapath.
         hetmat.clear_metapath_from_memory(metapath=metapath, damping=damping)
 
     if len(completed) != int(n_features):
@@ -462,12 +445,13 @@ def precompute_gene_feature_scores(
             f"Precompute incomplete: {len(completed)}/{n_features} feature columns filled."
         )
 
-    # Real LV feature means.
+    # Build gene ID to row index mapping
     gene_id_to_row = {}
     for idx, gene_id in enumerate(gene_ids):
         gene_id_to_row[str(int(gene_id))] = idx
         gene_id_to_row[str(gene_id)] = idx
 
+    # Build LV real gene indices
     real_index_rows = []
     for row in top_genes.itertuples(index=False):
         token = str(row.gene_identifier)
@@ -478,49 +462,45 @@ def precompute_gene_feature_scores(
                 idx = gene_id_to_row.get(str(int(parsed)))
         if idx is None:
             continue
-        real_index_rows.append(
-            {
-                "lv_id": row.lv_id,
-                "gene_identifier": row.gene_identifier,
-                "gene_symbol": row.gene_symbol,
-                "loading": float(row.loading),
-                "rank": float(row.rank),
-                "gene_row_idx": int(idx),
-            }
-        )
+        real_index_rows.append({
+            "lv_id": row.lv_id,
+            "gene_identifier": row.gene_identifier,
+            "gene_symbol": row.gene_symbol,
+            "loading": float(row.loading),
+            "rank": float(row.rank),
+            "gene_row_idx": int(idx),
+        })
 
     lv_real_gene_indices = pd.DataFrame(real_index_rows).sort_values(
         ["lv_id", "rank"]
     ).reset_index(drop=True)
 
-    # Restrict to mapped LVs in lv_map.
-    allowed_lvs = set(lv_map["lv_id"].astype(str).tolist())
+    # Restrict to LVs in lv_targets
+    allowed_lvs = set(lv_targets["lv_id"].astype(str).tolist())
     lv_real_gene_indices = lv_real_gene_indices[
         lv_real_gene_indices["lv_id"].astype(str).isin(allowed_lvs)
     ].copy()
     if lv_real_gene_indices.empty:
         raise ValueError("No LV real genes were mapped to score matrix rows.")
 
+    # Compute real feature means per LV
     real_mean_rows = []
     for lv_id, group in lv_real_gene_indices.groupby("lv_id", sort=True):
         idx = group["gene_row_idx"].to_numpy(dtype=np.int64)
         lv_mean = score_matrix[idx].mean(axis=0)
-        lv_target_set = lv_map[lv_map["lv_id"] == lv_id]["target_set_id"].iloc[0]
-        for feature in feature_manifest.itertuples(index=False):
-            if feature.target_set_id != lv_target_set:
-                continue
-            real_mean_rows.append(
-                {
-                    "lv_id": lv_id,
-                    "target_set_id": feature.target_set_id,
-                    "target_set_label": feature.target_set_label,
-                    "node_type": feature.node_type,
-                    "feature_idx": int(feature.feature_idx),
-                    "metapath": feature.metapath,
-                    "real_mean": float(lv_mean[int(feature.feature_idx)]),
-                    "n_real_genes": int(len(idx)),
-                }
-            )
+
+        lv_features = feature_manifest[feature_manifest["lv_id"] == lv_id]
+        for feature in lv_features.itertuples(index=False):
+            real_mean_rows.append({
+                "lv_id": lv_id,
+                "target_id": feature.target_id,
+                "target_name": feature.target_name,
+                "node_type": feature.node_type,
+                "feature_idx": int(feature.feature_idx),
+                "metapath": feature.metapath,
+                "real_mean": float(lv_mean[int(feature.feature_idx)]),
+                "n_real_genes": int(len(idx)),
+            })
 
     real_feature_scores = pd.DataFrame(real_mean_rows)
 

@@ -56,22 +56,22 @@ def _load_entity_df(analysis_dir: Path) -> pd.DataFrame:
     if summary_path.exists():
         return _load_csv(
             summary_path,
-            required_columns=["control", "b", "lv_id", "target_set_id", "mean_spearman_rho"],
+            required_columns=["control", "b", "lv_id", "mean_spearman_rho"],
         )
 
     legacy_path = analysis_dir / "metapath_pairwise_metrics.csv"
     legacy_df = _load_csv(
         legacy_path,
-        required_columns=["b", "lv_id", "target_set_id", "spearman_rho"],
+        required_columns=["b", "lv_id", "spearman_rho"],
     )
     legacy_df = (
-        legacy_df.groupby(["b", "lv_id", "target_set_id"], as_index=False)
+        legacy_df.groupby(["b", "lv_id"], as_index=False)
         .agg(
             n_pairs=("spearman_rho", "size"),
             mean_spearman_rho=("spearman_rho", "mean"),
             median_spearman_rho=("spearman_rho", "median"),
         )
-        .sort_values(["lv_id", "target_set_id", "b"])
+        .sort_values(["lv_id", "b"])
         .reset_index(drop=True)
     )
     legacy_df.insert(0, "control", "combined")
@@ -200,7 +200,7 @@ def _plot_overlap_and_rank(entity_df: pd.DataFrame, output_path: Path) -> None:
 
     plot_rows = []
     for metric_key, metric_col, metric_label in metric_specs:
-        subset = entity_df[["control", "b", "lv_id", "target_set_id", metric_col]].copy()
+        subset = entity_df[["control", "b", "lv_id", metric_col]].copy()
         subset = subset.rename(columns={metric_col: "metric_value"})
         subset["metric_key"] = metric_key
         subset["metric_label"] = metric_label

@@ -1,5 +1,7 @@
 """
 Final statistics assembly for LV multi-DWPC optimized pipeline.
+
+Each LV maps to a single target. Results are grouped by lv_id.
 """
 
 from __future__ import annotations
@@ -14,8 +16,8 @@ from statsmodels.stats.multitest import multipletests
 def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str) -> pd.DataFrame:
     out = df.copy()
     out[out_col] = np.nan
-    group_cols = ["lv_id", "target_set_id"]
-    for _, idx in out.groupby(group_cols).groups.items():
+    # FDR correction within each LV
+    for _, idx in out.groupby("lv_id").groups.items():
         subset = out.loc[idx]
         pvals = subset[p_col].to_numpy(dtype=float)
         valid = np.isfinite(pvals)
@@ -29,14 +31,14 @@ def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str) -> pd.DataFrame:
 
 def _add_consensus_rank_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    group_cols = ["lv_id", "target_set_id"]
+    # Rank within each LV
     out["rank_perm"] = (
-        out.groupby(group_cols)["diff_perm"]
+        out.groupby("lv_id")["diff_perm"]
         .rank(method="average", ascending=False)
         .astype(float)
     )
     out["rank_rand"] = (
-        out.groupby(group_cols)["diff_rand"]
+        out.groupby("lv_id")["diff_rand"]
         .rank(method="average", ascending=False)
         .astype(float)
     )
@@ -80,8 +82,8 @@ def build_final_stats(output_dir: Path) -> pd.DataFrame:
 
     key = [
         "lv_id",
-        "target_set_id",
-        "target_set_label",
+        "target_id",
+        "target_name",
         "node_type",
         "feature_idx",
         "metapath",
@@ -113,8 +115,8 @@ def build_final_stats(output_dir: Path) -> pd.DataFrame:
     )
 
     merged = merged.sort_values(
-        ["lv_id", "target_set_id", "supported", "consensus_score", "min_d", "min_diff"],
-        ascending=[True, True, False, False, False, False],
+        ["lv_id", "supported", "consensus_score", "min_d", "min_diff"],
+        ascending=[True, False, False, False, False],
     ).reset_index(drop=True)
 
     out_path = output_dir / "lv_metapath_results.csv"

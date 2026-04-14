@@ -1,5 +1,7 @@
 """
 Vectorized null sampling with adaptive replicate counts and streaming stats.
+
+Each LV maps to a single target. Features are (lv_id, metapath) pairs.
 """
 
 from __future__ import annotations
@@ -223,8 +225,8 @@ def _state_to_feature_rows(
                 "lv_id": lv_id,
                 "null_type": null_type,
                 "feature_idx": idx,
-                "target_set_id": feature.target_set_id,
-                "target_set_label": feature.target_set_label,
+                "target_id": feature.target_id,
+                "target_name": feature.target_name,
                 "node_type": feature.node_type,
                 "metapath": feature.metapath,
                 "n_eff": n_eff,
@@ -258,7 +260,7 @@ def run_vectorized_nulls(
     feature_manifest = pd.read_csv(output_dir / "feature_manifest.csv")
     real_feature_scores = pd.read_csv(output_dir / "real_feature_scores.csv")
     lv_real_gene_indices = pd.read_csv(output_dir / "lv_real_gene_indices.csv")
-    lv_map = pd.read_csv(output_dir / "lv_target_map.csv")
+    lv_targets = pd.read_csv(output_dir / "lv_targets.csv")
 
     score_matrix = np.load(output_dir / "gene_feature_scores.npy")
     gene_ids = np.load(output_dir / "gene_ids.npy")
@@ -313,19 +315,19 @@ def run_vectorized_nulls(
         for bin_id, group in real_slots.groupby("degree_bin")
     }
 
-    # Real references by LV.
+    # Real references by LV - features are already per-LV in the new model
     real_feature_by_lv = {
         lv_id: real_feature_scores[real_feature_scores["lv_id"] == lv_id]
         for lv_id in lv_ids
     }
-    lv_to_target_set = dict(zip(lv_map["lv_id"].astype(str), lv_map["target_set_id"].astype(str)))
+    # Each LV's allowed features are those with matching lv_id in the manifest
     allowed_features_by_lv = {}
     for lv_id in lv_ids:
-        target_set_id = lv_to_target_set[lv_id]
-        allowed = feature_manifest[feature_manifest["target_set_id"] == target_set_id][
+        allowed = feature_manifest[feature_manifest["lv_id"] == lv_id][
             "feature_idx"
         ].to_numpy(dtype=np.int64)
         allowed_features_by_lv[lv_id] = allowed
+
     real_means_by_lv = {
         lv_id: np.full(n_features, np.nan, dtype=np.float64) for lv_id in lv_ids
     }
@@ -349,6 +351,9 @@ def run_vectorized_nulls(
 
     for null_type in ("random", "permuted"):
         for lv_id in lv_ids:
+            # Filter feature manifest to only this LV's features for output
+            lv_feature_manifest = feature_manifest[feature_manifest["lv_id"] == lv_id].copy()
+
             state = _init_streaming_state(n_features=n_features)
             active = np.zeros(n_features, dtype=bool)
             active[allowed_features_by_lv[lv_id]] = True
@@ -415,7 +420,7 @@ def run_vectorized_nulls(
                     state=state,
                     lv_id=lv_id,
                     null_type=null_type,
-                    feature_manifest=feature_manifest,
+                    feature_manifest=lv_feature_manifest,
                 )
             )
             scored_feature_idx = allowed_features_by_lv[lv_id]
@@ -424,8 +429,6 @@ def run_vectorized_nulls(
                 {
                     "lv_id": lv_id,
                     "null_type": null_type,
-                    # QC B-eff metrics should only summarize features that were
-                    # actually scored for this LV's mapped target set.
                     "mean_b_eff": float(np.nanmean(scored_n_eff)),
                     "min_b_eff": int(np.nanmin(scored_n_eff)),
                     "max_b_eff": int(np.nanmax(scored_n_eff)),

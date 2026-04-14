@@ -16,7 +16,7 @@ from scipy import sparse
 
 from src.dwpc_direct import reverse_metapath_abbrev
 from src.lv_dwpc import compute_real_pair_dwpc
-from src.lv_pairs import build_lv_target_pairs
+from src.lv_pairs import build_lv_gene_target_pairs
 
 
 NODE_FILES = {
@@ -229,18 +229,17 @@ def extract_top_subgraphs(
             f"Required metapath ranking column '{sort_col}' not found in {results_path}"
         )
     supported = supported.sort_values(
-        ["lv_id", "target_set_id", sort_col, "consensus_score", "min_d", "min_diff", "fdr_sum"],
-        ascending=[True, True, ascending, False, False, False, True],
+        ["lv_id", sort_col, "consensus_score", "min_d", "min_diff", "fdr_sum"],
+        ascending=[True, ascending, False, False, False, True],
     )
-    top_mp = supported.groupby(["lv_id", "target_set_id"]).head(top_metapaths).copy()
+    top_mp = supported.groupby("lv_id").head(top_metapaths).copy()
     top_mp["metapath_rank_metric"] = str(metapath_rank_metric)
 
     manifest_override = top_mp[["node_type", "metapath"]].drop_duplicates().copy()
 
-    pairs = build_lv_target_pairs(
+    pairs = build_lv_gene_target_pairs(
         top_genes_path=output_dir / "lv_top_genes.csv",
-        target_sets_path=output_dir / "target_sets.csv",
-        lv_target_map_path=output_dir / "lv_target_map.csv",
+        lv_targets_path=output_dir / "lv_targets.csv",
         output_pairs_path=output_dir / "lv_gene_target_pairs.csv",
     )
 
@@ -257,11 +256,8 @@ def extract_top_subgraphs(
         use_disk_cache=True,
     )
 
-    join_cols = ["lv_id", "target_set_id", "metapath"]
+    join_cols = ["lv_id", "metapath"]
     keep_cols = join_cols + [
-        "lv_id",
-        "target_set_id",
-        "metapath",
         "perm_null_mean",
         "rand_null_mean",
         "diff_perm",
@@ -302,20 +298,19 @@ def extract_top_subgraphs(
     filtered_pairs = filtered_pairs.sort_values(
         [
             "lv_id",
-            "target_set_id",
             "metapath",
             "pair_rank_score",
             "dwpc",
             "gene_rank",
             "gene_identifier",
         ],
-        ascending=[True, True, True, False, False, True, True],
+        ascending=[True, True, False, False, True, True],
     )
     top_pairs_df = (
-        filtered_pairs.groupby(["lv_id", "target_set_id", "metapath"]).head(top_pairs).copy()
+        filtered_pairs.groupby(["lv_id", "metapath"]).head(top_pairs).copy()
     )
     top_pairs_df["pair_rank"] = top_pairs_df.groupby(
-        ["lv_id", "target_set_id", "metapath"]
+        ["lv_id", "metapath"]
     ).cumcount() + 1
     top_pairs_df.to_csv(output_dir / "top_pairs.csv", index=False)
 
@@ -369,13 +364,11 @@ def extract_top_subgraphs(
             path_rows.append(
                 {
                     "lv_id": row.lv_id,
-                    "target_set_id": row.target_set_id,
-                    "target_set_label": row.target_set_label,
+                    "target_id": row.target_id,
+                    "target_name": row.target_name,
                     "node_type": row.node_type,
                     "metapath": metapath_src_to_gene,
                     "metapath_g_orientation": metapath_g,
-                    "target_id": row.target_id,
-                    "target_name": row.target_name,
                     "gene_identifier": row.gene_identifier,
                     "gene_symbol": row.gene_symbol,
                     "pair_rank": int(row.pair_rank),
@@ -395,13 +388,11 @@ def extract_top_subgraphs(
 
     top_paths_columns = [
         "lv_id",
-        "target_set_id",
-        "target_set_label",
+        "target_id",
+        "target_name",
         "node_type",
         "metapath",
         "metapath_g_orientation",
-        "target_id",
-        "target_name",
         "gene_identifier",
         "gene_symbol",
         "pair_rank",
@@ -516,7 +507,7 @@ def plot_top_subgraphs(
     if top_paths.empty:
         return 0
 
-    key_cols = ["lv_id", "target_set_id", "metapath", "target_id"]
+    key_cols = ["lv_id", "metapath", "target_id"]
     n_written = 0
     for key, group in top_paths.groupby(key_cols, sort=True):
         selected_paths, _ = _select_shared_intermediate_gene_paths(
@@ -585,13 +576,13 @@ def plot_top_subgraphs(
                     bbox=dict(facecolor="white", edgecolor="none", alpha=0.8, pad=0.4),
                 )
 
-        lv_id, target_set_id, metapath, target_id = key
+        lv_id, metapath, target_id = key
         target_name = str(selected_paths.iloc[0]["target_name"])
         gene_text = ", ".join(gene_labels[:10])
         if len(gene_labels) > 10:
             gene_text += ", ..."
         title = (
-            f"{lv_id} | {target_set_id} | {metapath}\n"
+            f"{lv_id} | {metapath}\n"
             f"target={target_name} ({target_id}) | genes={len(gene_labels)} | "
             f"intermediates>={min_shared_intermediates}\n"
             f"{gene_text}"
@@ -602,8 +593,7 @@ def plot_top_subgraphs(
         ax.axis("off")
 
         out_name = (
-            f"{_sanitize(lv_id)}__{_sanitize(target_set_id)}__{_sanitize(metapath)}__"
-            f"{_sanitize(str(target_id))}__multigene.png"
+            f"{_sanitize(lv_id)}__{_sanitize(metapath)}__{_sanitize(str(target_id))}__multigene.png"
         )
         fig.tight_layout()
         fig.savefig(plots_dir / out_name, dpi=150, bbox_inches="tight")

@@ -14,7 +14,7 @@ from src.replicate_workspace import (
 )
 
 
-FEATURE_KEYS = ["lv_id", "target_set_id", "target_set_label", "node_type", "metapath"]
+FEATURE_KEYS = ["lv_id", "target_id", "target_name", "node_type", "metapath"]
 LV_MANIFEST_COLUMNS = [
     "domain",
     "name",

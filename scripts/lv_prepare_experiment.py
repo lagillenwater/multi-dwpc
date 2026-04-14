@@ -38,7 +38,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gene-reference", default="data/nodes/Gene.tsv")
     parser.add_argument("--lvs", default=DEFAULT_LVS)
     parser.add_argument("--top-fraction", type=float, default=0.005)
-    parser.add_argument("--include-brown-adipose", action="store_true")
     parser.add_argument("--n-workers-precompute", type=int, default=4)
     parser.add_argument("--max-metapath-length", type=int, default=3)
     parser.add_argument("--metapath-limit-per-target", type=int, default=2)
@@ -70,11 +69,7 @@ def _prepare_metadata(args: argparse.Namespace) -> Path:
     common.extend(["--gene-reference", args.gene_reference, "--lvs", args.lvs, "--top-fraction", str(args.top_fraction)])
 
     _run(common + ["--stage", "top-genes"])
-
-    target_cmd = common + ["--stage", "target-sets"]
-    if args.include_brown_adipose:
-        target_cmd.append("--include-brown-adipose")
-    _run(target_cmd)
+    _run(common + ["--stage", "targets"])
 
     prepare_feature_manifest(
         output_dir=output_dir,

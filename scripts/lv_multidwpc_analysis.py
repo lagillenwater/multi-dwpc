@@ -23,11 +23,11 @@ else:
 sys.path.insert(0, str(REPO_ROOT))
 from src.lv_inputs import extract_top_lv_genes  # noqa: E402
 from src.lv_nulls import run_vectorized_nulls  # noqa: E402
-from src.lv_pairs import build_lv_target_pairs  # noqa: E402
+from src.lv_pairs import build_lv_gene_target_pairs  # noqa: E402
 from src.lv_precompute import precompute_gene_feature_scores  # noqa: E402
 from src.lv_stats import build_final_stats  # noqa: E402
 from src.lv_subgraphs import extract_top_subgraphs, plot_top_subgraphs  # noqa: E402
-from src.lv_targets import build_target_sets  # noqa: E402
+from src.lv_targets import build_lv_targets  # noqa: E402
 from src.lv_dwpc import compute_real_pair_dwpc  # noqa: E402
 
 
@@ -137,48 +137,32 @@ def run_top_genes_stage(args: argparse.Namespace) -> None:
     print(summary_df.to_string(index=False))
 
 
-def run_target_sets_stage(args: argparse.Namespace) -> None:
+def run_targets_stage(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     nodes_dir = REPO_ROOT / "data" / "nodes"
-    target_sets_path = output_dir / "target_sets.csv"
-    target_summary_path = output_dir / "target_sets_summary.csv"
-    lv_target_map_path = output_dir / "lv_target_map.csv"
-    cached_files = [target_sets_path, target_summary_path, lv_target_map_path]
-    if args.resume and _all_exist(cached_files) and not args.force:
-        targets_df = pd.read_csv(target_sets_path)
-        summary_df = pd.read_csv(target_summary_path)
-        lv_map_df = pd.read_csv(lv_target_map_path)
-        print("\nTarget-set construction skipped (resume cache hit).")
-        print(f"  Target rows: {len(targets_df):,}")
-        print(f"  Output: {target_sets_path}")
-        print(f"  Summary: {target_summary_path}")
-        print(f"  LV map: {lv_target_map_path}")
-        print("\nTarget-set summary:")
-        print(summary_df.to_string(index=False))
-        print("\nLV-to-target map:")
-        print(lv_map_df.to_string(index=False))
+    lv_targets_path = output_dir / "lv_targets.csv"
+    if args.resume and lv_targets_path.exists() and not args.force:
+        lv_targets_df = pd.read_csv(lv_targets_path)
+        print("\nLV targets construction skipped (resume cache hit).")
+        print(f"  LV target rows: {len(lv_targets_df):,}")
+        print(f"  Output: {lv_targets_path}")
+        print("\nLV targets:")
+        print(lv_targets_df.to_string(index=False))
         return
 
-    targets_df, summary_df, lv_map_df = build_target_sets(
+    lv_targets_df = build_lv_targets(
         nodes_dir=nodes_dir,
-        output_target_sets_path=target_sets_path,
-        output_summary_path=target_summary_path,
-        output_lv_map_path=lv_target_map_path,
+        output_path=lv_targets_path,
         lv_ids=_parse_lvs(args.lvs),
-        include_brown_adipose=args.include_brown_adipose,
     )
 
-    print("\nTarget-set construction complete.")
-    print(f"  Target rows: {len(targets_df):,}")
-    print(f"  Output: {target_sets_path}")
-    print(f"  Summary: {target_summary_path}")
-    print(f"  LV map: {lv_target_map_path}")
-    print("\nTarget-set summary:")
-    print(summary_df.to_string(index=False))
-    print("\nLV-to-target map:")
-    print(lv_map_df.to_string(index=False))
+    print("\nLV targets construction complete.")
+    print(f"  LV target rows: {len(lv_targets_df):,}")
+    print(f"  Output: {lv_targets_path}")
+    print("\nLV targets:")
+    print(lv_targets_df.to_string(index=False))
 
 
 def run_real_dwpc_stage(args: argparse.Namespace) -> None:
@@ -186,8 +170,7 @@ def run_real_dwpc_stage(args: argparse.Namespace) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     top_genes_path = output_dir / "lv_top_genes.csv"
-    target_sets_path = output_dir / "target_sets.csv"
-    lv_map_path = output_dir / "lv_target_map.csv"
+    lv_targets_path = output_dir / "lv_targets.csv"
     pairs_path = output_dir / "lv_gene_target_pairs.csv"
     dwpc_path = output_dir / "lv_pair_dwpc_real.csv"
     manifest_path = output_dir / "lv_metapaths_manifest.csv"
@@ -196,15 +179,14 @@ def run_real_dwpc_stage(args: argparse.Namespace) -> None:
         raise FileNotFoundError(
             f"Missing {top_genes_path}. Run stage 'top-genes' first."
         )
-    if not target_sets_path.exists() or not lv_map_path.exists():
+    if not lv_targets_path.exists():
         raise FileNotFoundError(
-            "Missing target-set inputs. Run stage 'target-sets' first."
+            f"Missing {lv_targets_path}. Run stage 'targets' first."
         )
 
-    pairs_df = build_lv_target_pairs(
+    pairs_df = build_lv_gene_target_pairs(
         top_genes_path=top_genes_path,
-        target_sets_path=target_sets_path,
-        lv_target_map_path=lv_map_path,
+        lv_targets_path=lv_targets_path,
         output_pairs_path=pairs_path,
     )
     print("\nPair table complete.")
@@ -439,7 +421,7 @@ def main() -> None:
         default="top-genes",
         choices=[
             "top-genes",
-            "target-sets",
+            "targets",
             "real-dwpc",
             "precompute-scores",
             "nulls",
@@ -500,11 +482,6 @@ def main() -> None:
         "--force",
         action="store_true",
         help="Recompute stage outputs even if cached artifacts exist.",
-    )
-    parser.add_argument(
-        "--include-brown-adipose",
-        action="store_true",
-        help="Include UBERON:0001348 in adipose target set.",
     )
     parser.add_argument(
         "--include-direct-metapaths",
@@ -585,7 +562,7 @@ def main() -> None:
         choices=["consensus_score", "consensus_rank", "min_d", "min_diff", "diff_perm", "diff_rand", "d_perm", "d_rand"],
         default="consensus_score",
         help=(
-            "Metric for selecting top metapaths within each LV/target set. "
+            "Metric for selecting top metapaths within each LV."
             "`consensus_score` mirrors the year workflow by averaging inverse "
             "ranks from the permuted and random null contrasts."
         ),
@@ -630,8 +607,8 @@ def main() -> None:
         run_top_genes_stage(args)
         return
 
-    if args.stage == "target-sets":
-        run_target_sets_stage(args)
+    if args.stage == "targets":
+        run_targets_stage(args)
         return
 
     if args.stage == "real-dwpc":
@@ -661,7 +638,7 @@ def main() -> None:
     if args.stage == "pipeline-fast":
         print("[note] Running optimized fast pipeline stages.")
         run_top_genes_stage(args)
-        run_target_sets_stage(args)
+        run_targets_stage(args)
         run_precompute_scores_stage(args)
         run_nulls_stage(args)
         run_stats_stage(args)
@@ -676,7 +653,7 @@ def main() -> None:
     if args.stage == "pipeline":
         print("[note] Running legacy baseline pipeline stages.")
         run_top_genes_stage(args)
-        run_target_sets_stage(args)
+        run_targets_stage(args)
         run_real_dwpc_stage(args)
         return
 

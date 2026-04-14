@@ -87,9 +87,9 @@ def _build_metapath_length_map(stats_df: pd.DataFrame) -> dict[str, int]:
 
 def _real_base_edges(output_dir: Path) -> pd.DataFrame:
     top_genes = _load_csv(output_dir / "lv_top_genes.csv", ["lv_id", "gene_identifier"])
-    lv_map = _load_csv(output_dir / "lv_target_map.csv", ["lv_id", "target_set_id"])
+    lv_targets = _load_csv(output_dir / "lv_targets.csv", ["lv_id", "target_id"])
     return (
-        top_genes.merge(lv_map, on="lv_id", how="inner")[["lv_id", "target_set_id", "gene_identifier"]]
+        top_genes.merge(lv_targets[["lv_id", "target_id"]], on="lv_id", how="inner")[["lv_id", "target_id", "gene_identifier"]]
         .drop_duplicates()
         .sort_values(["lv_id", "gene_identifier"])
         .reset_index(drop=True)

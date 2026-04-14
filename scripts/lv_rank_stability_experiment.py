@@ -114,7 +114,7 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
 
     plot_rows = []
     for metric_key, metric_col, metric_label in metric_specs:
-        subset = entity_df[["control", "b", "lv_id", "target_set_id", metric_col]].copy()
+        subset = entity_df[["control", "b", "lv_id", metric_col]].copy()
         subset = subset.rename(columns={metric_col: "metric_value"})
         subset["metric_key"] = metric_key
         subset["metric_label"] = metric_label
@@ -226,14 +226,14 @@ def main() -> None:
 
     rank_df = rank_features(
         runs_df,
-        rank_group_keys=["control", "b", "seed", "lv_id", "target_set_id"],
+        rank_group_keys=["control", "b", "seed", "lv_id"],
         feature_col="metapath",
         score_col=rank_metric,
         rank_col="metapath_rank",
     )
     pairwise_df, entity_df, overall_df = summarize_rank_stability(
         rank_df,
-        outer_keys=["control", "b", "lv_id", "target_set_id"],
+        outer_keys=["control", "b", "lv_id"],
         replicate_col="seed",
         feature_col="metapath",
         rank_col="metapath_rank",
@@ -241,9 +241,9 @@ def main() -> None:
         rbo_p=_parse_optional_rbo_p(args.rbo_p),
     )
     if not entity_df.empty:
-        entity_df = entity_df.rename(columns={"n_entities": "n_lv_target_sets"})
+        entity_df = entity_df.rename(columns={"n_entities": "n_lvs"})
     if not overall_df.empty:
-        overall_df = overall_df.rename(columns={"n_entities": "n_lv_target_sets"})
+        overall_df = overall_df.rename(columns={"n_entities": "n_lvs"})
 
     runs_df.to_csv(exp_root / "all_runs_long.csv", index=False)
     rank_df.to_csv(exp_root / "metapath_rank_table.csv", index=False)
