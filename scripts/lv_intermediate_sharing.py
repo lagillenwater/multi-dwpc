@@ -544,17 +544,18 @@ def main() -> None:
     print(f"\nSelected {len(selected_mp)} metapaths across {selected_mp['lv_id'].nunique()} LVs")
 
     # Save selected metapaths
-    selected_mp.to_csv(out_dir / "selected_metapaths_effective_n.csv", index=False)
-    print(f"Saved: {out_dir / 'selected_metapaths_effective_n.csv'}")
+    selected_mp.to_csv(out_dir / "selected_metapaths.csv", index=False)
+    print(f"Saved: {out_dir / 'selected_metapaths.csv'}")
 
     # Summarize selection
     selection_summary = selected_mp.groupby("lv_id").agg(
         n_metapaths_selected=("metapath", "count"),
-        effective_n_metapaths=("effective_n_metapaths", "first"),
+        median_effect_size_d=("effect_size_d", "median"),
+        max_effect_size_d=("effect_size_d", "max"),
         target_name=("target_name", "first"),
         node_type=("node_type", "first"),
     ).reset_index()
-    print(f"\n=== Metapath selection summary (b={args.b}) ===")
+    print(f"\n=== Metapath selection summary (b={args.b}, d > {args.effect_size_threshold}) ===")
     print(selection_summary.to_string(index=False))
 
     # Setup for path enumeration
