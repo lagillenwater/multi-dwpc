@@ -146,6 +146,35 @@ def _select_metapaths_by_effective_n(results_df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(selected_rows, ignore_index=True)
 
 
+def _compute_metapath_threshold(
+    dwpc_lookup: dict[tuple, float],
+    lv_id: str,
+    metapath: str,
+    percentile: float,
+) -> float:
+    """Compute DWPC threshold for a specific metapath.
+
+    Args:
+        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
+        lv_id: LV identifier
+        metapath: metapath abbreviation
+        percentile: percentile to use (e.g., 75 for p75)
+
+    Returns:
+        DWPC threshold for this metapath
+    """
+    # Get all DWPC values for this LV and metapath
+    metapath_dwpc = [
+        v for (lid, mp, gid), v in dwpc_lookup.items()
+        if lid == lv_id and mp == metapath and v > 0
+    ]
+
+    if not metapath_dwpc:
+        return 0.0
+
+    return float(np.percentile(metapath_dwpc, percentile))
+
+
 def _enumerate_gene_intermediates(
     genes: list[int],
     target_pos: int,
@@ -526,18 +555,17 @@ def main() -> None:
 
     # Parse DWPC threshold - can be a number or percentile spec like 'p75'
     threshold_str = args.dwpc_threshold
+    use_per_metapath_threshold = False
+    dwpc_percentile = None
+    dwpc_threshold = 0.0
+
     if threshold_str.startswith("p"):
-        percentile = float(threshold_str[1:])
-        if dwpc_lookup:
-            nonzero_dwpc = np.array([v for v in dwpc_lookup.values() if v > 0])
-            dwpc_threshold = float(np.percentile(nonzero_dwpc, percentile))
-            print(f"DWPC threshold: {percentile}th percentile = {dwpc_threshold:.3f}")
-        else:
-            dwpc_threshold = 0.0
-            print("DWPC threshold: 0.0 (no DWPC data for percentile)")
+        dwpc_percentile = float(threshold_str[1:])
+        use_per_metapath_threshold = True
+        print(f"DWPC threshold: {dwpc_percentile}th percentile (computed per-metapath)")
     else:
         dwpc_threshold = float(threshold_str)
-        print(f"DWPC threshold: {dwpc_threshold}")
+        print(f"DWPC threshold: {dwpc_threshold} (global)")
 
     print(f"\nLoaded {len(results_df)} metapath results at b={args.b}")
     print(f"Loaded {len(top_genes)} top genes")
@@ -610,13 +638,22 @@ def main() -> None:
             # Use mean of diff_perm and diff_rand as effect size
             effect_size = 0.5 * (mp_row.get("diff_perm", 0) + mp_row.get("diff_rand", 0))
 
+            # Compute per-metapath threshold if using percentile
+            if use_per_metapath_threshold and dwpc_lookup and dwpc_percentile is not None:
+                mp_threshold = _compute_metapath_threshold(
+                    dwpc_lookup, lv_id, metapath, dwpc_percentile
+                )
+            else:
+                mp_threshold = dwpc_threshold
+
             is_first_mp = (mp_rank == 1)
+
             gene_ints = _enumerate_gene_intermediates(
                 lv_genes, int(target_position), metapath, edge_loader, maps,
                 path_top_k=args.path_top_k, degree_d=args.degree_d,
                 debug=is_first_mp,
                 dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                dwpc_threshold=dwpc_threshold,
+                dwpc_threshold=mp_threshold,
                 lv_id=lv_id,
             )
             if gene_ints:
