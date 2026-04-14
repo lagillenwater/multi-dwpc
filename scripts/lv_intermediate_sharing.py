@@ -75,7 +75,7 @@ def _load_node_names(repo_root: Path) -> dict[str, dict[str, str]]:
 def _select_metapaths_by_effect_size(
     results_df: pd.DataFrame,
     d_threshold: float = 0.2,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Select metapaths by effect size (Cohen's d) from permutation null.
 
     Per web_tool_discussion.md (section 1.1c, 1.2):
@@ -88,20 +88,40 @@ def _select_metapaths_by_effect_size(
         d_threshold: Minimum effect size to include (default 0.2 = small effect)
 
     Returns:
-        DataFrame of selected metapaths with metapath_rank column
+        Tuple of:
+        - DataFrame of selected metapaths with metapath_rank column
+        - DataFrame of dropped LVs with reason
     """
     if results_df.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
     selected_rows = []
+    dropped_rows = []
+
     for lv_id, group in results_df.groupby("lv_id"):
         if group.empty:
             continue
+
+        target_id = group["target_id"].iloc[0]
+        target_name = group["target_name"].iloc[0]
+        node_type = group["node_type"].iloc[0]
+        n_metapaths_total = len(group)
+        max_d = group["effect_size_d"].max()
 
         # Filter to metapaths with d > threshold
         above_threshold = group[group["effect_size_d"] > d_threshold].copy()
 
         if above_threshold.empty:
+            dropped_rows.append({
+                "lv_id": lv_id,
+                "target_id": target_id,
+                "target_name": target_name,
+                "node_type": node_type,
+                "n_metapaths_total": n_metapaths_total,
+                "n_metapaths_selected": 0,
+                "max_effect_size_d": max_d,
+                "reason": f"No metapaths with effect size d > {d_threshold}",
+            })
             continue
 
         # Sort by effect size descending and assign ranks
@@ -112,9 +132,10 @@ def _select_metapaths_by_effect_size(
         selected_rows.append(above_threshold)
 
     if not selected_rows:
-        return pd.DataFrame()
+        dropped_df = pd.DataFrame(dropped_rows) if dropped_rows else pd.DataFrame()
+        return pd.DataFrame(), dropped_df
 
-    return pd.concat(selected_rows, ignore_index=True)
+    return pd.concat(selected_rows, ignore_index=True), pd.DataFrame(dropped_rows)
 
 
 def _enumerate_gene_intermediates(
@@ -533,12 +554,21 @@ def main() -> None:
     # Select metapaths by effect size (per web_tool_discussion.md section 1.1c)
     # Uses permutation null only, ranks by Cohen's d
     # Default threshold 0.2 = small effect per Cohen's benchmarks
-    selected_mp = _select_metapaths_by_effect_size(
+    selected_mp, dropped_lvs = _select_metapaths_by_effect_size(
         results_df, d_threshold=args.effect_size_threshold
     )
 
+    # Report dropped LVs
+    if not dropped_lvs.empty:
+        print(f"\n=== Dropped LVs (no metapaths with d > {args.effect_size_threshold}) ===")
+        for _, row in dropped_lvs.iterrows():
+            print(f"  {row['lv_id']} / {row['target_name']}: "
+                  f"{row['n_metapaths_total']} metapaths, max d = {row['max_effect_size_d']:.3f}")
+        dropped_lvs.to_csv(out_dir / "dropped_lvs.csv", index=False)
+        print(f"\nSaved: {out_dir / 'dropped_lvs.csv'}")
+
     if selected_mp.empty:
-        print("No metapaths found with effect size d > 0.2")
+        print(f"\nNo metapaths found with effect size d > {args.effect_size_threshold}")
         return
 
     print(f"\nSelected {len(selected_mp)} metapaths across {selected_mp['lv_id'].nunique()} LVs")

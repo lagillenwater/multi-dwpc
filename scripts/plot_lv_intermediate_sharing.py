@@ -275,18 +275,6 @@ def plot_top_metapaths(
         ax.set_title(f"{lv_id}: {target_name}\nTop {top_n} Metapaths")
         ax.invert_yaxis()
 
-        for i, (_, row) in enumerate(top_metapaths.iterrows()):
-            pct = row["pct_genes_sharing"]
-            if pd.notna(pct):
-                ax.annotate(
-                    f"{pct:.0f}%",
-                    xy=(row["effect_size_d"], i),
-                    xytext=(3, 0),
-                    textcoords="offset points",
-                    fontsize=7,
-                    va="center",
-                )
-
     plt.tight_layout()
     save_figure(fig, fig_dir, "top_metapaths")
 
@@ -618,7 +606,7 @@ def plot_top_shared_intermediates_aggregated(
         ax.set_yticks(y_pos)
         ax.set_yticklabels(agg["label"], fontsize=9)
         ax.set_xlabel("Number of genes")
-        ax.set_title(f"Top {len(agg)} shared intermediate nodes\n{target_id}")
+        ax.set_title(f"Top {len(agg)} shared intermediate nodes\n{target_name}")
         ax.invert_yaxis()
 
         # Add legend for node types present in the data
@@ -733,7 +721,7 @@ def plot_metapath_intermediate_heatmap(
 
         ax.set_xlabel("")
         ax.set_ylabel("Metapath")
-        ax.set_title(f"Metapath x Intermediate connectivity\n{target_id}")
+        ax.set_title(f"Metapath x Intermediate connectivity\n{target_name}")
 
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
