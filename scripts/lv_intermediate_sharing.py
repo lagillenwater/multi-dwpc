@@ -664,8 +664,10 @@ def main() -> None:
         "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
         "median_jaccard_to_group", "mean_jaccard_to_group",
         "n_unique_intermediates",
-        "n_shared_intermediates_2plus", "n_shared_intermediates_majority", "n_shared_intermediates_all",
-        "pct_intermediates_shared_2plus", "pct_intermediates_shared_majority", "pct_intermediates_shared_all",
+        "n_shared_intermediates_2plus", "n_shared_intermediates_quarter",
+        "n_shared_intermediates_majority", "n_shared_intermediates_all",
+        "pct_intermediates_shared_2plus", "pct_intermediates_shared_quarter",
+        "pct_intermediates_shared_majority", "pct_intermediates_shared_all",
         "n_intermediates_cover_50pct", "n_intermediates_cover_80pct",
         "top1_intermediate_coverage", "top5_intermediate_coverage",
     ]
