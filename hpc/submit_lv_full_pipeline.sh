@@ -99,7 +99,7 @@ else
             --mem="4G" \
             --time="00:15:00" \
             --output="$LOG_DIR/b_select_%j.out" \
-            --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $B_SELECT_CMD")
+            --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $B_SELECT_CMD'")
 
         echo "Submitted B selection: $B_SELECT_JOB_ID"
     fi
@@ -136,7 +136,7 @@ INT_SHARE_JOB_ID=$(sbatch \
     --mem="32G" \
     --time="04:00:00" \
     --output="$LOG_DIR/int_share_%j.out" \
-    --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $INT_SHARE_CMD")
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $INT_SHARE_CMD'")
 
 echo "Submitted intermediate sharing: $INT_SHARE_JOB_ID"
 
@@ -166,7 +166,7 @@ SUMMARY_JOB_ID=$(sbatch \
     --mem="8G" \
     --time="00:30:00" \
     --output="$LOG_DIR/summary_%j.out" \
-    --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $SUMMARY_CMD")
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $SUMMARY_CMD'")
 
 echo "Submitted global summary: $SUMMARY_JOB_ID"
 
@@ -201,7 +201,7 @@ GENE_JOB_ID=$(sbatch \
     --mem="16G" \
     --time="01:00:00" \
     --output="$LOG_DIR/gene_%j.out" \
-    --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $GENE_CMD")
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $GENE_CMD'")
 
 echo "Submitted gene table: $GENE_JOB_ID"
 
@@ -236,7 +236,7 @@ VIZ_JOB_ID=$(sbatch \
     --mem="8G" \
     --time="00:30:00" \
     --output="$LOG_DIR/viz_%j.out" \
-    --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $VIZ_CMD")
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $VIZ_CMD'")
 
 echo "Submitted visualization: $VIZ_JOB_ID"
 
@@ -272,7 +272,7 @@ PLOT_JOB_ID=$(sbatch \
     --mem="4G" \
     --time="00:15:00" \
     --output="$LOG_DIR/plot_%j.out" \
-    --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $PLOT_CMD")
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $PLOT_CMD'")
 
 echo "Submitted plots: $PLOT_JOB_ID"
 

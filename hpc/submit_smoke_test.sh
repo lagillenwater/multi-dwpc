@@ -46,33 +46,8 @@ submit_timed_job() {
     local time_limit="$3"
     local cmd="$4"
 
-    # Wrap command to capture timing and memory stats
-    local timed_cmd="
-cd \"$REPO_ROOT\"
-module load anaconda
-source \"\$(conda info --base)/etc/profile.d/conda.sh\"
-conda activate multi_dwpc
-
-echo '=== Job Start: $(date) ==='
-echo 'Memory limit: $mem'
-
-# Run with timing
-start_time=\$(date +%s)
-
-$cmd
-
-exit_code=\$?
-end_time=\$(date +%s)
-runtime=\$((end_time - start_time))
-
-echo ''
-echo '=== Job Complete ==='
-echo \"Exit code: \$exit_code\"
-echo \"Runtime: \${runtime}s (\$((\${runtime}/60))m \$((\${runtime}%60))s)\"
-echo \"Peak memory: \$(grep -i 'maxrss' /proc/self/status 2>/dev/null || echo 'N/A')\"
-
-exit \$exit_code
-"
+    # Simple wrapper with timing - uses single-line conda activation that works on Alpine
+    local timed_cmd="cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && echo '=== Job Start ===' && echo 'Memory limit: $mem' && start_time=\$(date +%s) && $cmd && exit_code=\$? || exit_code=\$? && end_time=\$(date +%s) && runtime=\$((end_time - start_time)) && echo '' && echo '=== Job Complete ===' && echo \"Exit code: \$exit_code\" && echo \"Runtime: \${runtime}s\" && exit \$exit_code"
 
     local job_id
     job_id=$(sbatch \
@@ -85,7 +60,7 @@ exit \$exit_code
         --mem="$mem" \
         --time="$time_limit" \
         --output="$LOG_DIR/${job_name}_%j.out" \
-        --wrap="bash -c '$timed_cmd'")
+        --wrap="bash -lc '$timed_cmd'")
 
     echo "$job_id"
 }
@@ -139,7 +114,7 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --mem="4G" \
         --time="00:15:00" \
         --output="$LOG_DIR/summary_%j.out" \
-        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $SUMMARY_CMD")
+        --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $SUMMARY_CMD'")
 
     echo "Submitted global summary: $SUMMARY_JOB_ID (depends on $LV_JOB_ID)"
 else
@@ -171,7 +146,7 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --mem="8G" \
         --time="00:30:00" \
         --output="$LOG_DIR/gene_%j.out" \
-        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $GENE_CMD")
+        --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $GENE_CMD'")
 
     echo "Submitted gene table: $GENE_JOB_ID (depends on $LV_JOB_ID)"
 else
@@ -204,7 +179,7 @@ if [[ -n "${GENE_JOB_ID:-}" ]]; then
         --mem="4G" \
         --time="00:15:00" \
         --output="$LOG_DIR/viz_%j.out" \
-        --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $VIZ_CMD")
+        --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $VIZ_CMD'")
 
     echo "Submitted visualization: $VIZ_JOB_ID (depends on $GENE_JOB_ID)"
 else
@@ -252,7 +227,7 @@ if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
             --mem="16G" \
             --time="01:00:00" \
             --output="$LOG_DIR/year_%j.out" \
-            --wrap="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $YEAR_CMD")
+            --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $YEAR_CMD'")
 
         echo "Submitted Year intermediate sharing: $YEAR_JOB_ID (GO term: $GO_ID)"
     else

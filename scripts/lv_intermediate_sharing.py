@@ -639,8 +639,6 @@ def main() -> None:
 
     print(f"\nLoaded {len(top_genes)} top genes")
     print(f"Loaded {len(lv_targets)} LV target entries")
-    print(f"Loaded {len(top_genes)} top genes")
-    print(f"Loaded {len(lv_targets)} LV target entries")
 
     # Load node name mappings for human-readable intermediate names
     node_name_maps = _load_node_names(REPO_ROOT)
