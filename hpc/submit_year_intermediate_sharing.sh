@@ -21,7 +21,9 @@ SELECTION_COL="${YEAR_INT_SHARE_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${YEAR_INT_SHARE_MAX_RANK:-5}"
 DWPC_THRESHOLD="${YEAR_INT_SHARE_DWPC_THRESHOLD:-p75}"
 
-mkdir -p "$OUTPUT_DIR" hpc/logs/year
+# Create log directory for this job type
+LOG_DIR="hpc/logs/year/year-int-share"
+mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 
 # Extract unique GO terms that have consensus metapaths (selected in both 2016 and 2024)
 GO_LIST="$OUTPUT_DIR/go_list.txt"
@@ -62,14 +64,19 @@ echo "DWPC threshold:  $DWPC_THRESHOLD"
 echo "GO terms:        $N_GO"
 echo
 
-# Submit array job
+# Submit array job with output directory override
 ARRAY_JOB=$(sbatch \
   --parsable \
   --export=ALL,YEAR_INT_SHARE_GO_LIST="$GO_LIST",YEAR_INT_SHARE_OUTPUT_DIR="$OUTPUT_DIR",YEAR_INT_SHARE_SUPPORT="$SUPPORT_PATH",YEAR_INT_SHARE_ADDED="$ADDED_PATH",YEAR_INT_SHARE_MAX_RANK="$MAX_RANK",YEAR_INT_SHARE_DWPC_THRESHOLD="$DWPC_THRESHOLD" \
   --array="0-$((N_GO - 1))" \
+  --output="$LOG_DIR/%A/%a.out" \
   hpc/year_intermediate_sharing_array.sbatch)
 
 echo "Submitted array job: $ARRAY_JOB (${N_GO} tasks)"
+
+# Create subdirectory for array job logs (SLURM needs this to exist)
+ARRAY_LOG_DIR="$LOG_DIR/$ARRAY_JOB"
+mkdir -p "$ARRAY_LOG_DIR"
 
 # Submit aggregation job after array completes (just concatenate small summary files)
 AGG_CMD="cd \"$REPO_ROOT\" && head -1 \"\$(ls $OUTPUT_DIR/intermediate_sharing_summary_GO:*.csv | head -1)\" > \"$OUTPUT_DIR/intermediate_sharing_summary_all.csv\" && tail -n +2 -q $OUTPUT_DIR/intermediate_sharing_summary_GO:*.csv >> \"$OUTPUT_DIR/intermediate_sharing_summary_all.csv\" && echo 'Aggregated summary to $OUTPUT_DIR/intermediate_sharing_summary_all.csv'"
@@ -84,7 +91,8 @@ AGG_JOB=$(sbatch \
   --cpus-per-task=1 \
   --mem=1G \
   --time=00:10:00 \
-  --output="hpc/logs/year/year-int-share-agg_%j.out" \
+  --output="$LOG_DIR/%j.out" \
   --wrap="bash -c '$AGG_CMD'")
 
 echo "Submitted aggregation job: $AGG_JOB (depends on $ARRAY_JOB)"
+echo "Array logs: $ARRAY_LOG_DIR/"

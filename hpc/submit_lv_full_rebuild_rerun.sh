@@ -67,13 +67,43 @@ export LV_NULL_ANALYSIS_DIR LV_RANK_ANALYSIS_DIR LV_GROUP_QC_OUTPUT_DIR
 
 submit_sbatch() {
   local dependency="$1"
-  shift
+  local sbatch_file="$2"
+  shift 2
+
+  # Extract job name from sbatch file to create log directory
+  local job_name
+  job_name=$(grep -m1 '#SBATCH --job-name=' "$sbatch_file" | sed 's/.*--job-name=//')
+  local log_dir="hpc/logs/lv/$job_name"
+  mkdir -p "$log_dir"
 
   if [[ -n "$dependency" ]]; then
-    sbatch --parsable --export=ALL --dependency="afterok:${dependency}" "$@"
+    sbatch --parsable --export=ALL --dependency="afterok:${dependency}" --output="$log_dir/%j.out" "$@" "$sbatch_file"
   else
-    sbatch --parsable --export=ALL "$@"
+    sbatch --parsable --export=ALL --output="$log_dir/%j.out" "$@" "$sbatch_file"
   fi
+}
+
+# Submit an array sbatch with organized log directory
+# Usage: submit_array_sbatch dependency job_name sbatch_file [extra_args...]
+submit_array_sbatch() {
+  local dependency="$1"
+  local job_name="$2"
+  local sbatch_file="$3"
+  shift 3
+
+  local log_dir="hpc/logs/lv/$job_name"
+  mkdir -p "$log_dir"
+
+  local job_id
+  if [[ -n "$dependency" ]]; then
+    job_id=$(sbatch --parsable --export=ALL --dependency="afterok:${dependency}" --output="$log_dir/%A/%a.out" "$@" "$sbatch_file")
+  else
+    job_id=$(sbatch --parsable --export=ALL --output="$log_dir/%A/%a.out" "$@" "$sbatch_file")
+  fi
+
+  # Create the array job log subdirectory
+  mkdir -p "$log_dir/$job_id"
+  echo "$job_id"
 }
 
 submit_wrap() {
@@ -84,6 +114,9 @@ submit_wrap() {
   local time_limit="$5"
   local command="$6"
   local wrapped
+  local log_dir="hpc/logs/lv/$job_name"
+
+  mkdir -p "$log_dir"
 
   printf -v wrapped 'cd "%s" && module load anaconda && source "$(conda info --base)/etc/profile.d/conda.sh" && conda activate multi_dwpc && export MPLCONFIGDIR="${TMPDIR:-/tmp}/mpl_${SLURM_JOB_ID}" && mkdir -p "$MPLCONFIGDIR" && %s' \
     "$REPO_ROOT" "$command"
@@ -99,7 +132,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/lv/%x_%j.out" \
+      --output="$log_dir/%j.out" \
       --wrap="bash -lc '$wrapped'"
   else
     sbatch \
@@ -111,7 +144,7 @@ submit_wrap() {
       --cpus-per-task="$cpus" \
       --mem="$mem" \
       --time="$time_limit" \
-      --output="hpc/logs/lv/%x_%j.out" \
+      --output="$log_dir/%j.out" \
       --wrap="bash -lc '$wrapped'"
   fi
 }
@@ -137,10 +170,10 @@ controller_warmup() {
   fi
 
   local warmup_job finalize_job perm_job random_job summary_controller_job
-  warmup_job="$(submit_sbatch "$SLURM_JOB_ID" --array=0-$((n_metapaths - 1)) hpc/lv_dwpc_cache_warmup_array.sbatch)"
+  warmup_job="$(submit_array_sbatch "$SLURM_JOB_ID" "lv-dwpc-warm-mp" hpc/lv_dwpc_cache_warmup_array.sbatch --array=0-$((n_metapaths - 1)))"
   finalize_job="$(submit_sbatch "$warmup_job" hpc/lv_precompute_finalize.sbatch)"
-  perm_job="$(submit_sbatch "$finalize_job" --array=0-$((LV_N_REPLICATES - 1)) hpc/lv_permutations_array.sbatch)"
-  random_job="$(submit_sbatch "$finalize_job" --array=0-$((LV_N_REPLICATES - 1)) hpc/lv_random_controls_array.sbatch)"
+  perm_job="$(submit_array_sbatch "$finalize_job" "lv-perm" hpc/lv_permutations_array.sbatch --array=0-$((LV_N_REPLICATES - 1)))"
+  random_job="$(submit_array_sbatch "$finalize_job" "lv-random" hpc/lv_random_controls_array.sbatch --array=0-$((LV_N_REPLICATES - 1)))"
   summary_controller_job="$(submit_wrap "$perm_job:$random_job" "lv-summary-controller" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
     "bash hpc/submit_lv_full_rebuild_rerun.sh __controller_summary__")"
 
@@ -167,7 +200,7 @@ controller_summary() {
   fi
 
   local summary_job lv_null_job lv_null_plot_job lv_rank_job lv_rank_plot_job lv_seed_plot_job
-  summary_job="$(submit_sbatch "$SLURM_JOB_ID" --array=0-$((n_artifacts - 1)) hpc/lv_summary_array.sbatch)"
+  summary_job="$(submit_array_sbatch "$SLURM_JOB_ID" "lv-summary" hpc/lv_summary_array.sbatch --array=0-$((n_artifacts - 1)))"
   lv_null_job="$(submit_sbatch "$summary_job" hpc/lv_null_variance_aggregate.sbatch)"
   lv_null_plot_job="$(submit_wrap "$lv_null_job" "lv-null-plots" "$PLOT_CPUS" "$PLOT_MEM" "$PLOT_TIME" \
     "$PYTHON_EXE scripts/plot_lv_null_variance_results.py --analysis-dir \"$LV_NULL_ANALYSIS_DIR\"")"

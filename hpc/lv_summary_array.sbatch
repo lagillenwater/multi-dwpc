@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=06:00:00
-#SBATCH --output=hpc/logs/lv/%x_%A_%a.out
+# Note: --output is set by submit script to organize logs by array job ID
 
 set -euo pipefail
 

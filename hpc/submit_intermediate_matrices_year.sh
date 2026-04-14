@@ -20,7 +20,9 @@ SELECTION_COL="${INT_MATRIX_SELECTION_COL:-selected_by_effective_n_all}"
 MAX_RANK="${INT_MATRIX_MAX_RANK:-5}"
 DWPC_THRESHOLD="${INT_MATRIX_DWPC_THRESHOLD:-p75}"
 
-mkdir -p "$OUTPUT_DIR" hpc/logs
+# Create log directory for this job type
+LOG_DIR="hpc/logs/year/int-matrix"
+mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 
 # Extract unique GO terms with selected metapaths
 # Use absolute path so sbatch jobs can find it
@@ -62,7 +64,12 @@ ARRAY_JOB=$(sbatch \
   --parsable \
   --export=ALL,REPO_ROOT="$REPO_ROOT",INT_MATRIX_GO_LIST="$GO_LIST",INT_MATRIX_OUTPUT_DIR="$REPO_ROOT/$OUTPUT_DIR",INT_MATRIX_SUPPORT="$REPO_ROOT/$SUPPORT_PATH",INT_MATRIX_DIRECT_RESULTS="$REPO_ROOT/$DIRECT_RESULTS_DIR",INT_MATRIX_MAX_RANK="$MAX_RANK",INT_MATRIX_DWPC_THRESHOLD="$DWPC_THRESHOLD",INT_MATRIX_SELECTION_COL="$SELECTION_COL" \
   --array="0-$((N_GO - 1))%50" \
+  --output="$LOG_DIR/%A/%a.out" \
   hpc/intermediate_matrices_year_array.sbatch)
 
+# Create array job log subdirectory
+mkdir -p "$LOG_DIR/$ARRAY_JOB"
+
 echo "Submitted array job: $ARRAY_JOB (${N_GO} tasks)"
+echo "Array logs: $LOG_DIR/$ARRAY_JOB/"
 echo "Monitor with: squeue -u \$USER"
