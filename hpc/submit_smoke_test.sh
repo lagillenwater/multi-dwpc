@@ -39,15 +39,15 @@ echo "GO ID:        ${GO_ID:-'(auto-select first available)'}"
 echo "Log dir:      $LOG_DIR"
 echo
 
-# Helper function to submit job with timing wrapper
+# Helper function to submit job (matches working pattern from submit_lv_intermediate_sharing.sh)
 submit_timed_job() {
     local job_name="$1"
     local mem="$2"
     local time_limit="$3"
     local cmd="$4"
 
-    # Simple wrapper with timing - uses single-line conda activation that works on Alpine
-    local timed_cmd="echo 'Starting job...' && cd \"$REPO_ROOT\" && echo 'Loading anaconda...' && module load anaconda && echo 'Activating conda...' && conda activate multi_dwpc && echo '=== Job Start ===' && echo 'Memory limit: $mem' && echo 'Command: $cmd' && start_time=\$(date +%s) && $cmd ; exit_code=\$? ; end_time=\$(date +%s) && runtime=\$((end_time - start_time)) && echo '' && echo '=== Job Complete ===' && echo \"Exit code: \$exit_code\" && echo \"Runtime: \${runtime}s\" && exit \$exit_code"
+    # Match the exact pattern from working scripts
+    local job_cmd="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && $cmd"
 
     local job_id
     job_id=$(sbatch \
@@ -60,7 +60,7 @@ submit_timed_job() {
         --mem="$mem" \
         --time="$time_limit" \
         --output="$LOG_DIR/${job_name}_%j.out" \
-        --wrap="bash -lc '$timed_cmd'")
+        --wrap="bash -c '$job_cmd'")
 
     echo "$job_id"
 }
