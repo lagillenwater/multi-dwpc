@@ -34,7 +34,8 @@ echo "DWPC threshold:   $DWPC_THRESHOLD"
 echo
 
 # Single job (small analysis, only 2-3 LVs)
-JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIRS --b $B_VALUE --dwpc-threshold $DWPC_THRESHOLD --output-dir \"$OUTPUT_DIR\""
+# Runs intermediate sharing analysis followed by visualization
+JOB_CMD="cd \"$REPO_ROOT\" && module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc && python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIRS --b $B_VALUE --dwpc-threshold $DWPC_THRESHOLD --output-dir \"$OUTPUT_DIR\" && python3 scripts/plot_lv_intermediate_sharing.py --input-dir \"$OUTPUT_DIR\""
 
 JOB_ID=$(sbatch \
   --parsable \
