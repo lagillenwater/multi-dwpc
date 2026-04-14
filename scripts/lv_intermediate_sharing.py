@@ -36,6 +36,42 @@ from scripts.extract_top_paths_local import (  # noqa: E402
 )
 
 
+# Node type abbreviation to full name mapping
+NODE_TYPE_NAMES = {
+    "G": "Gene",
+    "A": "Anatomy",
+    "BP": "Biological Process",
+    "CC": "Cellular Component",
+    "C": "Compound",
+    "D": "Disease",
+    "MF": "Molecular Function",
+    "PC": "Pharmacologic Class",
+    "PW": "Pathway",
+    "SE": "Side Effect",
+    "S": "Symptom",
+}
+
+
+def _load_node_names(repo_root: Path) -> dict[str, dict[str, str]]:
+    """Load node ID to name mappings for all node types.
+
+    Returns dict mapping node_type_abbrev -> {identifier -> name}
+    """
+    nodes_dir = repo_root / "data" / "nodes"
+    name_maps: dict[str, dict[str, str]] = {}
+
+    for abbrev, full_name in NODE_TYPE_NAMES.items():
+        node_file = nodes_dir / f"{full_name}.tsv"
+        if not node_file.exists():
+            continue
+
+        df = pd.read_csv(node_file, sep="\t")
+        # Map identifier to name
+        name_maps[abbrev] = dict(zip(df["identifier"].astype(str), df["name"]))
+
+    return name_maps
+
+
 def _effective_number(scores: np.ndarray) -> float:
     """Compute effective number from score distribution."""
     vals = scores[np.isfinite(scores)]
@@ -249,8 +285,13 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
 
 def _compute_intermediate_coverage(
     gene_intermediates: dict[int, set[str]],
+    node_name_maps: dict[str, dict[str, str]] | None = None,
 ) -> tuple[dict, list[dict]]:
     """Compute intermediate coverage statistics.
+
+    Args:
+        gene_intermediates: dict mapping gene_id -> set of intermediate IDs (format: "TYPE:ID")
+        node_name_maps: dict mapping node_type_abbrev -> {identifier -> name}
 
     Returns:
         coverage_stats: dict with summary coverage metrics
@@ -278,8 +319,17 @@ def _compute_intermediate_coverage(
     # Build per-intermediate stats
     intermediate_stats = []
     for int_id, genes_using in intermediate_gene_counts.items():
+        # Parse intermediate ID to get name
+        intermediate_name = None
+        if node_name_maps and ":" in int_id:
+            node_type = int_id.split(":")[0]
+            node_identifier = int_id.split(":", 1)[1]
+            if node_type in node_name_maps:
+                intermediate_name = node_name_maps[node_type].get(node_identifier)
+
         intermediate_stats.append({
             "intermediate_id": int_id,
+            "intermediate_name": intermediate_name,
             "n_genes_using": len(genes_using),
             "pct_genes_using": len(genes_using) / n_genes * 100,
             "genes_using": sorted(genes_using),
@@ -290,7 +340,11 @@ def _compute_intermediate_coverage(
 
     # Compute coverage metrics
     n_total_intermediates = len(intermediate_gene_counts)
-    n_shared = sum(1 for genes in intermediate_gene_counts.values() if len(genes) >= 2)
+
+    # Count intermediates at different sharing thresholds
+    n_shared_2plus = sum(1 for genes in intermediate_gene_counts.values() if len(genes) >= 2)
+    n_shared_majority = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 2)
+    n_shared_all = sum(1 for genes in intermediate_gene_counts.values() if len(genes) == n_genes)
 
     # Greedy set cover: how many intermediates needed to cover X% of genes?
     genes_covered: set[int] = set()
@@ -319,8 +373,12 @@ def _compute_intermediate_coverage(
         top5_coverage = None
 
     coverage_stats = {
-        "n_shared_intermediates": n_shared,
-        "pct_intermediates_shared": n_shared / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
+        "n_shared_intermediates_2plus": n_shared_2plus,
+        "n_shared_intermediates_majority": n_shared_majority,
+        "n_shared_intermediates_all": n_shared_all,
+        "pct_intermediates_shared_2plus": n_shared_2plus / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
+        "pct_intermediates_shared_majority": n_shared_majority / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
+        "pct_intermediates_shared_all": n_shared_all / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
         "n_intermediates_cover_50pct": n_for_50pct,
         "n_intermediates_cover_80pct": n_for_80pct,
         "top1_intermediate_coverage": top1_coverage,
@@ -485,6 +543,10 @@ def main() -> None:
     print(f"Loaded {len(top_genes)} top genes")
     print(f"Loaded {len(lv_targets)} LV target entries")
 
+    # Load node name mappings for human-readable intermediate names
+    node_name_maps = _load_node_names(REPO_ROOT)
+    print(f"Loaded node name maps for: {list(node_name_maps.keys())}")
+
     # Select metapaths by effective number (no FDR filtering, consistent with year analysis)
     selected_mp = _select_metapaths_by_effective_n(results_df)
 
@@ -561,7 +623,9 @@ def main() -> None:
                 print(f"    Found paths for {len(gene_ints)} genes")
 
             stats = _compute_sharing_stats(gene_ints)
-            coverage_stats, intermediate_stats = _compute_intermediate_coverage(gene_ints)
+            coverage_stats, intermediate_stats = _compute_intermediate_coverage(
+                gene_ints, node_name_maps=node_name_maps
+            )
             stats.update(coverage_stats)
             stats.update({
                 "lv_id": lv_id,
@@ -585,6 +649,7 @@ def main() -> None:
                     "metapath_rank": mp_rank,
                     "intermediate_rank": rank,
                     "intermediate_id": int_stat["intermediate_id"],
+                    "intermediate_name": int_stat.get("intermediate_name"),
                     "n_genes_using": int_stat["n_genes_using"],
                     "pct_genes_using": int_stat["pct_genes_using"],
                 })
@@ -605,7 +670,9 @@ def main() -> None:
         "n_genes_total",
         "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
         "median_jaccard_to_group", "mean_jaccard_to_group",
-        "n_unique_intermediates", "n_shared_intermediates", "pct_intermediates_shared",
+        "n_unique_intermediates",
+        "n_shared_intermediates_2plus", "n_shared_intermediates_majority", "n_shared_intermediates_all",
+        "pct_intermediates_shared_2plus", "pct_intermediates_shared_majority", "pct_intermediates_shared_all",
         "n_intermediates_cover_50pct", "n_intermediates_cover_80pct",
         "top1_intermediate_coverage", "top5_intermediate_coverage",
     ]
@@ -629,7 +696,8 @@ def main() -> None:
         median_jaccard=("median_jaccard_to_group", "median"),
         mean_jaccard=("mean_jaccard_to_group", "mean"),
         median_n_intermediates=("n_unique_intermediates", "median"),
-        median_pct_intermediates_shared=("pct_intermediates_shared", "median"),
+        median_pct_intermediates_shared_majority=("pct_intermediates_shared_majority", "median"),
+        median_pct_intermediates_shared_all=("pct_intermediates_shared_all", "median"),
         median_top1_coverage=("top1_intermediate_coverage", "median"),
         median_top5_coverage=("top5_intermediate_coverage", "median"),
         median_n_for_50pct=("n_intermediates_cover_50pct", "median"),
@@ -646,18 +714,19 @@ def main() -> None:
         print(f"\n{row['lv_id']} / {row['target_name']}:")
         print(f"  {row['n_metapaths']} metapaths selected by effective number")
         print(f"  {row['n_genes_total']} genes in set")
-        print(f"  Median {row['median_pct_sharing']:.1f}% of genes share intermediates")
-        print(f"  Max {row['max_pct_sharing']:.1f}% sharing for best metapath")
-        if pd.notna(row['median_jaccard']):
-            print(f"  Median Jaccard to group: {row['median_jaccard']:.3f}")
-        if pd.notna(row.get('median_pct_intermediates_shared')):
-            print(f"  Median {row['median_pct_intermediates_shared']:.1f}% of intermediates are shared (used by 2+ genes)")
+        print(f"  Median {row['median_n_intermediates']:.0f} unique intermediates per metapath")
         if pd.notna(row.get('median_top1_coverage')):
             print(f"  Median top-1 intermediate covers {row['median_top1_coverage']:.1f}% of genes")
         if pd.notna(row.get('median_top5_coverage')):
             print(f"  Median top-5 intermediates cover {row['median_top5_coverage']:.1f}% of genes")
+        if pd.notna(row.get('median_pct_intermediates_shared_majority')):
+            print(f"  Median {row['median_pct_intermediates_shared_majority']:.1f}% of intermediates used by >50% of genes")
+        if pd.notna(row.get('median_pct_intermediates_shared_all')):
+            print(f"  Median {row['median_pct_intermediates_shared_all']:.1f}% of intermediates used by ALL genes")
         if pd.notna(row.get('median_n_for_80pct')):
             print(f"  Median {row['median_n_for_80pct']:.0f} intermediates needed to cover 80% of genes")
+        if pd.notna(row['median_jaccard']):
+            print(f"  Median Jaccard similarity: {row['median_jaccard']:.3f}")
 
 
 if __name__ == "__main__":
