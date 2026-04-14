@@ -31,7 +31,7 @@ export LV_METAPATH_LIMIT=2
 export LV_ALL_METAPATHS=0
 
 # Rank stability parameters
-export LV_RANK_STAB_B_VALUES="2,4,6,8,10,20"
+export LV_RANK_STAB_B_VALUES="2,4,6,8,10,20,30,40"
 export LV_RANK_STAB_SEEDS="11,22,33,44,55"
 export LV_RANK_STAB_TOP_K="5,10"
 

@@ -30,7 +30,7 @@ def _sanitize(value: str) -> str:
 
 
 def _load_rank_table(path: Path) -> pd.DataFrame:
-    required_columns = {"b", "seed", "lv_id", "target_set_id", "metapath", "metapath_rank"}
+    required_columns = {"b", "seed", "lv_id", "metapath", "metapath_rank"}
     if not path.exists():
         raise FileNotFoundError(f"Required input file not found: {path}")
     df = pd.read_csv(path)
@@ -110,15 +110,12 @@ def main() -> None:
     output_dir = analysis_dir / f"rank_scatter_ref_seed_{args.reference_seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for key, group in rank_df.groupby(["control", "b", "lv_id", "target_set_id"], sort=True):
-        control, b, lv_id, target_set_id = key
-        title = (
-            f"Metapath Rank Scatter (control={control}, B={int(b)}, "
-            f"{lv_id}, {target_set_id})"
-        )
+    for key, group in rank_df.groupby(["control", "b", "lv_id"], sort=True):
+        control, b, lv_id = key
+        title = f"Metapath Rank Scatter (control={control}, B={int(b)}, {lv_id})"
         out_name = (
             f"metapath_rank_scatter_ref_seed_{args.reference_seed}_"
-            f"{_sanitize(control)}_b{int(b)}_{_sanitize(lv_id)}_{_sanitize(target_set_id)}.png"
+            f"{_sanitize(control)}_b{int(b)}_{_sanitize(lv_id)}.png"
         )
         out_path = output_dir / out_name
         _plot_group(group.copy(), args.reference_seed, title, out_path)
