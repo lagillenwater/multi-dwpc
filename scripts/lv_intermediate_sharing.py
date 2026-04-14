@@ -247,6 +247,89 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     }
 
 
+def _compute_intermediate_coverage(
+    gene_intermediates: dict[int, set[str]],
+) -> tuple[dict, list[dict]]:
+    """Compute intermediate coverage statistics.
+
+    Returns:
+        coverage_stats: dict with summary coverage metrics
+        top_intermediates: list of dicts with per-intermediate statistics
+    """
+    n_genes = len(gene_intermediates)
+    if n_genes == 0:
+        return {
+            "n_shared_intermediates": 0,
+            "pct_intermediates_shared": None,
+            "n_intermediates_cover_50pct": None,
+            "n_intermediates_cover_80pct": None,
+            "top1_intermediate_coverage": None,
+            "top5_intermediate_coverage": None,
+        }, []
+
+    # Count how many genes use each intermediate
+    intermediate_gene_counts: dict[str, set[int]] = {}
+    for gene_id, ints in gene_intermediates.items():
+        for int_id in ints:
+            if int_id not in intermediate_gene_counts:
+                intermediate_gene_counts[int_id] = set()
+            intermediate_gene_counts[int_id].add(gene_id)
+
+    # Build per-intermediate stats
+    intermediate_stats = []
+    for int_id, genes_using in intermediate_gene_counts.items():
+        intermediate_stats.append({
+            "intermediate_id": int_id,
+            "n_genes_using": len(genes_using),
+            "pct_genes_using": len(genes_using) / n_genes * 100,
+            "genes_using": sorted(genes_using),
+        })
+
+    # Sort by number of genes using (descending)
+    intermediate_stats.sort(key=lambda x: x["n_genes_using"], reverse=True)
+
+    # Compute coverage metrics
+    n_total_intermediates = len(intermediate_gene_counts)
+    n_shared = sum(1 for genes in intermediate_gene_counts.values() if len(genes) >= 2)
+
+    # Greedy set cover: how many intermediates needed to cover X% of genes?
+    genes_covered: set[int] = set()
+    all_genes = set(gene_intermediates.keys())
+    n_for_50pct = None
+    n_for_80pct = None
+
+    for i, stat in enumerate(intermediate_stats, 1):
+        genes_covered.update(stat["genes_using"])
+        coverage_pct = len(genes_covered) / n_genes * 100
+        if n_for_50pct is None and coverage_pct >= 50:
+            n_for_50pct = i
+        if n_for_80pct is None and coverage_pct >= 80:
+            n_for_80pct = i
+        if coverage_pct >= 100:
+            break
+
+    # Top-k intermediate coverage
+    top1_coverage = intermediate_stats[0]["pct_genes_using"] if intermediate_stats else None
+    if len(intermediate_stats) >= 5:
+        top5_genes = set()
+        for stat in intermediate_stats[:5]:
+            top5_genes.update(stat["genes_using"])
+        top5_coverage = len(top5_genes) / n_genes * 100
+    else:
+        top5_coverage = None
+
+    coverage_stats = {
+        "n_shared_intermediates": n_shared,
+        "pct_intermediates_shared": n_shared / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
+        "n_intermediates_cover_50pct": n_for_50pct,
+        "n_intermediates_cover_80pct": n_for_80pct,
+        "top1_intermediate_coverage": top1_coverage,
+        "top5_intermediate_coverage": top5_coverage,
+    }
+
+    return coverage_stats, intermediate_stats
+
+
 def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]:
     """Load per-gene DWPC values from numpy arrays.
 
@@ -440,6 +523,7 @@ def main() -> None:
 
     # Process each LV
     sharing_rows = []
+    top_intermediates_rows = []
 
     for lv_id, group in selected_mp.groupby("lv_id"):
         target_name = group["target_name"].iloc[0]
@@ -477,6 +561,8 @@ def main() -> None:
                 print(f"    Found paths for {len(gene_ints)} genes")
 
             stats = _compute_sharing_stats(gene_ints)
+            coverage_stats, intermediate_stats = _compute_intermediate_coverage(gene_ints)
+            stats.update(coverage_stats)
             stats.update({
                 "lv_id": lv_id,
                 "target_id": lv_target_row["target_id"].iloc[0],
@@ -489,8 +575,27 @@ def main() -> None:
             })
             sharing_rows.append(stats)
 
-            print(f"  {metapath} (rank {mp_rank}): {stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
-                  f"{stats['pct_genes_sharing']:.1f}% sharing" if stats['pct_genes_sharing'] else "  no paths")
+            # Store top intermediates (top 20 per metapath)
+            for rank, int_stat in enumerate(intermediate_stats[:20], 1):
+                top_intermediates_rows.append({
+                    "lv_id": lv_id,
+                    "target_id": lv_target_row["target_id"].iloc[0],
+                    "target_name": target_name,
+                    "metapath": metapath,
+                    "metapath_rank": mp_rank,
+                    "intermediate_rank": rank,
+                    "intermediate_id": int_stat["intermediate_id"],
+                    "n_genes_using": int_stat["n_genes_using"],
+                    "pct_genes_using": int_stat["pct_genes_using"],
+                })
+
+            if stats['pct_genes_sharing'] is not None:
+                print(f"  {metapath} (rank {mp_rank}): {stats['n_genes_with_paths']}/{len(lv_genes)} genes, "
+                      f"{stats['pct_genes_sharing']:.1f}% sharing, "
+                      f"{stats['pct_intermediates_shared']:.1f}% intermediates shared, "
+                      f"top1 covers {stats['top1_intermediate_coverage']:.1f}%")
+            else:
+                print(f"  {metapath} (rank {mp_rank}): no paths")
 
     # Save detailed results
     sharing_df = pd.DataFrame(sharing_rows)
@@ -500,11 +605,19 @@ def main() -> None:
         "n_genes_total",
         "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
         "median_jaccard_to_group", "mean_jaccard_to_group",
-        "n_unique_intermediates",
+        "n_unique_intermediates", "n_shared_intermediates", "pct_intermediates_shared",
+        "n_intermediates_cover_50pct", "n_intermediates_cover_80pct",
+        "top1_intermediate_coverage", "top5_intermediate_coverage",
     ]
     sharing_df = sharing_df[[c for c in col_order if c in sharing_df.columns]]
     sharing_df.to_csv(out_dir / "intermediate_sharing_by_metapath.csv", index=False)
     print(f"\nSaved: {out_dir / 'intermediate_sharing_by_metapath.csv'}")
+
+    # Save top intermediates
+    if top_intermediates_rows:
+        top_int_df = pd.DataFrame(top_intermediates_rows)
+        top_int_df.to_csv(out_dir / "top_intermediates_by_metapath.csv", index=False)
+        print(f"Saved: {out_dir / 'top_intermediates_by_metapath.csv'}")
 
     # Aggregate summary per LV
     summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
@@ -516,6 +629,11 @@ def main() -> None:
         median_jaccard=("median_jaccard_to_group", "median"),
         mean_jaccard=("mean_jaccard_to_group", "mean"),
         median_n_intermediates=("n_unique_intermediates", "median"),
+        median_pct_intermediates_shared=("pct_intermediates_shared", "median"),
+        median_top1_coverage=("top1_intermediate_coverage", "median"),
+        median_top5_coverage=("top5_intermediate_coverage", "median"),
+        median_n_for_50pct=("n_intermediates_cover_50pct", "median"),
+        median_n_for_80pct=("n_intermediates_cover_80pct", "median"),
     ).reset_index()
     summary.to_csv(out_dir / "intermediate_sharing_summary.csv", index=False)
     print(f"Saved: {out_dir / 'intermediate_sharing_summary.csv'}")
@@ -532,6 +650,14 @@ def main() -> None:
         print(f"  Max {row['max_pct_sharing']:.1f}% sharing for best metapath")
         if pd.notna(row['median_jaccard']):
             print(f"  Median Jaccard to group: {row['median_jaccard']:.3f}")
+        if pd.notna(row.get('median_pct_intermediates_shared')):
+            print(f"  Median {row['median_pct_intermediates_shared']:.1f}% of intermediates are shared (used by 2+ genes)")
+        if pd.notna(row.get('median_top1_coverage')):
+            print(f"  Median top-1 intermediate covers {row['median_top1_coverage']:.1f}% of genes")
+        if pd.notna(row.get('median_top5_coverage')):
+            print(f"  Median top-5 intermediates cover {row['median_top5_coverage']:.1f}% of genes")
+        if pd.notna(row.get('median_n_for_80pct')):
+            print(f"  Median {row['median_n_for_80pct']:.0f} intermediates needed to cover 80% of genes")
 
 
 if __name__ == "__main__":
