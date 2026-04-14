@@ -47,7 +47,7 @@ submit_timed_job() {
     local cmd="$4"
 
     # Simple wrapper with timing - uses single-line conda activation that works on Alpine
-    local timed_cmd="cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && echo '=== Job Start ===' && echo 'Memory limit: $mem' && start_time=\$(date +%s) && $cmd && exit_code=\$? || exit_code=\$? && end_time=\$(date +%s) && runtime=\$((end_time - start_time)) && echo '' && echo '=== Job Complete ===' && echo \"Exit code: \$exit_code\" && echo \"Runtime: \${runtime}s\" && exit \$exit_code"
+    local timed_cmd="echo 'Starting job...' && cd \"$REPO_ROOT\" && echo 'Loading anaconda...' && module load anaconda && echo 'Activating conda...' && conda activate multi_dwpc && echo '=== Job Start ===' && echo 'Memory limit: $mem' && echo 'Command: $cmd' && start_time=\$(date +%s) && $cmd ; exit_code=\$? ; end_time=\$(date +%s) && runtime=\$((end_time - start_time)) && echo '' && echo '=== Job Complete ===' && echo \"Exit code: \$exit_code\" && echo \"Runtime: \${runtime}s\" && exit \$exit_code"
 
     local job_id
     job_id=$(sbatch \
@@ -79,12 +79,7 @@ if [[ ! -d "$LV_OUTPUT_DIR" ]]; then
     echo "Skipping LV smoke test. Run LV experiments first."
     LV_JOB_ID=""
 else
-    LV_CMD="python3 scripts/lv_intermediate_sharing.py \\
-        --lv-output-dirs $LV_OUTPUT_DIR \\
-        --b $B_VALUE \\
-        --effect-size-threshold 0.2 \\
-        --dwpc-percentile 75 \\
-        --output-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\""
+    LV_CMD="python3 scripts/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIR --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --output-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\""
 
     LV_JOB_ID=$(submit_timed_job "lv-int" "16G" "01:00:00" "$LV_CMD")
     echo "Submitted LV intermediate sharing: $LV_JOB_ID"
@@ -98,10 +93,7 @@ echo "Stage 2: Global Summary"
 echo "-----------------------"
 
 if [[ -n "${LV_JOB_ID:-}" ]]; then
-    SUMMARY_CMD="python3 scripts/generate_global_summary.py \\
-        --analysis-type lv \\
-        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
-        --output-dir \"$SMOKE_OUTPUT_DIR/lv_global_summary\""
+    SUMMARY_CMD="python3 scripts/generate_global_summary.py --analysis-type lv --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" --output-dir \"$SMOKE_OUTPUT_DIR/lv_global_summary\""
 
     SUMMARY_JOB_ID=$(sbatch \
         --parsable \
@@ -129,11 +121,7 @@ echo "Stage 3: Gene Connectivity Table"
 echo "---------------------------------"
 
 if [[ -n "${LV_JOB_ID:-}" ]]; then
-    GENE_CMD="python3 scripts/generate_gene_table.py \\
-        --analysis-type lv \\
-        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
-        --lv-output-dirs $LV_OUTPUT_DIR \\
-        --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable\""
+    GENE_CMD="python3 scripts/generate_gene_table.py --analysis-type lv --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" --lv-output-dirs $LV_OUTPUT_DIR --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable\""
 
     GENE_JOB_ID=$(sbatch \
         --parsable \
@@ -161,12 +149,7 @@ echo "Stage 4: Subgraph Visualization"
 echo "--------------------------------"
 
 if [[ -n "${GENE_JOB_ID:-}" ]]; then
-    VIZ_CMD="python3 scripts/plot_metapath_subgraphs.py \\
-        --analysis-type lv \\
-        --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" \\
-        --gene-table \"$SMOKE_OUTPUT_DIR/lv_consumable/gene_connectivity_table.csv\" \\
-        --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs\" \\
-        --top-k 2"
+    VIZ_CMD="python3 scripts/plot_metapath_subgraphs.py --analysis-type lv --input-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\" --gene-table \"$SMOKE_OUTPUT_DIR/lv_consumable/gene_connectivity_table.csv\" --output-dir \"$SMOKE_OUTPUT_DIR/lv_consumable/subgraphs\" --top-k 2"
 
     VIZ_JOB_ID=$(sbatch \
         --parsable \
@@ -208,14 +191,7 @@ if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
     fi
 
     if [[ -n "${GO_ID:-}" ]]; then
-        YEAR_CMD="python3 scripts/year_intermediate_sharing.py \\
-            --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
-            --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
-            --b $B_VALUE \\
-            --effect-size-threshold 0.2 \\
-            --dwpc-percentile 75 \\
-            --go-id \"$GO_ID\" \\
-            --output-dir \"$SMOKE_OUTPUT_DIR/year_intermediate_sharing\""
+        YEAR_CMD="python3 scripts/year_intermediate_sharing.py --year-output-dir \"$YEAR_OUTPUT_DIR\" --added-pairs-path \"$ADDED_PAIRS_PATH\" --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --go-id \"$GO_ID\" --output-dir \"$SMOKE_OUTPUT_DIR/year_intermediate_sharing\""
 
         YEAR_JOB_ID=$(sbatch \
             --parsable \
