@@ -272,13 +272,14 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     """Compute sharing statistics for a set of genes."""
     n_genes = len(gene_intermediates)
     if n_genes == 0:
+        # Return 0 (not None) so metapaths without paths are included in median calculations
         return {
             "n_genes_with_paths": 0,
             "n_genes_sharing": 0,
-            "pct_genes_sharing": None,
+            "pct_genes_sharing": 0.0,
             "n_unique_intermediates": 0,
-            "median_jaccard_to_group": None,
-            "mean_jaccard_to_group": None,
+            "median_jaccard_to_group": 0.0,
+            "mean_jaccard_to_group": 0.0,
         }
 
     # Count genes that share at least one intermediate with another gene
@@ -328,13 +329,18 @@ def _compute_intermediate_coverage(
     """
     n_genes = len(gene_intermediates)
     if n_genes == 0:
+        # Return 0 (not None) so metapaths without paths are included in median calculations
         return {
-            "n_shared_intermediates": 0,
-            "pct_intermediates_shared": None,
+            "n_shared_intermediates_2plus": 0,
+            "n_shared_intermediates_majority": 0,
+            "n_shared_intermediates_all": 0,
+            "pct_intermediates_shared_2plus": 0.0,
+            "pct_intermediates_shared_majority": 0.0,
+            "pct_intermediates_shared_all": 0.0,
             "n_intermediates_cover_50pct": None,
             "n_intermediates_cover_80pct": None,
-            "top1_intermediate_coverage": None,
-            "top5_intermediate_coverage": None,
+            "top1_intermediate_coverage": 0.0,
+            "top5_intermediate_coverage": 0.0,
         }, []
 
     # Count how many genes use each intermediate
