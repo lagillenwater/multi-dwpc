@@ -720,7 +720,7 @@ def _render_pooled_subgraph(
     # interesting ones for single-intermediate metapaths, so color them
     # distinctly (amber) rather than the default gray.
     REGULAR_EDGE_COLOR = "#546E7A"
-    SKIP_EDGE_COLOR = "#E69F00"
+    SKIP_EDGE_COLOR = "#8A0102"
     any_skip = False
 
     def _edge_style(cnt: int) -> tuple[float, float]:
