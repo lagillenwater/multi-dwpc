@@ -174,7 +174,7 @@ def _plot_stabilization_curves(
             if per_entity.empty:
                 continue
             agg = (
-                per_entity.groupby("b", as_index=False)[metric_col]
+                per_entity.groupby("b", as_index=False)
                 .agg(
                     median=(metric_col, "median"),
                     q25=(metric_col, lambda s: s.quantile(0.25)),
