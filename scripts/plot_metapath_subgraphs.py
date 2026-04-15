@@ -827,8 +827,11 @@ def plot_combined_lv_subgraph(
         fontsize=12, fontweight="bold", pad=12,
     )
 
-    # Color legend for the node types present
-    types_present = sorted(set(intermediate_types.get(iid, "?") for iid in kept_ids))
+    # Color legend for the node types of intermediates actually drawn.
+    drawn_ids: set[str] = set()
+    for items in hop_items.values():
+        drawn_ids.update(items)
+    types_present = sorted(set(intermediate_types.get(iid, "?") for iid in drawn_ids))
     legend_handles = []
     for t in types_present:
         full = NODE_TYPE_FULL_NAMES.get(t, t)
