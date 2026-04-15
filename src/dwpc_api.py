@@ -15,7 +15,7 @@ import re
 import shutil
 import sys
 import time
-from contextlib import contextmanager, redirect_stdout, redirect_stderr
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -68,8 +68,18 @@ def capture_console():
         Buffer containing captured output
     """
     buf = io.StringIO()
-    with redirect_stdout(buf), redirect_stderr(buf):
+    sys.stdout = buf
+    sys.stderr = buf
+    try:
         yield buf
+    finally:
+        # Always restore to the true originals. contextlib.redirect_stdout
+        # saves/restores whatever was in sys.stdout at entry, which is unsafe
+        # under concurrent async use: overlapping enters capture each other's
+        # StringIO buffers and unwind to a leaked buffer, silently swallowing
+        # all subsequent prints.
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
 
 
 def _now_tag() -> str:

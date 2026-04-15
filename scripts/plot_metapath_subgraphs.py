@@ -715,6 +715,14 @@ def _render_pooled_subgraph(
     # Step 6: draw edges (lowest zorder).
     max_count = max(edges.values()) if edges else 1
 
+    # Skip edges are short-metapath tails that jump directly to the target,
+    # bypassing one or more intermediate hop columns. They're the visually
+    # interesting ones for single-intermediate metapaths, so color them
+    # distinctly (amber) rather than the default gray.
+    REGULAR_EDGE_COLOR = "#546E7A"
+    SKIP_EDGE_COLOR = "#E69F00"
+    any_skip = False
+
     def _edge_style(cnt: int) -> tuple[float, float]:
         frac = cnt / max_count if max_count else 0.0
         return (0.15 + 0.55 * frac, 0.4 + 2.2 * frac)
@@ -730,9 +738,13 @@ def _render_pooled_subgraph(
             to_pos = hop_positions.get(hop_idx_from + 1, {}).get(tid)
         if from_pos is None or to_pos is None:
             continue
+        is_skip = (tid == "__target__") and (hop_idx_from < max_hops)
+        edge_color = SKIP_EDGE_COLOR if is_skip else REGULAR_EDGE_COLOR
+        if is_skip:
+            any_skip = True
         a, lw = _edge_style(cnt)
         ax.plot([from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
-                color="#546E7A", alpha=a, linewidth=lw, zorder=1)
+                color=edge_color, alpha=a, linewidth=lw, zorder=1)
 
     # Step 7: draw source genes.
     gene_color = NODE_COLORS.get("G", DEFAULT_COLOR)
@@ -803,8 +815,19 @@ def _render_pooled_subgraph(
                        markerfacecolor=NODE_COLORS.get(t, DEFAULT_COLOR),
                        markersize=10, label=full)
         )
+    # Edge color legend entries: regular full-path edges, and skip-edges that
+    # jump from a middle hop directly to the target (from shorter metapaths).
+    legend_handles.append(
+        plt.Line2D([], [], color=REGULAR_EDGE_COLOR, linewidth=2.4,
+                   label="Full-path edge")
+    )
+    if any_skip:
+        legend_handles.append(
+            plt.Line2D([], [], color=SKIP_EDGE_COLOR, linewidth=2.4,
+                       label="Shortcut to target")
+        )
     if legend_handles:
-        ax.legend(handles=legend_handles, title="Intermediate type",
+        ax.legend(handles=legend_handles, title="Legend",
                   loc="lower right", fontsize=8, framealpha=0.9)
 
     ax.set_xlim(0, 1)
