@@ -2,24 +2,30 @@
 #
 # Full Year Analysis Pipeline - End-to-end HPC orchestration
 #
-# Compares 2016 baseline genes vs 2024-added genes across GO terms.
+# Compares 2016 baseline genes vs 2024-added genes across GO terms. Mirrors
+# the LV pipeline structure: chosen B drives a single-B intermediate-sharing
+# pass, then downstream consumables (gene table, subgraphs) use that same B.
 #
 # Stages:
-# 1. Select optimal B using elbow detection (if not already done)
-# 2. Run intermediate sharing at chosen B (or all B values)
-# 3. Select top GO terms by effect size
-# 4. Generate global summaries
-# 5. Generate consumable outputs (gene tables, subgraphs)
+# 1. Select optimal B via variance stabilization (diff_var)
+# 2. Intermediate sharing at the chosen B only
+# 3. Select top N GO terms by median effect size
+# 4. Global summary + LV/GO selection diagnostic plots
+# 5. Gene connectivity table (restricted to top GO terms)
+# 6. Subgraph visualization per top GO term
 #
 # Usage:
 #   bash hpc/submit_year_full_pipeline.sh
 #
 # Environment variables:
-#   YEAR_OUTPUT_DIR      - Year experiment output directory
-#   YEAR_PIPELINE_OUTPUT - Output directory for pipeline results
-#   YEAR_B_VALUES        - Comma-separated B values (default: "2,5,10,20,30")
-#   YEAR_TOP_GO_TERMS    - Number of top GO terms to analyze (default: 10)
-#   YEAR_SKIP_B_SELECT   - Set to "1" to skip B selection
+#   YEAR_OUTPUT_DIR       - Upstream year experiment dir (variance/rank source)
+#   YEAR_PIPELINE_OUTPUT  - Where all pipeline outputs go
+#   YEAR_B_VALUES         - Default intermediate-sharing grid if ever needed
+#   YEAR_TOP_GO_TERMS     - Top N GO terms for consumables (default: 10)
+#   YEAR_SKIP_B_SELECT    - "1" to reuse existing chosen_b.json
+#   YEAR_STOP_AFTER_B     - "1" to submit only Stage 1 and exit
+#   YEAR_EFFECT_THRESHOLD - Cohen's d cutoff for metapath selection (default: 0.5)
+#   YEAR_DWPC_PERCENTILE  - Percentile filter for DWPC (default: 75)
 #
 
 set -euo pipefail
@@ -31,13 +37,27 @@ cd "$REPO_ROOT"
 OUTPUT_DIR="${YEAR_PIPELINE_OUTPUT:-output/year_full_analysis}"
 YEAR_OUTPUT_DIR="${YEAR_OUTPUT_DIR:-output/year_experiment}"
 ADDED_PAIRS_PATH="${YEAR_ADDED_PAIRS:-output/intermediate/upd_go_bp_2024_added.csv}"
-B_VALUES="${YEAR_B_VALUES:-2,5,10,20,30}"
+B_VALUES="${YEAR_B_VALUES:-2,5,10,20,30,40}"
 TOP_GO_TERMS="${YEAR_TOP_GO_TERMS:-10}"
 SKIP_B_SELECT="${YEAR_SKIP_B_SELECT:-0}"
-EFFECT_THRESHOLD="${YEAR_EFFECT_THRESHOLD:-0.2}"
+STOP_AFTER_B="${YEAR_STOP_AFTER_B:-0}"
+EFFECT_THRESHOLD="${YEAR_EFFECT_THRESHOLD:-0.5}"
 DWPC_PERCENTILE="${YEAR_DWPC_PERCENTILE:-75}"
 
-# Create directories
+# SBATCH resource knobs (year data is substantially larger than LV -- longer
+# walltimes + more memory than the LV pipeline).
+INT_SHARE_CPUS="${YEAR_INT_SHARE_CPUS:-8}"
+INT_SHARE_MEM="${YEAR_INT_SHARE_MEM:-64G}"
+INT_SHARE_TIME="${YEAR_INT_SHARE_TIME:-24:00:00}"
+GENE_CPUS="${YEAR_GENE_CPUS:-4}"
+GENE_MEM="${YEAR_GENE_MEM:-32G}"
+GENE_TIME="${YEAR_GENE_TIME:-04:00:00}"
+VIZ_CPUS="${YEAR_VIZ_CPUS:-2}"
+VIZ_MEM="${YEAR_VIZ_MEM:-16G}"
+VIZ_TIME="${YEAR_VIZ_TIME:-04:00:00}"
+SUMMARY_MEM="${YEAR_SUMMARY_MEM:-16G}"
+SUMMARY_TIME="${YEAR_SUMMARY_TIME:-01:00:00}"
+
 LOG_DIR="hpc/logs/year/full_pipeline"
 mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 
@@ -48,16 +68,18 @@ echo "Repo root:          $REPO_ROOT"
 echo "Output dir:         $OUTPUT_DIR"
 echo "Year output dir:    $YEAR_OUTPUT_DIR"
 echo "Added pairs:        $ADDED_PAIRS_PATH"
-echo "B values:           $B_VALUES"
+echo "B values (legacy):  $B_VALUES"
 echo "Top GO terms:       $TOP_GO_TERMS"
 echo "Effect threshold:   $EFFECT_THRESHOLD"
 echo "DWPC percentile:    $DWPC_PERCENTILE"
 echo "Skip B selection:   $SKIP_B_SELECT"
+echo "Stop after B:       $STOP_AFTER_B"
+echo "Int-share resources: ${INT_SHARE_CPUS}c ${INT_SHARE_MEM} ${INT_SHARE_TIME}"
 echo "Log dir:            $LOG_DIR"
 echo
 
 # ============================================
-# Stage 1: B Selection (optional)
+# Stage 1: B Selection
 # ============================================
 echo "Stage 1: B Selection"
 echo "--------------------"
@@ -67,14 +89,16 @@ CHOSEN_B_PATH="$OUTPUT_DIR/b_selection/chosen_b.json"
 
 if [[ "$SKIP_B_SELECT" == "1" ]] && [[ -f "$CHOSEN_B_PATH" ]]; then
     echo "Skipping B selection - using existing $CHOSEN_B_PATH"
-    CHOSEN_B=$(python3 -c "import json; print(json.load(open('$CHOSEN_B_PATH'))['chosen_b'])")
+    CHOSEN_B=$(python3 scripts/read_json_value.py "$CHOSEN_B_PATH" chosen_b)
     echo "Chosen B = $CHOSEN_B"
 else
     VARIANCE_DIR="$YEAR_OUTPUT_DIR/year_null_variance_experiment"
     RANK_DIR="$YEAR_OUTPUT_DIR/year_rank_stability_experiment"
 
     if [[ ! -d "$VARIANCE_DIR" ]] || [[ ! -d "$RANK_DIR" ]]; then
-        echo "Warning: Variance or rank stability directories not found"
+        echo "Warning: Variance or rank stability directories not found at"
+        echo "         $VARIANCE_DIR"
+        echo "         $RANK_DIR"
         echo "Using default B = 10"
         CHOSEN_B=10
         mkdir -p "$OUTPUT_DIR/b_selection"
@@ -95,7 +119,7 @@ else
             --qos=normal \
             --cpus-per-task=2 \
             --mem="4G" \
-            --time="00:15:00" \
+            --time="00:30:00" \
             --output="$LOG_DIR/b_select_%j.out" \
             --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $B_SELECT_CMD'")
 
@@ -103,20 +127,44 @@ else
     fi
 fi
 
+if [[ "$STOP_AFTER_B" == "1" ]]; then
+    echo ""
+    echo "YEAR_STOP_AFTER_B=1 set -- exiting after Stage 1."
+    echo "Inspect $OUTPUT_DIR/b_selection/ once the job finishes, then rerun"
+    echo "with YEAR_SKIP_B_SELECT=1 to continue."
+    exit 0
+fi
+
 # ============================================
-# Stage 2: Intermediate Sharing (all B values)
+# Stage 2: Intermediate Sharing (at chosen B only)
 # ============================================
 echo ""
 echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
-INT_SHARE_CMD="python3 scripts/year_intermediate_sharing.py \\
+INT_SHARE_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
+
+# Remove stale per-B subdirectories from prior runs so only the chosen B remains.
+shopt -s nullglob
+for stale_dir in \"$OUTPUT_DIR/intermediate_sharing\"/b*/; do
+    base=\$(basename \"\$stale_dir\")
+    if [[ \"\$base\" != \"b\$CHOSEN_B\" ]]; then
+        echo \"Removing stale \$stale_dir\"
+        rm -rf \"\$stale_dir\"
+    fi
+done
+shopt -u nullglob
+
+python3 scripts/year_intermediate_sharing.py \\
     --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
     --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
-    --b-values $B_VALUES \\
+    --b \$CHOSEN_B \\
     --effect-size-threshold $EFFECT_THRESHOLD \\
     --dwpc-percentile $DWPC_PERCENTILE \\
-    --output-dir \"$OUTPUT_DIR/intermediate_sharing\""
+    --output-dir \"$OUTPUT_DIR/intermediate_sharing\"
+"
 
 if [[ -n "$B_SELECT_JOB_ID" ]]; then
     DEP_FLAG="--dependency=afterok:$B_SELECT_JOB_ID"
@@ -131,9 +179,9 @@ INT_SHARE_JOB_ID=$(sbatch \
     --job-name="year-int-share" \
     --partition=amilan \
     --qos=normal \
-    --cpus-per-task=4 \
-    --mem="32G" \
-    --time="08:00:00" \
+    --cpus-per-task=$INT_SHARE_CPUS \
+    --mem="$INT_SHARE_MEM" \
+    --time="$INT_SHARE_TIME" \
     --output="$LOG_DIR/int_share_%j.out" \
     --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $INT_SHARE_CMD'")
 
@@ -146,45 +194,14 @@ echo ""
 echo "Stage 3: Select Top GO Terms"
 echo "-----------------------------"
 
-# This stage identifies the top GO terms by median effect size
 TOP_GO_CMD="
 CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
-echo \"Using chosen B = \$CHOSEN_B\"
+echo \"Using chosen B = \$CHOSEN_B for top GO selection\"
 
-# Determine input directory
-if [[ -d \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" ]]; then
-    INPUT_DIR=\"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\"
-else
-    INPUT_DIR=\"$OUTPUT_DIR/intermediate_sharing\"
-fi
-
-# Extract top GO terms by median effect size
-python3 -c \"
-import pandas as pd
-import json
-
-df = pd.read_csv('\$INPUT_DIR/intermediate_sharing_by_metapath.csv')
-
-# Group by GO term and compute median effect size
-go_summary = df.groupby('go_id').agg(
-    n_metapaths=('metapath', 'count'),
-    median_effect_size_d=('effect_size_d', 'median'),
-    max_effect_size_d=('effect_size_d', 'max'),
-    n_genes_2016=('n_genes_2016', 'first'),
-    n_genes_2024_added=('n_genes_2024_added', 'first'),
-).reset_index()
-
-# Sort by median effect size and take top N
-top_go = go_summary.nlargest($TOP_GO_TERMS, 'median_effect_size_d')
-top_go.to_csv('$OUTPUT_DIR/top_go_terms.csv', index=False)
-print(f'Selected {len(top_go)} top GO terms')
-
-# Also save as list for downstream
-top_go_ids = top_go['go_id'].tolist()
-with open('$OUTPUT_DIR/top_go_ids.json', 'w') as f:
-    json.dump(top_go_ids, f)
-print(f'Top GO terms: {top_go_ids}')
-\"
+python3 scripts/select_top_go_terms.py \\
+    --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
+    --top-n $TOP_GO_TERMS \\
+    --output-dir \"$OUTPUT_DIR\"
 "
 
 TOP_GO_JOB_ID=$(sbatch \
@@ -209,12 +226,18 @@ echo ""
 echo "Stage 4: Global Summary"
 echo "-----------------------"
 
-SUMMARY_CMD="python3 scripts/generate_global_summary.py \\
+SUMMARY_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for global summary\"
+
+python3 scripts/generate_global_summary.py \\
     --analysis-type year \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
-    --b-values $B_VALUES \\
+    --b-values \$CHOSEN_B \\
     --chosen-b-json \"$OUTPUT_DIR/b_selection/chosen_b.json\" \\
-    --output-dir \"$OUTPUT_DIR/global_summary\""
+    --effect-size-threshold $EFFECT_THRESHOLD \\
+    --output-dir \"$OUTPUT_DIR/global_summary\"
+"
 
 SUMMARY_JOB_ID=$(sbatch \
     --parsable \
@@ -224,8 +247,8 @@ SUMMARY_JOB_ID=$(sbatch \
     --partition=amilan \
     --qos=normal \
     --cpus-per-task=2 \
-    --mem="8G" \
-    --time="00:30:00" \
+    --mem="$SUMMARY_MEM" \
+    --time="$SUMMARY_TIME" \
     --output="$LOG_DIR/summary_%j.out" \
     --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $SUMMARY_CMD'")
 
@@ -257,16 +280,16 @@ GENE_JOB_ID=$(sbatch \
     --job-name="year-gene" \
     --partition=amilan \
     --qos=normal \
-    --cpus-per-task=2 \
-    --mem="16G" \
-    --time="01:00:00" \
+    --cpus-per-task=$GENE_CPUS \
+    --mem="$GENE_MEM" \
+    --time="$GENE_TIME" \
     --output="$LOG_DIR/gene_%j.out" \
     --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $GENE_CMD'")
 
 echo "Submitted gene table: $GENE_JOB_ID"
 
 # ============================================
-# Stage 6: Subgraph Visualization (for top GO terms)
+# Stage 6: Subgraph Visualization (top GO terms only)
 # ============================================
 echo ""
 echo "Stage 6: Subgraph Visualization"
@@ -278,7 +301,6 @@ TOP_GO_IDS=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/top_go_ids.json\"
 echo \"Using chosen B = \$CHOSEN_B\"
 echo \"Top GO terms: \$TOP_GO_IDS\"
 
-# Generate subgraphs for each top GO term
 for go_id in \$TOP_GO_IDS; do
     echo \"Generating subgraphs for \$go_id\"
     python3 scripts/plot_metapath_subgraphs.py \\
@@ -299,9 +321,9 @@ VIZ_JOB_ID=$(sbatch \
     --job-name="year-viz" \
     --partition=amilan \
     --qos=normal \
-    --cpus-per-task=2 \
-    --mem="8G" \
-    --time="01:00:00" \
+    --cpus-per-task=$VIZ_CPUS \
+    --mem="$VIZ_MEM" \
+    --time="$VIZ_TIME" \
     --output="$LOG_DIR/viz_%j.out" \
     --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $VIZ_CMD'")
 
@@ -331,8 +353,9 @@ echo "  ls -la $LOG_DIR/"
 echo ""
 echo "Expected outputs:"
 echo "  $OUTPUT_DIR/b_selection/chosen_b.json"
-echo "  $OUTPUT_DIR/top_go_terms.csv"
-echo "  $OUTPUT_DIR/intermediate_sharing/b*/intermediate_sharing_by_metapath.csv"
-echo "  $OUTPUT_DIR/global_summary/global_summary.csv"
+echo "  $OUTPUT_DIR/top_go_terms.csv  +  top_go_ids.json"
+echo "  $OUTPUT_DIR/intermediate_sharing/b<B>/intermediate_sharing_by_metapath.csv"
+echo "  $OUTPUT_DIR/intermediate_sharing/b<B>/gene_paths.csv"
+echo "  $OUTPUT_DIR/global_summary/global_summary.csv (+ plots/)"
 echo "  $OUTPUT_DIR/consumable/gene_connectivity_table.csv"
-echo "  $OUTPUT_DIR/consumable/subgraphs/<go_id>/*.png"
+echo "  $OUTPUT_DIR/consumable/subgraphs/<go_id>/*.{pdf,png}"

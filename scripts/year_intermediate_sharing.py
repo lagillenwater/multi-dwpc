@@ -193,6 +193,8 @@ def _enumerate_gene_intermediates(
     degree_d: float = 0.5,
     dwpc_lookup: dict[tuple, float] | None = None,
     dwpc_thresholds: dict[tuple, float] | None = None,
+    record_paths: list | None = None,
+    year_label: str | None = None,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}."""
     # Metapath goes Gene -> ... -> BP, reverse for enumeration
@@ -238,12 +240,35 @@ def _enumerate_gene_intermediates(
             continue
 
         intermediates = set()
-        for score, pos_path in paths:
+        for path_rank, (score, pos_path) in enumerate(paths, start=1):
+            # pos_path is [bp_pos, intermediate1, ..., gene_pos] because
+            # enumerate_paths walks the reversed metapath. Build qualified IDs
+            # in the same order, then flip so hop_0 = source gene, hop_N = target BP
+            # (matches the LV gene_paths.csv convention).
+            path_node_ids: list[str | None] = []
             for i, (node_type, pos) in enumerate(zip(nodes, pos_path)):
-                if 0 < i < len(nodes) - 1:
-                    node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
-                    if node_id is not None:
-                        intermediates.add(f"{node_type}:{node_id}")
+                node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
+                qualified = f"{node_type}:{node_id}" if node_id is not None else None
+                path_node_ids.append(qualified)
+                if 0 < i < len(nodes) - 1 and qualified is not None:
+                    intermediates.add(qualified)
+
+            if record_paths is not None:
+                reversed_ids = list(reversed(path_node_ids))
+                reversed_types = list(reversed(nodes))
+                record = {
+                    "go_id": go_id,
+                    "metapath": metapath,
+                    "gene_id": gene_id,
+                    "path_rank": int(path_rank),
+                    "path_score": float(score),
+                }
+                if year_label is not None:
+                    record["year"] = year_label
+                for hop_idx, (node_type, qualified) in enumerate(zip(reversed_types, reversed_ids)):
+                    record[f"hop_{hop_idx}_type"] = node_type
+                    record[f"hop_{hop_idx}_id"] = qualified
+                record_paths.append(record)
 
         if intermediates:
             gene_intermediates[gene_id] = intermediates
@@ -416,8 +441,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--effect-size-threshold",
         type=float,
-        default=0.2,
-        help="Minimum effect size (Cohen's d) for metapath selection",
+        default=0.5,
+        help="Minimum effect size (Cohen's d) for metapath selection (default: 0.5, medium effect)",
     )
     parser.add_argument(
         "--dwpc-percentile",
@@ -502,11 +527,10 @@ def main() -> None:
         print(f"Processing B = {b_value}")
         print("=" * 60)
 
-        # Output directory for this B
-        if len(b_values) > 1:
-            b_out_dir = out_dir / f"b{b_value}"
-        else:
-            b_out_dir = out_dir
+        # Always write to a b{value}/ subdirectory so downstream consumers
+        # (generate_gene_table, plot_metapath_subgraphs, global summary) can
+        # find outputs uniformly regardless of single- vs multi-B runs.
+        b_out_dir = out_dir / f"b{b_value}"
         b_out_dir.mkdir(parents=True, exist_ok=True)
 
         # Load results at this B
@@ -554,6 +578,7 @@ def main() -> None:
         # Process each GO term
         sharing_rows = []
         top_intermediates_rows = []
+        gene_path_records: list[dict] = []
 
         for go_id in selected_mp["go_id"].unique():
             go_mps = selected_mp[selected_mp["go_id"] == go_id]
@@ -579,6 +604,8 @@ def main() -> None:
                     path_top_k=args.path_top_k,
                     dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
                     dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
+                    record_paths=gene_path_records,
+                    year_label="2016",
                 )
 
                 # Enumerate intermediates for 2024-added genes
@@ -587,6 +614,8 @@ def main() -> None:
                     path_top_k=args.path_top_k,
                     dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
                     dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
+                    record_paths=gene_path_records,
+                    year_label="2024",
                 )
 
                 # Compute sharing stats
@@ -636,6 +665,13 @@ def main() -> None:
             top_int_df = pd.DataFrame(top_intermediates_rows)
             top_int_df.to_csv(b_out_dir / "top_intermediates_by_metapath.csv", index=False)
             print(f"Saved: {b_out_dir / 'top_intermediates_by_metapath.csv'}")
+
+        # Persist per-gene per-path node sequences for downstream visualization.
+        if gene_path_records:
+            gene_paths_df = pd.DataFrame(gene_path_records)
+            gene_paths_df["b"] = b_value
+            gene_paths_df.to_csv(b_out_dir / "gene_paths.csv", index=False)
+            print(f"Saved: {b_out_dir / 'gene_paths.csv'}")
 
         # Aggregate summary
         if sharing_rows:
