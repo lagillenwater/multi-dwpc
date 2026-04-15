@@ -148,7 +148,7 @@ echo "-----------------------------"
 
 # This stage identifies the top GO terms by median effect size
 TOP_GO_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B\"
 
 # Determine input directory
@@ -239,7 +239,7 @@ echo "Stage 5: Gene Connectivity Table"
 echo "---------------------------------"
 
 GENE_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
 python3 scripts/generate_gene_table.py \\
@@ -273,8 +273,8 @@ echo "Stage 6: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
-TOP_GO_IDS=\$(python3 -c \"import json; print(' '.join(json.load(open('$OUTPUT_DIR/top_go_ids.json'))))\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+TOP_GO_IDS=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/top_go_ids.json\")
 echo \"Using chosen B = \$CHOSEN_B\"
 echo \"Top GO terms: \$TOP_GO_IDS\"
 

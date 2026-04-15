@@ -179,7 +179,7 @@ echo "---------------------------------"
 
 # Use chosen B for consumable outputs (read from JSON after B selection completes)
 GENE_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
 python3 scripts/generate_gene_table.py \\
@@ -213,7 +213,7 @@ echo "Stage 5: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for visualization\"
 
 python3 scripts/plot_metapath_subgraphs.py \\
@@ -248,7 +248,7 @@ echo "Stage 6: Intermediate Sharing Plots"
 echo "------------------------------------"
 
 PLOT_CMD="
-CHOSEN_B=\$(python3 -c \"import json; print(json.load(open('$OUTPUT_DIR/b_selection/chosen_b.json'))['chosen_b'])\")
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for plots\"
 
 # Check if subdirectory exists
