@@ -557,44 +557,18 @@ def plot_metapath_subgraph(
     plt.close(fig)
 
 
-def plot_combined_lv_subgraph(
-    gene_set_id: str,
-    target_name: str,
-    metapaths: list[str],
-    genes: list[dict],
-    path_edges: pd.DataFrame,
-    intermediate_names: dict[str, str],
-    output_stem: Path,
-    max_genes: int = 20,
-    top_n_per_hop: int = 15,
-    figsize: tuple[float, float] | None = None,
-) -> None:
-    """Pooled per-LV subgraph across multiple metapaths.
+def _collect_pooled_path_metadata(
+    path_edges: pd.DataFrame, hop_counts: dict[str, int], max_hops: int
+) -> tuple[list[tuple[dict, int]], dict[int, dict[str, int]], dict[int, dict[str, set[str]]], dict[str, str]]:
+    """Walk path_edges once, gather path rows + per-hop-per-intermediate stats.
 
-    Layout: Source | Hop 1 | ... | Hop max_hops | Target. Every displayed
-    edge belongs to a path that traverses fully from source to target, so
-    there are no orphan source genes, no half-drawn paths, and no apparent
-    source-to-target direct edges. Intermediates are ranked per-hop (not
-    overall) and an intermediate can appear in multiple hop columns if it
-    genuinely serves both positions across the pooled metapaths.
+    Returns (path_rows, per_hop_traversals, per_hop_gene_sets, intermediate_types).
     """
-    if path_edges is None or path_edges.empty:
-        print(f"  [combined] {gene_set_id}: no path-level data, skipping")
-        return
-
-    # Intermediate hop count per metapath (0 means trivial, skip).
-    hop_counts = {mp: max(len(parse_metapath_nodes(mp)) - 2, 0) for mp in metapaths}
-    max_hops = max(hop_counts.values()) if hop_counts else 1
-    if max_hops == 0:
-        max_hops = 1
-
-    # Step 1: walk path_edges once, accumulate per-intermediate-per-hop stats
-    # plus remember the intermediate's node type for coloring.
     per_hop_traversals: dict[int, dict[str, int]] = {h: {} for h in range(1, max_hops + 1)}
     per_hop_gene_sets: dict[int, dict[str, set[str]]] = {h: {} for h in range(1, max_hops + 1)}
     intermediate_types: dict[str, str] = {}
+    path_rows: list[tuple[dict, int]] = []
 
-    path_rows: list[dict] = []
     for row in path_edges.itertuples(index=False):
         row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
         mp = str(row_dict.get("metapath", ""))
@@ -616,44 +590,30 @@ def plot_combined_lv_subgraph(
             if itype and not (isinstance(itype, float) and pd.isna(itype)):
                 intermediate_types.setdefault(iid, str(itype))
 
-    if not path_rows:
-        print(f"  [combined] {gene_set_id}: no usable paths found")
-        return
+    return path_rows, per_hop_traversals, per_hop_gene_sets, intermediate_types
 
-    # Step 2: per-hop top-N by distinct source-gene coverage, then by traversals as tiebreak.
-    allowed_per_hop: dict[int, set[str]] = {}
-    for hi in range(1, max_hops + 1):
-        candidates = per_hop_gene_sets[hi]
-        if not candidates:
-            allowed_per_hop[hi] = set()
-            continue
-        ranked = sorted(
-            candidates.items(),
-            key=lambda kv: (len(kv[1]), per_hop_traversals[hi].get(kv[0], 0)),
-            reverse=True,
-        )
-        allowed_per_hop[hi] = {iid for iid, _ in ranked[:top_n_per_hop]}
 
-    # Step 3: keep only paths whose every intermediate is in its hop's allow set.
-    surviving: list[tuple[dict, int]] = []
-    for row_dict, mp_hop_count in path_rows:
-        ok = True
-        for hi in range(1, mp_hop_count + 1):
-            iid = row_dict.get(f"hop_{hi}_id")
-            if iid is None or (isinstance(iid, float) and pd.isna(iid)):
-                ok = False
-                break
-            if str(iid) not in allowed_per_hop.get(hi, set()):
-                ok = False
-                break
-        if ok:
-            surviving.append((row_dict, mp_hop_count))
-
+def _render_pooled_subgraph(
+    *,
+    surviving: list[tuple[dict, int]],
+    max_hops: int,
+    metapaths: list[str],
+    genes: list[dict],
+    intermediate_types: dict[str, str],
+    intermediate_names: dict[str, str],
+    gene_set_id: str,
+    target_name: str,
+    subtitle: str,
+    output_stem: Path,
+    max_genes: int = 20,
+    figsize: tuple[float, float] | None = None,
+) -> None:
+    """Draw a pooled per-LV subgraph from already-selected `surviving` path rows."""
     if not surviving:
-        print(f"  [combined] {gene_set_id}: no paths survived the per-hop top-N filter")
+        print(f"  [pooled] {gene_set_id}: no paths to render for '{subtitle}'")
         return
 
-    # Step 4: from survivors, collect visible sources, used-per-hop ids, edge counts.
+    # Collect visible sources, used-per-hop ids, edge counts.
     visible_source_ids: set[str] = set()
     used_per_hop: dict[int, dict[str, int]] = {h: {} for h in range(1, max_hops + 1)}
     used_gene_sets_per_hop: dict[int, dict[str, set[str]]] = {h: {} for h in range(1, max_hops + 1)}
@@ -821,9 +781,9 @@ def plot_combined_lv_subgraph(
 
     # Title
     mp_display = ", ".join(metapath_display(m) for m in metapaths)
+    plural = "s" if len(metapaths) != 1 else ""
     ax.set_title(
-        f"{gene_set_id}: {target_name}  (combined across {len(metapaths)} metapath"
-        f"{'s' if len(metapaths) != 1 else ''})\n{mp_display}",
+        f"{gene_set_id}: {target_name}  ({subtitle}; {len(metapaths)} metapath{plural})\n{mp_display}",
         fontsize=12, fontweight="bold", pad=12,
     )
 
@@ -849,6 +809,153 @@ def plot_combined_lv_subgraph(
     ax.axis("off")
     _save_figure(fig, output_stem)
     plt.close(fig)
+
+
+def plot_lv_top_shared_subgraph(
+    gene_set_id: str,
+    target_name: str,
+    metapaths: list[str],
+    genes: list[dict],
+    path_edges: pd.DataFrame,
+    intermediate_names: dict[str, str],
+    output_stem: Path,
+    max_genes: int = 20,
+    top_n_per_hop: int = 15,
+    figsize: tuple[float, float] | None = None,
+) -> None:
+    """Pooled subgraph weighted toward intermediates shared across many source
+    genes. Per-hop top-N intermediates by gene coverage define the allow-set;
+    a path survives only if every hop is in the allow-set. Highlights nodes
+    that bridge many genes."""
+    if path_edges is None or path_edges.empty:
+        print(f"  [top_shared] {gene_set_id}: no path-level data, skipping")
+        return
+
+    hop_counts = {mp: max(len(parse_metapath_nodes(mp)) - 2, 0) for mp in metapaths}
+    max_hops = max(hop_counts.values()) if hop_counts else 1
+    if max_hops == 0:
+        max_hops = 1
+
+    path_rows, _, per_hop_gene_sets, intermediate_types = _collect_pooled_path_metadata(
+        path_edges, hop_counts, max_hops
+    )
+    if not path_rows:
+        print(f"  [top_shared] {gene_set_id}: no usable paths found")
+        return
+
+    per_hop_traversals: dict[int, dict[str, int]] = {h: {} for h in range(1, max_hops + 1)}
+    for row_dict, mp_hop_count in path_rows:
+        for hi in range(1, mp_hop_count + 1):
+            iid = row_dict.get(f"hop_{hi}_id")
+            if iid is None or (isinstance(iid, float) and pd.isna(iid)):
+                continue
+            iid = str(iid)
+            per_hop_traversals[hi][iid] = per_hop_traversals[hi].get(iid, 0) + 1
+
+    allowed_per_hop: dict[int, set[str]] = {}
+    for hi in range(1, max_hops + 1):
+        candidates = per_hop_gene_sets[hi]
+        if not candidates:
+            allowed_per_hop[hi] = set()
+            continue
+        ranked = sorted(
+            candidates.items(),
+            key=lambda kv: (len(kv[1]), per_hop_traversals[hi].get(kv[0], 0)),
+            reverse=True,
+        )
+        allowed_per_hop[hi] = {iid for iid, _ in ranked[:top_n_per_hop]}
+
+    surviving: list[tuple[dict, int]] = []
+    for row_dict, mp_hop_count in path_rows:
+        ok = True
+        for hi in range(1, mp_hop_count + 1):
+            iid = row_dict.get(f"hop_{hi}_id")
+            if iid is None or (isinstance(iid, float) and pd.isna(iid)):
+                ok = False
+                break
+            if str(iid) not in allowed_per_hop.get(hi, set()):
+                ok = False
+                break
+        if ok:
+            surviving.append((row_dict, mp_hop_count))
+
+    _render_pooled_subgraph(
+        surviving=surviving,
+        max_hops=max_hops,
+        metapaths=metapaths,
+        genes=genes,
+        intermediate_types=intermediate_types,
+        intermediate_names=intermediate_names,
+        gene_set_id=gene_set_id,
+        target_name=target_name,
+        subtitle="top shared intermediates",
+        output_stem=output_stem,
+        max_genes=max_genes,
+        figsize=figsize,
+    )
+
+
+def plot_lv_top_paths_subgraph(
+    gene_set_id: str,
+    target_name: str,
+    metapaths: list[str],
+    genes: list[dict],
+    path_edges: pd.DataFrame,
+    intermediate_names: dict[str, str],
+    output_stem: Path,
+    max_genes: int = 20,
+    top_n_paths: int = 40,
+    figsize: tuple[float, float] | None = None,
+) -> None:
+    """Pooled subgraph showing the top N highest-scoring individual paths from
+    the LV to its target, regardless of intermediate sharing. Lets unique or
+    rare intermediates show up if they belong to a strong path."""
+    if path_edges is None or path_edges.empty:
+        print(f"  [top_paths] {gene_set_id}: no path-level data, skipping")
+        return
+
+    hop_counts = {mp: max(len(parse_metapath_nodes(mp)) - 2, 0) for mp in metapaths}
+    max_hops = max(hop_counts.values()) if hop_counts else 1
+    if max_hops == 0:
+        max_hops = 1
+
+    path_rows, _, _, intermediate_types = _collect_pooled_path_metadata(
+        path_edges, hop_counts, max_hops
+    )
+    if not path_rows:
+        print(f"  [top_paths] {gene_set_id}: no usable paths found")
+        return
+
+    def _row_score(row_dict: dict) -> float:
+        val = row_dict.get("path_score")
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return -float("inf")
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return -float("inf")
+
+    path_rows.sort(key=lambda pair: _row_score(pair[0]), reverse=True)
+    surviving = path_rows[:top_n_paths]
+
+    _render_pooled_subgraph(
+        surviving=surviving,
+        max_hops=max_hops,
+        metapaths=metapaths,
+        genes=genes,
+        intermediate_types=intermediate_types,
+        intermediate_names=intermediate_names,
+        gene_set_id=gene_set_id,
+        target_name=target_name,
+        subtitle=f"top {len(surviving)} paths by score",
+        output_stem=output_stem,
+        max_genes=max_genes,
+        figsize=figsize,
+    )
+
+
+# Back-compat alias so existing callers don't break.
+plot_combined_lv_subgraph = plot_lv_top_shared_subgraph
 
 
 def generate_subgraphs(
@@ -963,17 +1070,17 @@ def generate_subgraphs(
                 node_name_lookup=int_name_lookup,
             )
 
-        # One combined per-LV plot pooling top-K metapaths. Uses the same
-        # `gene_paths.csv` path-level data already in `gene_paths_df`.
+        # Two pooled per-LV plots. Both use ALL surviving metapaths for the LV
+        # (not just the top-K used for individual per-metapath plots) so users
+        # see the full connectivity picture.
         if not gene_paths_df.empty:
-            top_metapaths = top_mps["metapath"].astype(str).tolist()
+            all_metapaths = gs_df["metapath"].astype(str).unique().tolist()
             combined_paths = gene_paths_df[
                 (gene_paths_df[id_col].astype(str) == gene_set_id)
-                & (gene_paths_df["metapath"].astype(str).isin(top_metapaths))
+                & (gene_paths_df["metapath"].astype(str).isin(all_metapaths))
             ]
             if not combined_paths.empty:
-                combined_target = str(top_mps.iloc[0].get("target_name", "Unknown"))
-                # Reuse gene list from first metapath; fall back to placeholder.
+                combined_target = str(gs_df.iloc[0].get("target_name", "Unknown"))
                 if not gene_table.empty and "gene_set_id" in gene_table.columns:
                     combined_genes = gene_table[
                         gene_table["gene_set_id"].astype(str) == gene_set_id
@@ -988,16 +1095,29 @@ def generate_subgraphs(
                         }
                         for g in combined_gene_ids
                     ]
-                combined_stem = output_dir / f"{gene_set_id}_combined"
-                print(f"Generating: {combined_stem.name}")
-                plot_combined_lv_subgraph(
+
+                shared_stem = output_dir / f"{gene_set_id}_top_shared"
+                print(f"Generating: {shared_stem.name}")
+                plot_lv_top_shared_subgraph(
                     gene_set_id=gene_set_id,
                     target_name=combined_target,
-                    metapaths=top_metapaths,
+                    metapaths=all_metapaths,
                     genes=combined_genes,
                     path_edges=combined_paths,
                     intermediate_names=int_name_lookup,
-                    output_stem=combined_stem,
+                    output_stem=shared_stem,
+                )
+
+                paths_stem = output_dir / f"{gene_set_id}_top_paths"
+                print(f"Generating: {paths_stem.name}")
+                plot_lv_top_paths_subgraph(
+                    gene_set_id=gene_set_id,
+                    target_name=combined_target,
+                    metapaths=all_metapaths,
+                    genes=combined_genes,
+                    path_edges=combined_paths,
+                    intermediate_names=int_name_lookup,
+                    output_stem=paths_stem,
                 )
 
 
