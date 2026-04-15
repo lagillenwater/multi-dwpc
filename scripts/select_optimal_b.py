@@ -123,6 +123,9 @@ def _compute_stabilization_point(
     return pd.DataFrame(rows)
 
 
+MAX_ENTITIES_PER_LINE_PLOT = 25
+
+
 def _plot_stabilization_curves(
     raw_df: pd.DataFrame,
     group_cols: list[str],
@@ -132,10 +135,12 @@ def _plot_stabilization_curves(
     title: str,
     out_stem: Path,
 ) -> None:
-    """Per-control subplots with per-entity mean trend lines only.
+    """Per-control subplots showing how `metric_col` changes with B.
 
-    No raw-point scatter and no stabilization-B marker -- just the trend line
-    per entity, matching the layout shape of the experiment plots.
+    With a small entity set (e.g. LV: 3 LVs) draw one line per entity.
+    With a large entity set (year: hundreds of GO terms) the per-line
+    version produces an unreadable legend, so switch to an aggregate view:
+    median trend across entities + an IQR (25th-75th percentile) band.
     """
     if raw_df.empty or metric_col not in raw_df.columns:
         return
@@ -146,8 +151,7 @@ def _plot_stabilization_curves(
     if not controls or not entities:
         return
 
-    colormap = plt.get_cmap("tab10")
-    entity_colors = {e: colormap(i % 10) for i, e in enumerate(entities)}
+    many_entities = len(entities) > MAX_ENTITIES_PER_LINE_PLOT
 
     fig, axes = plt.subplots(
         1, len(controls),
@@ -157,35 +161,77 @@ def _plot_stabilization_curves(
     if len(controls) == 1:
         axes = [axes]
 
-    for ax, control in zip(axes, controls):
-        control_df = raw_df[raw_df[control_col].astype(str) == control]
-        for entity in entities:
-            points = control_df[control_df[entity_col].astype(str) == entity]
-            if points.empty:
-                continue
-            color = entity_colors[entity]
-            curve = (
-                points.groupby("b", as_index=False)[metric_col]
+    if many_entities:
+        control_colormap = plt.get_cmap("tab10")
+        control_colors = {c: control_colormap(i % 10) for i, c in enumerate(controls)}
+        for ax, control in zip(axes, controls):
+            control_df = raw_df[raw_df[control_col].astype(str) == control]
+            # Per-entity trend (one value per B per entity), then aggregate across entities.
+            per_entity = (
+                control_df.groupby([entity_col, "b"], as_index=False)[metric_col]
                 .mean()
-                .sort_values("b")
-                .reset_index(drop=True)
             )
-            if len(curve) < 2:
+            if per_entity.empty:
                 continue
+            agg = (
+                per_entity.groupby("b", as_index=False)[metric_col]
+                .agg(
+                    median=(metric_col, "median"),
+                    q25=(metric_col, lambda s: s.quantile(0.25)),
+                    q75=(metric_col, lambda s: s.quantile(0.75)),
+                )
+                .sort_values("b")
+            )
+            color = control_colors[control]
+            ax.fill_between(
+                agg["b"].astype(float),
+                agg["q25"].astype(float),
+                agg["q75"].astype(float),
+                color=color, alpha=0.25,
+                label=f"{control} IQR (25-75%)",
+            )
             ax.plot(
-                curve["b"].astype(float),
-                curve[metric_col].astype(float),
+                agg["b"].astype(float),
+                agg["median"].astype(float),
                 marker="o", markersize=6.5,
                 linewidth=2.2, color=color,
-                label=entity,
+                label=f"{control} median",
             )
-
-        ax.set_xlabel("B (replicate count)")
-        ax.set_title(control)
-        ax.grid(alpha=0.25)
+            ax.set_xlabel("B (replicate count)")
+            ax.set_title(f"{control}  (n={len(entities)} {entity_col})")
+            ax.grid(alpha=0.25)
+            ax.legend(loc="best", fontsize=8)
+    else:
+        colormap = plt.get_cmap("tab10")
+        entity_colors = {e: colormap(i % 10) for i, e in enumerate(entities)}
+        for ax, control in zip(axes, controls):
+            control_df = raw_df[raw_df[control_col].astype(str) == control]
+            for entity in entities:
+                points = control_df[control_df[entity_col].astype(str) == entity]
+                if points.empty:
+                    continue
+                color = entity_colors[entity]
+                curve = (
+                    points.groupby("b", as_index=False)[metric_col]
+                    .mean()
+                    .sort_values("b")
+                    .reset_index(drop=True)
+                )
+                if len(curve) < 2:
+                    continue
+                ax.plot(
+                    curve["b"].astype(float),
+                    curve[metric_col].astype(float),
+                    marker="o", markersize=6.5,
+                    linewidth=2.2, color=color,
+                    label=entity,
+                )
+            ax.set_xlabel("B (replicate count)")
+            ax.set_title(control)
+            ax.grid(alpha=0.25)
+        axes[-1].legend(title=entity_col, loc="best")
 
     axes[0].set_ylabel(metric_col)
-    axes[-1].legend(title=entity_col, loc="best")
     fig.suptitle(title)
     fig.tight_layout()
     _save_figure(fig, out_stem)
