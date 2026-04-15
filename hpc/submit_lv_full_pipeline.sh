@@ -27,7 +27,7 @@ cd "$REPO_ROOT"
 # Configuration
 OUTPUT_DIR="${LV_PIPELINE_OUTPUT:-output/lv_full_analysis}"
 LV_OUTPUT_DIRS="${LV_OUTPUT_DIRS:-output/lv_single_target_refactor}"
-B_VALUES="${LV_B_VALUES:-2,4,6,8,10,20,30}"
+B_VALUES="${LV_B_VALUES:-2,5,10,20,30,40}"
 SKIP_B_SELECT="${LV_SKIP_B_SELECT:-0}"
 STOP_AFTER_B="${LV_STOP_AFTER_B:-0}"
 EFFECT_THRESHOLD="${LV_EFFECT_THRESHOLD:-0.5}"

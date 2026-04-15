@@ -150,25 +150,55 @@ def _save_figure(fig, out_path_stem: Path) -> None:
 def _bucket_intermediates_by_hop(
     intermediates: list[dict],
     hop_node_types: list[str],
+    path_edges: pd.DataFrame | None = None,
 ) -> list[list[dict]]:
-    """Group intermediate records into columns by their node-type prefix.
+    """Group intermediate records into columns by hop position.
 
-    Args:
-        intermediates: list of dicts with "intermediate_id" like "A:UBERON:123".
-        hop_node_types: node-type abbrevs for intermediate positions only,
-            e.g. ["D", "A"] for a G-D-A-D metapath.
+    When `path_edges` is provided (gene_paths.csv rows for this metapath), the
+    actual hop position of each intermediate is taken from the path records --
+    the most common hop wins. Falls back to node-type matching when path data
+    is unavailable.
 
-    Returns:
-        list of buckets, one per intermediate hop, preserving input order.
+    This matters when a metapath has the same node type at multiple hops (e.g.,
+    "G-r-G-r-G-u-A" has "G" intermediates at hop 1 AND hop 2). Pure type
+    matching would pile every G intermediate into hop 1, leaving hop 2 empty.
     """
+    n_hops = len(hop_node_types)
     buckets: list[list[dict]] = [[] for _ in hop_node_types]
+
+    # Build per-intermediate hop-occurrence counts from the path records.
+    hop_counts_by_int: dict[str, dict[int, int]] = {}
+    if path_edges is not None and not path_edges.empty:
+        for row in path_edges.itertuples(index=False):
+            row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
+            for hop_idx in range(1, n_hops + 1):
+                int_id = row_dict.get(f"hop_{hop_idx}_id")
+                if int_id is None or (isinstance(int_id, float) and pd.isna(int_id)):
+                    continue
+                key = str(int_id)
+                hop_counts_by_int.setdefault(key, {})
+                hop_counts_by_int[key][hop_idx] = hop_counts_by_int[key].get(hop_idx, 0) + 1
+
     for interm in intermediates:
-        int_id = interm.get("intermediate_id", "") or ""
-        node_type, _ = parse_intermediate_id(str(int_id))
-        for hi, expected in enumerate(hop_node_types):
-            if node_type == expected:
-                buckets[hi].append(interm)
-                break
+        int_id = str(interm.get("intermediate_id", "") or "")
+        assigned = False
+        if int_id in hop_counts_by_int:
+            majority_hop = max(
+                hop_counts_by_int[int_id].items(), key=lambda kv: kv[1]
+            )[0]
+            bucket_idx = majority_hop - 1
+            if 0 <= bucket_idx < n_hops:
+                buckets[bucket_idx].append(interm)
+                assigned = True
+
+        if not assigned:
+            # Fallback: first hop whose expected node type matches.
+            node_type, _ = parse_intermediate_id(int_id)
+            for hi, expected in enumerate(hop_node_types):
+                if node_type == expected:
+                    buckets[hi].append(interm)
+                    break
+
     return buckets
 
 
@@ -229,7 +259,9 @@ def plot_metapath_subgraph(
     n_cols = len(node_types)
 
     genes = genes[:max_genes]
-    hop_buckets_raw = _bucket_intermediates_by_hop(intermediates, hop_node_types)
+    hop_buckets_raw = _bucket_intermediates_by_hop(
+        intermediates, hop_node_types, path_edges=path_edges
+    )
     hop_buckets: list[list[dict]] = [b[:max_intermediates_per_hop] for b in hop_buckets_raw]
 
     if figsize is None:
