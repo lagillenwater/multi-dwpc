@@ -104,7 +104,10 @@ def generate_permutations(pairs: pd.DataFrame, b: int, seed: int) -> list[pd.Dat
 
 
 async def _time_api_call(
-    pairs_with_neo: pd.DataFrame, parquet_dir: Path, tag: str
+    pairs_with_neo: pd.DataFrame,
+    parquet_dir: Path,
+    tag: str,
+    max_concurrency: int,
 ) -> float:
     t0 = time.perf_counter()
     await run_metapaths_for_df(
@@ -114,10 +117,10 @@ async def _time_api_call(
         base_out_dir=parquet_dir,
         group=tag,
         clear_group=True,
-        max_concurrency=120,
+        max_concurrency=int(max_concurrency),
         retries=3,
         backoff_first=2.0,
-        show_progress=False,
+        show_progress=True,
         check_health=False,
     )
     return time.perf_counter() - t0
@@ -153,6 +156,16 @@ def parse_args() -> argparse.Namespace:
         "--warmup",
         action="store_true",
         help="Run one discarded direct call per metapath before timing to exclude JIT/cache effects",
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=20,
+        help=(
+            "Max concurrent HTTP requests per API replicate. Higher values can "
+            "actually be slower on a local Docker stack due to Neo4j contention "
+            "(default: 20)"
+        ),
     )
     return parser.parse_args()
 
@@ -212,7 +225,19 @@ def main() -> None:
             for rep_idx, perm_df in enumerate(perms):
                 perm_neo = attach_neo4j_ids(perm_df, data_dir)
                 tag = f"bench_b{b:03d}_r{rep_idx:03d}"
-                t_api_total += asyncio.run(_time_api_call(perm_neo, parquet_dir, tag))
+                print(
+                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} -- "
+                    f"calling API ({len(perm_neo)} pairs, concurrency={args.max_concurrency})",
+                    flush=True,
+                )
+                t_rep = asyncio.run(
+                    _time_api_call(perm_neo, parquet_dir, tag, args.max_concurrency)
+                )
+                t_api_total += t_rep
+                print(
+                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} done in {t_rep:.2f}s",
+                    flush=True,
+                )
             rows.append(
                 {
                     "method": "api",

@@ -132,6 +132,59 @@ def load_gene_names(repo_root: Path) -> dict[int, str]:
     return dict(zip(df["identifier"].astype(int), df["name"]))
 
 
+# Maps folder-name (TSV stem in data/nodes/) -> qualified-id prefix used
+# throughout the pipeline (matches NODE_COLORS keys).
+_TSV_STEM_TO_TYPE = {
+    "Gene": "G",
+    "Anatomy": "A",
+    "Disease": "D",
+    "Compound": "C",
+    "Biological Process": "BP",
+    "Cellular Component": "CC",
+    "Molecular Function": "MF",
+    "Pathway": "PW",
+    "Pharmacologic Class": "PC",
+    "Side Effect": "SE",
+    "Symptom": "S",
+}
+
+
+def load_all_node_names(repo_root: Path) -> dict[str, str]:
+    """Return a dict mapping `"{type_abbrev}:{identifier}"` -> human name.
+
+    Reads every `data/nodes/*.tsv` file (hetio convention: `identifier`, `name`
+    columns) and aggregates into a single qualified-id lookup, matching the
+    key format written by `lv_intermediate_sharing.py` / `gene_paths.csv`.
+    """
+    result: dict[str, str] = {}
+    nodes_dir = repo_root / "data" / "nodes"
+    if not nodes_dir.exists():
+        return result
+    for tsv in nodes_dir.glob("*.tsv"):
+        abbrev = _TSV_STEM_TO_TYPE.get(tsv.stem)
+        if abbrev is None:
+            continue
+        try:
+            df = pd.read_csv(tsv, sep="\t")
+        except Exception:
+            continue
+        if "identifier" not in df.columns or "name" not in df.columns:
+            continue
+        for ident, name in zip(df["identifier"].astype(str), df["name"].astype(str)):
+            result[f"{abbrev}:{ident}"] = name
+    return result
+
+
+def _format_intermediate_label(qualified_id: str, node_name_lookup: dict[str, str]) -> str:
+    """Human name if we have one, else the raw identifier (without type prefix)."""
+    name = node_name_lookup.get(qualified_id)
+    if name:
+        return name
+    # Fallback: strip the type prefix so it's at least not "A:UBERON:..."
+    _, rest = parse_intermediate_id(qualified_id)
+    return rest or qualified_id
+
+
 def parse_intermediate_id(int_id: str) -> tuple[str, str]:
     """Parse intermediate ID like 'A:UBERON:0001234' into (type, id_rest)."""
     if ":" not in int_id:
@@ -147,57 +200,73 @@ def _save_figure(fig, out_path_stem: Path) -> None:
         fig.savefig(out_path_stem.with_suffix(ext), bbox_inches="tight", dpi=200, facecolor="white")
 
 
-def _bucket_intermediates_by_hop(
+def _per_hop_intermediate_buckets(
     intermediates: list[dict],
     hop_node_types: list[str],
-    path_edges: pd.DataFrame | None = None,
+    path_edges: pd.DataFrame | None,
+    top_n_per_hop: int,
 ) -> list[list[dict]]:
-    """Group intermediate records into columns by hop position.
+    """Top-N intermediates per hop based on distinct source-gene coverage.
 
-    When `path_edges` is provided (gene_paths.csv rows for this metapath), the
-    actual hop position of each intermediate is taken from the path records --
-    the most common hop wins. Falls back to node-type matching when path data
-    is unavailable.
+    For each intermediate position in the metapath, this counts how many
+    distinct source genes have at least one path passing through each
+    candidate intermediate at that position. Ranks and picks the top N per
+    hop -- so every hop column populates with its own top list, even when
+    the same node type appears at multiple hops (e.g., G-G-G-A).
 
-    This matters when a metapath has the same node type at multiple hops (e.g.,
-    "G-r-G-r-G-u-A" has "G" intermediates at hop 1 AND hop 2). Pure type
-    matching would pile every G intermediate into hop 1, leaving hop 2 empty.
+    Each returned row carries:
+        intermediate_id, intermediate_name, n_genes_using_at_hop,
+        pct_genes_using_at_hop, hop_index (1-based).
+
+    Names are pulled from the passed-in `intermediates` list when present;
+    otherwise the caller's lookup will fill them in later.
     """
     n_hops = len(hop_node_types)
     buckets: list[list[dict]] = [[] for _ in hop_node_types]
 
-    # Build per-intermediate hop-occurrence counts from the path records.
-    hop_counts_by_int: dict[str, dict[int, int]] = {}
-    if path_edges is not None and not path_edges.empty:
-        for row in path_edges.itertuples(index=False):
-            row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
-            for hop_idx in range(1, n_hops + 1):
-                int_id = row_dict.get(f"hop_{hop_idx}_id")
-                if int_id is None or (isinstance(int_id, float) and pd.isna(int_id)):
-                    continue
-                key = str(int_id)
-                hop_counts_by_int.setdefault(key, {})
-                hop_counts_by_int[key][hop_idx] = hop_counts_by_int[key].get(hop_idx, 0) + 1
+    name_by_id: dict[str, str] = {}
+    for interm in intermediates or []:
+        iid = str(interm.get("intermediate_id", "") or "")
+        name = interm.get("intermediate_name")
+        if iid and name and not (isinstance(name, float) and pd.isna(name)):
+            name_by_id[iid] = str(name)
 
-    for interm in intermediates:
-        int_id = str(interm.get("intermediate_id", "") or "")
-        assigned = False
-        if int_id in hop_counts_by_int:
-            majority_hop = max(
-                hop_counts_by_int[int_id].items(), key=lambda kv: kv[1]
-            )[0]
-            bucket_idx = majority_hop - 1
-            if 0 <= bucket_idx < n_hops:
-                buckets[bucket_idx].append(interm)
-                assigned = True
-
-        if not assigned:
-            # Fallback: first hop whose expected node type matches.
+    if path_edges is None or path_edges.empty:
+        # Fallback to type-matching against the supplied intermediates list.
+        for interm in intermediates or []:
+            int_id = str(interm.get("intermediate_id", "") or "")
             node_type, _ = parse_intermediate_id(int_id)
             for hi, expected in enumerate(hop_node_types):
                 if node_type == expected:
                     buckets[hi].append(interm)
                     break
+        return buckets
+
+    total_genes = int(path_edges["gene_id"].nunique()) if "gene_id" in path_edges.columns else 0
+    for hop_idx in range(1, n_hops + 1):
+        col = f"hop_{hop_idx}_id"
+        if col not in path_edges.columns:
+            continue
+        sub = path_edges[[c for c in ("gene_id", col) if c in path_edges.columns]].dropna()
+        if sub.empty:
+            continue
+        gene_counts = (
+            sub.groupby(col)["gene_id"].nunique()
+            .sort_values(ascending=False)
+            .head(top_n_per_hop)
+        )
+        for int_id, n_genes in gene_counts.items():
+            iid = str(int_id)
+            pct = (float(n_genes) / total_genes * 100.0) if total_genes else 0.0
+            buckets[hop_idx - 1].append(
+                {
+                    "intermediate_id": iid,
+                    "intermediate_name": name_by_id.get(iid),
+                    "n_genes_using": int(n_genes),
+                    "pct_genes_using": pct,
+                    "hop_index": hop_idx,
+                }
+            )
 
     return buckets
 
@@ -226,6 +295,7 @@ def plot_metapath_subgraph(
     intermediates: list[dict],
     output_stem: Path,
     path_edges: pd.DataFrame | None = None,
+    node_name_lookup: dict[str, str] | None = None,
     max_genes: int = 20,
     max_intermediates_per_hop: int = 12,
     figsize: tuple[float, float] | None = None,
@@ -258,11 +328,14 @@ def plot_metapath_subgraph(
     hop_node_types = node_types[1:-1]  # intermediate positions only
     n_cols = len(node_types)
 
+    node_name_lookup = node_name_lookup or {}
     genes = genes[:max_genes]
-    hop_buckets_raw = _bucket_intermediates_by_hop(
-        intermediates, hop_node_types, path_edges=path_edges
+    hop_buckets: list[list[dict]] = _per_hop_intermediate_buckets(
+        intermediates,
+        hop_node_types,
+        path_edges=path_edges,
+        top_n_per_hop=max_intermediates_per_hop,
     )
-    hop_buckets: list[list[dict]] = [b[:max_intermediates_per_hop] for b in hop_buckets_raw]
 
     if figsize is None:
         figsize = (max(10.0, 2.8 * n_cols + 2.5), max(8.0, 0.42 * max_genes + 3.0))
@@ -327,14 +400,21 @@ def plot_metapath_subgraph(
         for j, interm in enumerate(items):
             iy = ys[j]
             int_id = str(interm.get("intermediate_id", ""))
-            int_name = interm.get("intermediate_name") or int_id
+            # Prefer the upstream-provided name; fall back to the loaded
+            # node-TSV name lookup; finally strip the type prefix off the id.
+            int_name = interm.get("intermediate_name")
+            if not int_name or (isinstance(int_name, float) and pd.isna(int_name)):
+                int_name = _format_intermediate_label(int_id, node_name_lookup)
             usage = float(interm.get("n_genes_using", 1))
             pct = interm.get("pct_genes_using")
             node_size = 180 + 520 * (usage / max_usage if max_usage > 0 else 0)
             ax.scatter(hop_x, iy, s=node_size, c=color,
                        edgecolors="white", linewidths=1.2, zorder=3)
             label = str(int_name)[:22]
-            pct_suffix = f" ({pct:.0f}%)" if pct is not None and not pd.isna(pct) else ""
+            pct_suffix = (
+                f" ({pct:.0f}% genes)"
+                if pct is not None and not pd.isna(pct) else ""
+            )
             ax.text(hop_x + 0.012, iy, f"{label}{pct_suffix}",
                     ha="left", va="center", fontsize=7)
             if int_id:
@@ -631,11 +711,13 @@ def plot_combined_lv_subgraph(
             node_size = 180 + 520 * (cnt / max_count if max_count > 0 else 0)
             ax.scatter(hop_xs[hop_idx - 1], ys[rank], s=node_size, c=color,
                        edgecolors="white", linewidths=1.2, zorder=3)
-            name = intermediate_names.get(iid) or iid
+            name = intermediate_names.get(iid)
+            if not name:
+                name = _format_intermediate_label(iid, intermediate_names)
             label = str(name)[:22]
             ax.text(
                 hop_xs[hop_idx - 1] + 0.012, ys[rank],
-                f"{label} ({cnt})",
+                f"{label} ({cnt} traversals)",
                 ha="left", va="center", fontsize=7,
             )
 
@@ -718,6 +800,8 @@ def generate_subgraphs(
 
     gene_table = pd.read_csv(gene_table_path) if (gene_table_path and gene_table_path.exists()) else pd.DataFrame()
     gene_names = load_gene_names(REPO_ROOT)
+    # Qualified-id -> human-name lookup spanning every node type.
+    node_name_lookup = load_all_node_names(REPO_ROOT)
 
     id_col = "lv_id" if analysis_type == "lv" else "go_id"
 
@@ -727,9 +811,8 @@ def generate_subgraphs(
     if metapath_filter:
         by_metapath_df = by_metapath_df[by_metapath_df["metapath"] == metapath_filter]
 
-    # Build a name lookup for intermediates (qualified id -> human name) from
-    # top_int_df so the combined per-LV plot can label pooled intermediates.
-    int_name_lookup: dict[str, str] = {}
+    # Combined lookup: upstream-provided names win, node-TSV names backfill.
+    int_name_lookup: dict[str, str] = dict(node_name_lookup)
     if not top_int_df.empty and "intermediate_id" in top_int_df.columns:
         for iid, name in zip(
             top_int_df["intermediate_id"].astype(str),
@@ -792,6 +875,7 @@ def generate_subgraphs(
                 intermediates=mp_ints,
                 output_stem=output_stem,
                 path_edges=mp_paths if not mp_paths.empty else None,
+                node_name_lookup=int_name_lookup,
             )
 
         # One combined per-LV plot pooling top-K metapaths. Uses the same
