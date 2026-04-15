@@ -16,6 +16,7 @@
 #   LV_PIPELINE_OUTPUT - Output directory for pipeline results
 #   LV_B_VALUES        - Comma-separated B values (default: "2,5,10,20,30")
 #   LV_SKIP_B_SELECT   - Set to "1" to skip B selection (use existing chosen_b.json)
+#   LV_STOP_AFTER_B    - Set to "1" to submit only Stage 1 (B selection) and exit
 #
 
 set -euo pipefail
@@ -28,6 +29,7 @@ OUTPUT_DIR="${LV_PIPELINE_OUTPUT:-output/lv_full_analysis}"
 LV_OUTPUT_DIRS="${LV_OUTPUT_DIRS:-output/lv_single_target_refactor}"
 B_VALUES="${LV_B_VALUES:-2,5,10,20,30}"
 SKIP_B_SELECT="${LV_SKIP_B_SELECT:-0}"
+STOP_AFTER_B="${LV_STOP_AFTER_B:-0}"
 EFFECT_THRESHOLD="${LV_EFFECT_THRESHOLD:-0.2}"
 DWPC_PERCENTILE="${LV_DWPC_PERCENTILE:-75}"
 
@@ -45,6 +47,7 @@ echo "B values:           $B_VALUES"
 echo "Effect threshold:   $EFFECT_THRESHOLD"
 echo "DWPC percentile:    $DWPC_PERCENTILE"
 echo "Skip B selection:   $SKIP_B_SELECT"
+echo "Stop after B:       $STOP_AFTER_B"
 echo "Log dir:            $LOG_DIR"
 echo
 
@@ -103,6 +106,13 @@ else
 
         echo "Submitted B selection: $B_SELECT_JOB_ID"
     fi
+fi
+
+if [[ "$STOP_AFTER_B" == "1" ]]; then
+    echo ""
+    echo "LV_STOP_AFTER_B=1 set -- exiting after Stage 1."
+    echo "Inspect $OUTPUT_DIR/b_selection/ once the job finishes, then rerun with LV_SKIP_B_SELECT=1 to continue."
+    exit 0
 fi
 
 # ============================================
