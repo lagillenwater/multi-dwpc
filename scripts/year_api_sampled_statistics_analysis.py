@@ -25,7 +25,13 @@ else:
 sys.path.insert(0, str(REPO_ROOT))
 from src.bipartite_nulls import degree_preserving_permutations  # noqa: E402
 from src.dwpc_api import run_metapaths_for_df, validate_parquet_files  # noqa: E402
-from src.replicate_analysis import build_b_seed_runs, summarize_feature_variance, summarize_overall_variance  # noqa: E402
+from src.replicate_analysis import (  # noqa: E402
+    build_b_seed_runs,
+    rank_features,
+    summarize_feature_variance,
+    summarize_overall_variance,
+    summarize_rank_stability,
+)
 from src.result_normalization import load_neo4j_mappings, normalize_api_year_result  # noqa: E402
 from src.year_statistics import build_aggregated_year_statistics_panel, build_year_statistic_summary_long  # noqa: E402
 
@@ -243,34 +249,42 @@ async def _lookup_dataset(
         shutil.rmtree(group_dir, ignore_errors=True)
 
 
-def _plot_sensitivity(overall_var_df: pd.DataFrame, out_pdf: Path) -> None:
-    if overall_var_df.empty:
+def _plot_overall_by_statistic(
+    overall_df: pd.DataFrame,
+    y_col: str,
+    y_label: str,
+    title: str,
+    out_pdf: Path,
+) -> None:
+    """Grid of year x control panels, one line per statistic, y=y_col vs B."""
+    if overall_df.empty or y_col not in overall_df.columns:
         return
-    years = sorted(overall_var_df["year"].astype(int).unique().tolist())
-    controls = sorted(overall_var_df["control"].astype(str).unique().tolist())
+    years = sorted(overall_df["year"].astype(int).unique().tolist())
+    controls = sorted(overall_df["control"].astype(str).unique().tolist())
     if not years or not controls:
         return
 
-    fig, axes = plt.subplots(len(years), len(controls), figsize=(6.5 * len(controls), 4.5 * len(years)), sharex=True)
+    fig, axes = plt.subplots(
+        len(years), len(controls),
+        figsize=(6.5 * len(controls), 4.5 * len(years)),
+        sharex=True,
+    )
     axes = np.asarray(axes, dtype=object)
     if axes.ndim == 1:
-        if len(years) == 1:
-            axes = axes[np.newaxis, :]
-        else:
-            axes = axes[:, np.newaxis]
+        axes = axes[np.newaxis, :] if len(years) == 1 else axes[:, np.newaxis]
 
     for i, year in enumerate(years):
         for j, control in enumerate(controls):
             ax = axes[i, j]
-            subset = overall_var_df[
-                (overall_var_df["year"].astype(int) == int(year))
-                & (overall_var_df["control"].astype(str) == str(control))
+            subset = overall_df[
+                (overall_df["year"].astype(int) == int(year))
+                & (overall_df["control"].astype(str) == str(control))
             ].copy()
             for statistic, stat_df in subset.groupby("statistic", sort=True):
                 stat_df = stat_df.sort_values("b")
                 ax.plot(
                     stat_df["b"].astype(int),
-                    stat_df["mean_diff_std"].astype(float),
+                    stat_df[y_col].astype(float),
                     marker="o",
                     linewidth=1.6,
                     alpha=0.9,
@@ -278,15 +292,25 @@ def _plot_sensitivity(overall_var_df: pd.DataFrame, out_pdf: Path) -> None:
                 )
             ax.grid(alpha=0.25)
             ax.set_xlabel("B")
-            ax.set_ylabel("Mean diff SD")
+            ax.set_ylabel(y_label)
             ax.set_title(f"{year} | {control}")
     handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles:
         fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1.02, 0.5), title="Statistic")
-    fig.suptitle("API permutation sensitivity by statistic")
+    fig.suptitle(title)
     fig.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight")
     plt.close(fig)
+
+
+def _plot_sensitivity(overall_var_df: pd.DataFrame, out_pdf: Path) -> None:
+    _plot_overall_by_statistic(
+        overall_var_df,
+        y_col="mean_diff_std",
+        y_label="Mean diff SD",
+        title="API permutation sensitivity by statistic",
+        out_pdf=out_pdf,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -300,8 +324,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-go-terms", type=int, default=50)
     parser.add_argument("--sample-seed", type=int, default=42)
     parser.add_argument("--n-permutations", type=int, default=100)
-    parser.add_argument("--b-values", default="1,2,5,10,20,50,100")
+    parser.add_argument("--b-values", default="2,4,6,8,10,20,30")
     parser.add_argument("--resample-seeds", default="11,22,33,44,55")
+    parser.add_argument(
+        "--rank-metric",
+        default="effect_size_d",
+        choices=["effect_size_d", "diff"],
+        help="Score used to rank metapaths per (GO term, seed) for rank stability",
+    )
+    parser.add_argument(
+        "--top-k-metapaths",
+        default="5,10",
+        help="Comma-separated top-K depths for top-K Jaccard in rank stability",
+    )
+    parser.add_argument(
+        "--rbo-p",
+        type=float,
+        default=0.9,
+        help="Persistence parameter for rank-biased overlap",
+    )
     parser.add_argument("--max-concurrency", type=int, default=MAX_CONCURRENCY)
     parser.add_argument("--retries", type=int, default=RETRIES)
     parser.add_argument("--backoff-first", type=float, default=BACKOFF_FIRST)
@@ -528,6 +569,57 @@ def main() -> None:
     pd.DataFrame(sens_rows).to_csv(output_dir / "statistic_sensitivity_summary.csv", index=False)
 
     _plot_sensitivity(overall_df, output_dir / "variance_sensitivity_by_statistic.pdf")
+
+    # ---- Rank stability ----
+    rank_metric = str(args.rank_metric)
+    if rank_metric not in runs_df.columns:
+        print(f"Warning: {rank_metric} not in runs_df; falling back to 'diff'")
+        rank_metric = "diff"
+
+    top_k_specs = [int(x) for x in str(args.top_k_metapaths).split(",") if x.strip()]
+
+    rank_df = rank_features(
+        runs_df,
+        rank_group_keys=["statistic", "year", "control", "b", "seed", "go_id"],
+        feature_col="metapath",
+        score_col=rank_metric,
+        rank_col="metapath_rank",
+    )
+    pairwise_rank_df, per_go_rank_df, overall_rank_df = summarize_rank_stability(
+        rank_df,
+        outer_keys=["statistic", "year", "control", "b", "go_id"],
+        replicate_col="seed",
+        feature_col="metapath",
+        rank_col="metapath_rank",
+        top_k=top_k_specs,
+        rbo_p=float(args.rbo_p),
+    )
+
+    rank_df.to_csv(output_dir / "metapath_rank_table.csv", index=False)
+    pairwise_rank_df.to_csv(output_dir / "pairwise_rank_metrics.csv", index=False)
+    per_go_rank_df.to_csv(output_dir / "go_rank_stability_summary.csv", index=False)
+    overall_rank_df.to_csv(output_dir / "overall_rank_stability_summary.csv", index=False)
+
+    rank_plot_specs: list[tuple[str, str, str]] = [
+        ("mean_spearman_rho", "Mean Spearman rho across seeds", "rank_spearman_by_statistic.pdf"),
+        ("mean_rbo", "Mean RBO across seeds", "rank_rbo_by_statistic.pdf"),
+    ]
+    for k in top_k_specs:
+        rank_plot_specs.append(
+            (
+                f"mean_topk_jaccard_{k}",
+                f"Mean top-{k} Jaccard across seeds",
+                f"rank_topk_jaccard_{k}_by_statistic.pdf",
+            )
+        )
+    for y_col, y_label, filename in rank_plot_specs:
+        _plot_overall_by_statistic(
+            overall_rank_df,
+            y_col=y_col,
+            y_label=y_label,
+            title=f"API permutation rank stability by statistic ({rank_metric})",
+            out_pdf=output_dir / filename,
+        )
 
     print(f"Sampled GO terms: {len(sampled_go_terms)}")
     print(f"Requested permutation pool size: {n_permutations}")

@@ -116,18 +116,23 @@ if [[ "$STOP_AFTER_B" == "1" ]]; then
 fi
 
 # ============================================
-# Stage 2: Intermediate Sharing (all B values)
+# Stage 2: Intermediate Sharing (at chosen B only)
 # ============================================
 echo ""
 echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
-INT_SHARE_CMD="python3 scripts/lv_intermediate_sharing.py \\
+INT_SHARE_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
+
+python3 scripts/lv_intermediate_sharing.py \\
     --lv-output-dirs $LV_OUTPUT_DIRS \\
-    --b-values $B_VALUES \\
+    --b \$CHOSEN_B \\
     --effect-size-threshold $EFFECT_THRESHOLD \\
     --dwpc-percentile $DWPC_PERCENTILE \\
-    --output-dir \"$OUTPUT_DIR/intermediate_sharing\""
+    --output-dir \"$OUTPUT_DIR/intermediate_sharing\"
+"
 
 if [[ -n "$B_SELECT_JOB_ID" ]]; then
     DEP_FLAG="--dependency=afterok:$B_SELECT_JOB_ID"
@@ -157,13 +162,18 @@ echo ""
 echo "Stage 3: Global Summary"
 echo "-----------------------"
 
-# Summary at all B values
-SUMMARY_CMD="python3 scripts/generate_global_summary.py \\
+SUMMARY_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for global summary\"
+
+python3 scripts/generate_global_summary.py \\
     --analysis-type lv \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
-    --b-values $B_VALUES \\
+    --b-values \$CHOSEN_B \\
     --chosen-b-json \"$OUTPUT_DIR/b_selection/chosen_b.json\" \\
-    --output-dir \"$OUTPUT_DIR/global_summary\""
+    --effect-size-threshold $EFFECT_THRESHOLD \\
+    --output-dir \"$OUTPUT_DIR/global_summary\"
+"
 
 SUMMARY_JOB_ID=$(sbatch \
     --parsable \

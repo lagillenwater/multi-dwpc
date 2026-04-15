@@ -657,11 +657,10 @@ def main() -> None:
         print(f"Processing B = {b_value}")
         print("=" * 60)
 
-        # Determine output directory for this B value
-        if len(b_values) > 1:
-            b_out_dir = out_dir / f"b{b_value}"
-        else:
-            b_out_dir = out_dir
+        # Always write to a b{value}/ subdirectory so downstream consumers
+        # (generate_gene_table.py, plot_metapath_subgraphs.py, etc.) can locate
+        # results uniformly regardless of single- vs multi-B runs.
+        b_out_dir = out_dir / f"b{b_value}"
         b_out_dir.mkdir(parents=True, exist_ok=True)
 
         # Load results at this B value
