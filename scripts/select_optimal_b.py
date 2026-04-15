@@ -23,8 +23,19 @@ import argparse
 import json
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+
+def _save_figure(fig, out_path_stem: Path) -> None:
+    """Save a figure as both .pdf and .png using the same stem."""
+    out_path_stem.parent.mkdir(parents=True, exist_ok=True)
+    for ext in (".pdf", ".png"):
+        fig.savefig(out_path_stem.with_suffix(ext), bbox_inches="tight", dpi=200)
 
 
 def _compute_stabilization_point(
@@ -110,6 +121,138 @@ def _compute_stabilization_point(
         rows.append(row)
 
     return pd.DataFrame(rows)
+
+
+def _plot_stabilization_curves(
+    raw_df: pd.DataFrame,
+    group_cols: list[str],
+    metric_col: str,
+    increasing: bool,
+    threshold: float,
+    title: str,
+    out_stem: Path,
+) -> None:
+    """Grid of curves (one panel per entity x control), marking each stabilization point."""
+    if raw_df.empty or metric_col not in raw_df.columns:
+        return
+
+    control_col, entity_col = group_cols
+    controls = sorted(raw_df[control_col].astype(str).unique().tolist())
+    entities = sorted(raw_df[entity_col].astype(str).unique().tolist())
+    if not controls or not entities:
+        return
+
+    n_cols = min(len(entities), 4)
+    n_rows = (len(entities) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(4.2 * n_cols, 3.2 * n_rows),
+        sharex=True, squeeze=False,
+    )
+
+    control_colors = {c: plt.get_cmap("tab10")(i % 10) for i, c in enumerate(controls)}
+
+    for idx, entity in enumerate(entities):
+        r, c = divmod(idx, n_cols)
+        ax = axes[r][c]
+        for control in controls:
+            sub = raw_df[
+                (raw_df[control_col].astype(str) == control)
+                & (raw_df[entity_col].astype(str) == entity)
+            ]
+            if sub.empty:
+                continue
+            curve = (
+                sub.groupby("b", as_index=False)[metric_col]
+                .mean()
+                .sort_values("b")
+                .reset_index(drop=True)
+            )
+            if len(curve) < 2:
+                continue
+            b_vals = curve["b"].astype(float).to_numpy()
+            y = curve[metric_col].astype(float).to_numpy()
+            color = control_colors[control]
+            ax.plot(b_vals, y, marker="o", color=color, linewidth=1.6, label=control)
+
+            if len(curve) >= 3:
+                baseline = float(y[0])
+                asymptote = float(y[-1])
+                if asymptote != baseline:
+                    if increasing:
+                        target = baseline + threshold * (asymptote - baseline)
+                        passes = y >= target
+                    else:
+                        target = baseline - threshold * (baseline - asymptote)
+                        passes = y <= target
+                    if passes.all():
+                        chosen_idx = 0
+                    elif not passes[-1]:
+                        chosen_idx = len(y) - 1
+                    else:
+                        chosen_idx = int(np.flatnonzero(~passes)[-1]) + 1
+                    ax.axhline(target, color=color, linestyle=":", linewidth=0.9, alpha=0.6)
+                    ax.scatter(
+                        [b_vals[chosen_idx]], [y[chosen_idx]],
+                        marker="*", s=180, color=color,
+                        edgecolors="black", linewidths=0.8, zorder=5,
+                    )
+        ax.set_title(str(entity), fontsize=10)
+        ax.grid(alpha=0.25)
+        if r == n_rows - 1:
+            ax.set_xlabel("B")
+        if c == 0:
+            ax.set_ylabel(metric_col)
+
+    # Blank unused axes
+    for k in range(len(entities), n_rows * n_cols):
+        r, c = divmod(k, n_cols)
+        axes[r][c].axis("off")
+
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1.0, 0.5), title="Control")
+    fig.suptitle(title)
+    fig.tight_layout()
+    _save_figure(fig, out_stem)
+    plt.close(fig)
+
+
+def _plot_stabilization_distribution(
+    summary_df: pd.DataFrame,
+    chosen_b: int,
+    out_stem: Path,
+) -> None:
+    """Histogram of per-curve stabilization_b, colored by metric, with chosen B marked."""
+    if summary_df.empty:
+        return
+
+    metrics = sorted(summary_df["metric"].unique().tolist())
+    all_bs = sorted(summary_df["stabilization_b"].astype(int).unique().tolist())
+    width = 0.8 / max(len(metrics), 1)
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    cmap = plt.get_cmap("tab10")
+    for mi, metric in enumerate(metrics):
+        vals = summary_df[summary_df["metric"] == metric]["stabilization_b"].astype(int)
+        counts = vals.value_counts().reindex(all_bs, fill_value=0).sort_index()
+        xs = np.arange(len(all_bs)) + mi * width - (len(metrics) - 1) * width / 2
+        ax.bar(xs, counts.values, width=width, color=cmap(mi % 10), label=metric)
+
+    ax.set_xticks(np.arange(len(all_bs)))
+    ax.set_xticklabels([str(b) for b in all_bs])
+    ax.set_xlabel("Stabilization B")
+    ax.set_ylabel("Number of curves")
+    ax.axvline(
+        all_bs.index(int(chosen_b)) if int(chosen_b) in all_bs else -1,
+        color="black", linestyle="--", linewidth=1.4, label=f"Chosen B = {chosen_b}",
+    )
+    ax.legend(loc="best", fontsize=9)
+    ax.grid(axis="y", alpha=0.25)
+    ax.set_title("Distribution of per-curve stabilization B values")
+    fig.tight_layout()
+    _save_figure(fig, out_stem)
+    plt.close(fig)
 
 
 def load_variance_stabilization(
@@ -311,6 +454,61 @@ def main() -> None:
         json.dump(result, f, indent=2)
     print(f"Saved chosen B: {chosen_path}")
     print(f"\nChosen B = {chosen_b}")
+
+    # ---- Plots ----
+    plots_dir = output_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    entity_col = "lv_id" if args.analysis_type == "lv" else "go_id"
+    group_cols = ["control", entity_col]
+
+    variance_summary_path = variance_dir / "feature_variance_summary.csv"
+    if variance_summary_path.exists():
+        variance_raw = pd.read_csv(variance_summary_path)
+        for metric in ("diff_std", "diff_var"):
+            if metric in variance_raw.columns:
+                _plot_stabilization_curves(
+                    variance_raw,
+                    group_cols=group_cols,
+                    metric_col=metric,
+                    increasing=False,
+                    threshold=args.threshold,
+                    title=f"Null-variance curves: {metric} (stabilization @ {int(args.threshold * 100)}%)",
+                    out_stem=plots_dir / f"stabilization_curves_{metric}",
+                )
+
+    rank_summary_path = (
+        rank_dir / ("lv_stability_summary.csv" if args.analysis_type == "lv" else "go_stability_summary.csv")
+    )
+    if rank_summary_path.exists():
+        rank_raw = pd.read_csv(rank_summary_path)
+    elif (rank_dir / "metapath_pairwise_metrics.csv").exists():
+        rank_raw = pd.read_csv(rank_dir / "metapath_pairwise_metrics.csv")
+        if "control" not in rank_raw.columns:
+            rank_raw["control"] = "combined"
+    else:
+        rank_raw = pd.DataFrame()
+
+    if not rank_raw.empty:
+        for metric in ("mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo"):
+            if metric in rank_raw.columns:
+                _plot_stabilization_curves(
+                    rank_raw,
+                    group_cols=group_cols,
+                    metric_col=metric,
+                    increasing=True,
+                    threshold=args.threshold,
+                    title=f"Rank-stability curves: {metric} (stabilization @ {int(args.threshold * 100)}%)",
+                    out_stem=plots_dir / f"stabilization_curves_{metric}",
+                )
+
+    _plot_stabilization_distribution(
+        summary_df=summary,
+        chosen_b=chosen_b,
+        out_stem=plots_dir / "stabilization_b_distribution",
+    )
+
+    print(f"Saved plots: {plots_dir}")
 
 
 if __name__ == "__main__":

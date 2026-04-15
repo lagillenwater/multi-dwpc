@@ -26,7 +26,145 @@ import argparse
 import json
 from pathlib import Path
 
+import matplotlib
+import numpy as np
 import pandas as pd
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+
+def _save_figure(fig, out_stem: Path) -> None:
+    """Save figure as both PDF and PNG using a common stem."""
+    out_stem.parent.mkdir(parents=True, exist_ok=True)
+    for ext in (".pdf", ".png"):
+        fig.savefig(out_stem.with_suffix(ext), bbox_inches="tight", dpi=200)
+
+
+def _load_dropped_lvs(input_dir: Path, b_value: int | None) -> pd.DataFrame:
+    """Load dropped_lvs.csv from the intermediate-sharing output if present."""
+    data_dir = input_dir / f"b{b_value}" if b_value is not None else input_dir
+    path = data_dir / "dropped_lvs.csv"
+    if not path.exists():
+        return pd.DataFrame()
+    return pd.read_csv(path)
+
+
+def plot_lv_selection_diagnostics(
+    by_metapath_df: pd.DataFrame,
+    dropped_df: pd.DataFrame,
+    effect_size_threshold: float,
+    analysis_type: str,
+    out_dir: Path,
+) -> None:
+    """Emit two PDFs + PNGs showing why each LV was kept or dropped.
+
+    - `lv_selection_max_effect_size`: horizontal bar of max effect size per LV,
+      colored by selected/dropped, with the filter threshold marked.
+    - `lv_selection_effect_distribution`: strip + count of per-metapath effect
+      sizes for each selected LV; dropped LVs shown at their max_d.
+    """
+    if by_metapath_df.empty and dropped_df.empty:
+        return
+    id_col = "lv_id" if analysis_type == "lv" else "go_id"
+
+    selected_summary = pd.DataFrame()
+    if not by_metapath_df.empty and id_col in by_metapath_df.columns:
+        selected_summary = (
+            by_metapath_df.groupby(id_col, as_index=False)
+            .agg(
+                max_effect_size_d=("effect_size_d", "max"),
+                n_metapaths_selected=("effect_size_d", "size"),
+            )
+            .assign(status="selected")
+        )
+
+    dropped_summary = pd.DataFrame()
+    if not dropped_df.empty and id_col in dropped_df.columns:
+        dropped_summary = dropped_df[[id_col, "max_effect_size_d"]].copy()
+        dropped_summary["n_metapaths_selected"] = 0
+        dropped_summary["status"] = "dropped"
+
+    all_lvs = pd.concat([selected_summary, dropped_summary], ignore_index=True)
+    if all_lvs.empty:
+        return
+    all_lvs = all_lvs.sort_values("max_effect_size_d", ascending=False).reset_index(drop=True)
+
+    status_colors = {"selected": "#1f77b4", "dropped": "#bdbdbd"}
+
+    # Plot 1: max effect size per LV with threshold line
+    fig, ax = plt.subplots(figsize=(9, max(3.5, 0.28 * len(all_lvs))))
+    y = np.arange(len(all_lvs))
+    colors = [status_colors.get(s, "#888") for s in all_lvs["status"]]
+    ax.barh(y, all_lvs["max_effect_size_d"].astype(float), color=colors, edgecolor="black", linewidth=0.3)
+    ax.set_yticks(y)
+    ax.set_yticklabels(all_lvs[id_col].astype(str).tolist(), fontsize=8)
+    ax.invert_yaxis()
+    ax.axvline(
+        float(effect_size_threshold),
+        color="red", linestyle="--", linewidth=1.3,
+        label=f"d threshold = {effect_size_threshold}",
+    )
+    for status, color in status_colors.items():
+        n = int((all_lvs["status"] == status).sum())
+        ax.bar(0, 0, color=color, label=f"{status} (n={n})")
+    ax.set_xlabel("Max effect size d across metapaths")
+    ax.set_ylabel(id_col)
+    ax.set_title("LV selection: max effect size per LV")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(axis="x", alpha=0.25)
+    fig.tight_layout()
+    _save_figure(fig, out_dir / "lv_selection_max_effect_size")
+    plt.close(fig)
+
+    # Plot 2: strip of effect sizes for selected LVs (one row per LV)
+    if by_metapath_df.empty or id_col not in by_metapath_df.columns:
+        return
+    selected_ids = all_lvs[all_lvs["status"] == "selected"][id_col].astype(str).tolist()
+    if not selected_ids:
+        return
+
+    strip_df = by_metapath_df[by_metapath_df[id_col].astype(str).isin(selected_ids)].copy()
+    if strip_df.empty:
+        return
+
+    id_order = selected_ids  # already sorted by max_effect_size_d above
+    row_index = {lv: i for i, lv in enumerate(id_order)}
+    strip_df["row"] = strip_df[id_col].astype(str).map(row_index)
+
+    fig, ax = plt.subplots(figsize=(9, max(3.2, 0.35 * len(id_order) + 1.5)))
+    rng = np.random.default_rng(0)
+    jitter = rng.uniform(-0.22, 0.22, size=len(strip_df))
+    ax.scatter(
+        strip_df["effect_size_d"].astype(float),
+        strip_df["row"].astype(float) + jitter,
+        s=22, alpha=0.55, color="#1f77b4", edgecolors="none",
+    )
+
+    # Overlay max per LV
+    max_per_lv = strip_df.groupby("row")["effect_size_d"].max()
+    ax.scatter(
+        max_per_lv.values,
+        max_per_lv.index.values.astype(float),
+        s=80, marker="D", facecolor="none", edgecolor="black", linewidths=1.2,
+        label="Max d",
+    )
+    ax.axvline(
+        float(effect_size_threshold),
+        color="red", linestyle="--", linewidth=1.3,
+        label=f"d threshold = {effect_size_threshold}",
+    )
+    ax.set_yticks(np.arange(len(id_order)))
+    ax.set_yticklabels(id_order, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel("Effect size d (per metapath)")
+    ax.set_ylabel(id_col)
+    ax.set_title("Per-metapath effect size distribution for selected LVs")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(axis="x", alpha=0.25)
+    fig.tight_layout()
+    _save_figure(fig, out_dir / "lv_selection_effect_distribution")
+    plt.close(fig)
 
 
 def load_intermediate_sharing_data(
@@ -235,6 +373,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Single B value to use",
     )
+    parser.add_argument(
+        "--effect-size-threshold",
+        type=float,
+        default=0.2,
+        help=(
+            "Effect-size (Cohen's d) threshold used by the upstream filter, "
+            "drawn on the LV selection diagnostic plots (default: 0.2)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -313,6 +460,24 @@ def main() -> None:
             print(f"Median top-1 coverage: {summary['median_top1_coverage'].median():.1f}%")
         if "median_pct_shared_majority" in summary.columns:
             print(f"Median % shared by majority: {summary['median_pct_shared_majority'].median():.1f}%")
+
+    # Diagnostic plots showing why each LV/GO was kept or dropped at this B
+    plot_b = args.b if args.b is not None else chosen_b
+    if plot_b is not None:
+        try:
+            by_metapath_df_plot, _ = load_intermediate_sharing_data(input_dir, plot_b)
+        except FileNotFoundError:
+            by_metapath_df_plot = pd.DataFrame()
+        dropped_df_plot = _load_dropped_lvs(input_dir, plot_b)
+        plots_dir = output_dir / "plots"
+        plot_lv_selection_diagnostics(
+            by_metapath_df=by_metapath_df_plot,
+            dropped_df=dropped_df_plot,
+            effect_size_threshold=args.effect_size_threshold,
+            analysis_type=args.analysis_type,
+            out_dir=plots_dir,
+        )
+        print(f"Saved LV selection diagnostic plots to {plots_dir}/")
 
 
 if __name__ == "__main__":
