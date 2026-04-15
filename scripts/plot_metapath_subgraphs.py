@@ -780,10 +780,9 @@ def _render_pooled_subgraph(
             ha="center", va="top", fontsize=11, fontweight="bold")
 
     # Title
-    mp_display = ", ".join(metapath_display(m) for m in metapaths)
     plural = "s" if len(metapaths) != 1 else ""
     ax.set_title(
-        f"{gene_set_id}: {target_name}  ({subtitle}; {len(metapaths)} metapath{plural})\n{mp_display}",
+        f"{gene_set_id}: {target_name}  ({subtitle}; {len(metapaths)} metapath{plural})",
         fontsize=12, fontweight="bold", pad=12,
     )
 
