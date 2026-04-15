@@ -48,7 +48,7 @@ def _compute_stabilization_point(
         increasing: True if the metric grows toward its asymptote (stability);
             False if it shrinks toward its asymptote (variance).
         threshold: Fraction of the baseline-to-asymptote distance that must be
-            covered. 0.95 means "within 5% of asymptote".
+            covered. 0.9 means "within 10% of asymptote".
 
     Returns:
         DataFrame with one row per group containing the stabilization point.
@@ -246,10 +246,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.95,
+        default=0.9,
         help=(
             "Fraction of the baseline-to-asymptote distance required to declare "
-            "stabilization (default: 0.95 = within 5%% of asymptote)"
+            "stabilization (default: 0.9 = within 10%% of asymptote)"
         ),
     )
     return parser.parse_args()
