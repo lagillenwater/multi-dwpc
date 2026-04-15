@@ -169,6 +169,7 @@ def _enumerate_gene_intermediates(
     dwpc_lookup: dict[tuple, float] | None = None,
     dwpc_thresholds: dict[tuple, float] | None = None,
     lv_id: str | None = None,
+    record_paths: list | None = None,
 ) -> dict[int, set[str]]:
     """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
 
@@ -253,14 +254,33 @@ def _enumerate_gene_intermediates(
         )
 
         intermediates = set()
-        for score, pos_path in selected:
+        for path_rank, (score, pos_path) in enumerate(selected, start=1):
             # pos_path is [target_pos, intermediate1, intermediate2, ..., gene_pos]
-            # Intermediate nodes are positions 1 to -2
+            # (nodes list is Target,...,Gene because enumerate_paths walks reversed)
+            path_node_ids: list[str | None] = []
             for i, (node_type, pos) in enumerate(zip(nodes, pos_path)):
-                if 0 < i < len(nodes) - 1:  # intermediate positions
-                    node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
-                    if node_id is not None:
-                        intermediates.add(f"{node_type}:{node_id}")
+                node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
+                qualified = f"{node_type}:{node_id}" if node_id is not None else None
+                path_node_ids.append(qualified)
+                if 0 < i < len(nodes) - 1 and qualified is not None:
+                    intermediates.add(qualified)
+
+            if record_paths is not None:
+                # Flip so hop_0 = source gene, hop_N = target -- the direction
+                # the plotting layer expects. Node types are flipped too.
+                reversed_ids = list(reversed(path_node_ids))
+                reversed_types = list(reversed(nodes))
+                record = {
+                    "lv_id": lv_id,
+                    "metapath": metapath,
+                    "gene_id": gene_id,
+                    "path_rank": int(path_rank),
+                    "path_score": float(score),
+                }
+                for hop_idx, (node_type, qualified) in enumerate(zip(reversed_types, reversed_ids)):
+                    record[f"hop_{hop_idx}_type"] = node_type
+                    record[f"hop_{hop_idx}_id"] = qualified
+                record_paths.append(record)
 
         if intermediates:
             gene_intermediates[gene_id] = intermediates
@@ -556,8 +576,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-top-k", type=int, default=100)
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
-        "--effect-size-threshold", type=float, default=0.2,
-        help="Minimum effect size (Cohen's d) for metapath selection. Default 0.2 (small effect).",
+        "--effect-size-threshold", type=float, default=0.5,
+        help="Minimum effect size (Cohen's d) for metapath selection. Default 0.5 (medium effect).",
     )
     parser.add_argument(
         "--dwpc-percentile", type=float, default=75.0,
@@ -729,6 +749,7 @@ def main() -> None:
         # Process each LV
         sharing_rows = []
         top_intermediates_rows = []
+        gene_path_records: list[dict] = []
 
         for lv_id, group in selected_mp.groupby("lv_id"):
             target_name = group["target_name"].iloc[0]
@@ -762,6 +783,7 @@ def main() -> None:
                     dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
                     dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
                     lv_id=lv_id,
+                    record_paths=gene_path_records,
                 )
                 if gene_ints:
                     print(f"    Found paths for {len(gene_ints)} genes")
@@ -837,6 +859,13 @@ def main() -> None:
             top_int_df["b"] = b_value
             top_int_df.to_csv(b_out_dir / "top_intermediates_by_metapath.csv", index=False)
             print(f"Saved: {b_out_dir / 'top_intermediates_by_metapath.csv'}")
+
+        # Save per-gene per-path node sequences for downstream visualization.
+        if gene_path_records:
+            gene_paths_df = pd.DataFrame(gene_path_records)
+            gene_paths_df["b"] = b_value
+            gene_paths_df.to_csv(b_out_dir / "gene_paths.csv", index=False)
+            print(f"Saved: {b_out_dir / 'gene_paths.csv'}")
 
         # Aggregate summary per LV
         summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(

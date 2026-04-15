@@ -132,86 +132,101 @@ def _plot_stabilization_curves(
     title: str,
     out_stem: Path,
 ) -> None:
-    """Grid of curves (one panel per entity x control), marking each stabilization point."""
+    """Per-control subplots with jittered points + per-entity mean trend, matching the
+    layout used by plot_lv_null_variance_results.py / plot_lv_rank_stability_results.py.
+    Each entity's stabilization point is ringed (face white, colored edge) on its trend.
+    """
     if raw_df.empty or metric_col not in raw_df.columns:
         return
 
     control_col, entity_col = group_cols
-    controls = sorted(raw_df[control_col].astype(str).unique().tolist())
-    entities = sorted(raw_df[entity_col].astype(str).unique().tolist())
+    controls = sorted(raw_df[control_col].dropna().astype(str).unique().tolist())
+    entities = sorted(raw_df[entity_col].dropna().astype(str).unique().tolist())
     if not controls or not entities:
         return
 
-    n_cols = min(len(entities), 4)
-    n_rows = (len(entities) + n_cols - 1) // n_cols
+    colormap = plt.get_cmap("tab10")
+    entity_colors = {e: colormap(i % 10) for i, e in enumerate(entities)}
+
     fig, axes = plt.subplots(
-        n_rows, n_cols,
-        figsize=(4.2 * n_cols, 3.2 * n_rows),
-        sharex=True, squeeze=False,
+        1, len(controls),
+        figsize=(7.0 * len(controls), 5.2),
+        sharey=True,
     )
+    if len(controls) == 1:
+        axes = [axes]
 
-    control_colors = {c: plt.get_cmap("tab10")(i % 10) for i, c in enumerate(controls)}
+    rng = np.random.default_rng(42)
 
-    for idx, entity in enumerate(entities):
-        r, c = divmod(idx, n_cols)
-        ax = axes[r][c]
-        for control in controls:
-            sub = raw_df[
-                (raw_df[control_col].astype(str) == control)
-                & (raw_df[entity_col].astype(str) == entity)
-            ]
-            if sub.empty:
+    for ax, control in zip(axes, controls):
+        control_df = raw_df[raw_df[control_col].astype(str) == control]
+        for entity in entities:
+            points = control_df[control_df[entity_col].astype(str) == entity]
+            if points.empty:
                 continue
+            color = entity_colors[entity]
+
+            # Jittered scatter of raw per-feature/per-seed points
+            b_values = points["b"].astype(float).to_numpy()
+            jitter = rng.uniform(-0.14, 0.14, size=len(points))
+            ax.scatter(
+                b_values + jitter,
+                points[metric_col].astype(float).to_numpy(),
+                s=28, alpha=0.30,
+                color=color, edgecolors="none",
+            )
+
+            # Mean trend over B
             curve = (
-                sub.groupby("b", as_index=False)[metric_col]
+                points.groupby("b", as_index=False)[metric_col]
                 .mean()
                 .sort_values("b")
                 .reset_index(drop=True)
             )
             if len(curve) < 2:
                 continue
-            b_vals = curve["b"].astype(float).to_numpy()
+            x = curve["b"].astype(float).to_numpy()
             y = curve[metric_col].astype(float).to_numpy()
-            color = control_colors[control]
-            ax.plot(b_vals, y, marker="o", color=color, linewidth=1.6, label=control)
+            ax.plot(
+                x, y,
+                marker="o", markersize=6.5,
+                linewidth=2.2, color=color,
+                label=entity,
+            )
 
-            if len(curve) >= 3:
-                baseline = float(y[0])
-                asymptote = float(y[-1])
-                if asymptote != baseline:
-                    if increasing:
-                        target = baseline + threshold * (asymptote - baseline)
-                        passes = y >= target
-                    else:
-                        target = baseline - threshold * (baseline - asymptote)
-                        passes = y <= target
-                    if passes.all():
-                        chosen_idx = 0
-                    elif not passes[-1]:
-                        chosen_idx = len(y) - 1
-                    else:
-                        chosen_idx = int(np.flatnonzero(~passes)[-1]) + 1
-                    ax.axhline(target, color=color, linestyle=":", linewidth=0.9, alpha=0.6)
-                    ax.scatter(
-                        [b_vals[chosen_idx]], [y[chosen_idx]],
-                        marker="*", s=180, color=color,
-                        edgecolors="black", linewidths=0.8, zorder=5,
-                    )
-        ax.set_title(str(entity), fontsize=10)
+            # Stabilization point: ring (no star), drawn on top of the trend marker.
+            if len(curve) < 3:
+                continue
+            baseline = float(y[0])
+            asymptote = float(y[-1])
+            if asymptote == baseline:
+                continue
+            if increasing:
+                target = baseline + threshold * (asymptote - baseline)
+                passes = y >= target
+            else:
+                target = baseline - threshold * (baseline - asymptote)
+                passes = y <= target
+            if passes.all():
+                chosen_idx = 0
+            elif not passes[-1]:
+                chosen_idx = len(y) - 1
+            else:
+                chosen_idx = int(np.flatnonzero(~passes)[-1]) + 1
+
+            ax.scatter(
+                [x[chosen_idx]], [y[chosen_idx]],
+                s=220, facecolors="white",
+                edgecolors=color, linewidths=2.2,
+                zorder=6,
+            )
+
+        ax.set_xlabel("B (replicate count)")
+        ax.set_title(control)
         ax.grid(alpha=0.25)
-        if r == n_rows - 1:
-            ax.set_xlabel("B")
-        if c == 0:
-            ax.set_ylabel(metric_col)
 
-    # Blank unused axes
-    for k in range(len(entities), n_rows * n_cols):
-        r, c = divmod(k, n_cols)
-        axes[r][c].axis("off")
-
-    handles, labels = axes[0][0].get_legend_handles_labels()
-    if handles:
-        fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1.0, 0.5), title="Control")
+    axes[0].set_ylabel(metric_col)
+    axes[-1].legend(title=entity_col, loc="best")
     fig.suptitle(title)
     fig.tight_layout()
     _save_figure(fig, out_stem)
@@ -255,10 +270,30 @@ def _plot_stabilization_distribution(
     plt.close(fig)
 
 
+VARIANCE_METRICS = ("diff_std", "diff_var", "diff_cv")
+RANK_METRICS = ("mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo")
+
+
+def _derive_cv(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a `diff_cv = diff_std / |diff_mean|` column, guarding against /0.
+
+    A tiny |diff_mean| blows CV up to infinity; we set those to NaN so they
+    propagate cleanly through mean/median aggregations.
+    """
+    if "diff_std" not in df.columns or "diff_mean" not in df.columns:
+        return df
+    out = df.copy()
+    mean_abs = out["diff_mean"].astype(float).abs()
+    eps = 1e-12
+    cv = out["diff_std"].astype(float) / mean_abs.where(mean_abs > eps)
+    out["diff_cv"] = cv.replace([np.inf, -np.inf], np.nan)
+    return out
+
+
 def load_variance_stabilization(
     variance_dir: Path, analysis_type: str, threshold: float
 ) -> pd.DataFrame:
-    """Compute stabilization points for null-variance metrics."""
+    """Compute stabilization points for null-variance metrics (std, var, cv)."""
     summary_path = variance_dir / "feature_variance_summary.csv"
     group_cols = ["control", "lv_id"] if analysis_type == "lv" else ["control", "go_id"]
 
@@ -266,10 +301,10 @@ def load_variance_stabilization(
         print(f"Warning: {summary_path} not found, skipping variance metrics")
         return pd.DataFrame()
 
-    df = pd.read_csv(summary_path)
+    df = _derive_cv(pd.read_csv(summary_path))
 
     frames = []
-    for metric in ["diff_std", "diff_var"]:
+    for metric in VARIANCE_METRICS:
         if metric in df.columns:
             frames.append(
                 _compute_stabilization_point(
@@ -315,6 +350,9 @@ def load_rank_stability_stabilization(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
+AGGREGATION_METRIC = "diff_cv"
+
+
 def select_optimal_b(
     variance_dir: Path,
     rank_dir: Path,
@@ -322,7 +360,12 @@ def select_optimal_b(
     aggregation: str,
     threshold: float,
 ) -> tuple[int, pd.DataFrame]:
-    """Select optimal B by aggregating per-curve stabilization points.
+    """Select optimal B from coefficient-of-variation stabilization points.
+
+    Only `diff_cv` drives chosen_b -- it captures both the scale of variation
+    (std) and the mean. Other variance and rank-stability metrics still appear
+    in the returned summary (for plots / diagnostics) but don't influence the
+    chosen value.
 
     Returns:
         Tuple of (chosen_b, stabilization_summary_df).
@@ -337,7 +380,14 @@ def select_optimal_b(
             "No stabilization data found. Run variance and rank stability experiments first."
         )
 
-    b_values = all_points["stabilization_b"].dropna()
+    agg_points = all_points[all_points["metric"] == AGGREGATION_METRIC].copy()
+    if agg_points.empty:
+        raise ValueError(
+            f"No stabilization data for aggregation metric '{AGGREGATION_METRIC}'. "
+            f"Available metrics: {sorted(all_points['metric'].unique().tolist())}"
+        )
+
+    b_values = agg_points["stabilization_b"].dropna()
     min_b = int(b_values.min())
     # interpolation="higher" guarantees the reported median is a B value that
     # at least one curve actually stabilized at (i.e., a sampled B). With the
@@ -351,7 +401,7 @@ def select_optimal_b(
     chosen_b = median_b if aggregation == "median" else max_b
 
     print(
-        f"Stabilization B (threshold={threshold}): "
+        f"Stabilization B from {AGGREGATION_METRIC} (threshold={threshold}): "
         f"min={min_b}, median={median_b}, max={max_b}"
     )
     print(f"Chosen B ({aggregation}): {chosen_b}")
@@ -423,30 +473,34 @@ def main() -> None:
     summary.to_csv(summary_path, index=False)
     print(f"Saved stabilization summary: {summary_path}")
 
-    stab_b_counts = (
-        summary["stabilization_b"].value_counts().sort_index().astype(int).to_dict()
-    )
+    # Stats reported to chosen_b.json are based on the AGGREGATION_METRIC only,
+    # so they match the chosen_b calculation. Other metrics still live in the
+    # stabilization_summary.csv and the diagnostic plots.
+    agg_summary = summary[summary["metric"] == AGGREGATION_METRIC]
+    if agg_summary.empty:
+        raise ValueError(
+            f"No rows found for aggregation metric '{AGGREGATION_METRIC}' in the summary."
+        )
+    agg_b = agg_summary["stabilization_b"]
+    stab_b_counts = agg_b.value_counts().sort_index().astype(int).to_dict()
     stab_b_counts = {str(int(k)): int(v) for k, v in stab_b_counts.items()}
 
-    n_curves = len(summary)
-    curves_at_max_sampled_b = int(
-        (summary["stabilization_b"] == summary["stabilization_b"].max()).sum()
-    )
+    n_curves = len(agg_summary)
+    curves_at_max_sampled_b = int((agg_b == agg_b.max()).sum())
 
     result = {
         "chosen_b": chosen_b,
         "aggregation": args.aggregation,
+        "aggregation_metric": AGGREGATION_METRIC,
         "threshold": args.threshold,
         "analysis_type": args.analysis_type,
-        "min_stabilization_b": int(summary["stabilization_b"].min()),
-        "median_stabilization_b": int(
-            summary["stabilization_b"].quantile(0.5, interpolation="higher")
-        ),
-        "max_stabilization_b": int(summary["stabilization_b"].max()),
+        "min_stabilization_b": int(agg_b.min()),
+        "median_stabilization_b": int(agg_b.quantile(0.5, interpolation="higher")),
+        "max_stabilization_b": int(agg_b.max()),
         "stabilization_b_counts": stab_b_counts,
         "n_curves": n_curves,
         "n_curves_at_max_sampled_b": curves_at_max_sampled_b,
-        "metrics_used": sorted(summary["metric"].unique().tolist()),
+        "metrics_in_summary": sorted(summary["metric"].unique().tolist()),
     }
 
     chosen_path = output_dir / "chosen_b.json"
@@ -464,8 +518,8 @@ def main() -> None:
 
     variance_summary_path = variance_dir / "feature_variance_summary.csv"
     if variance_summary_path.exists():
-        variance_raw = pd.read_csv(variance_summary_path)
-        for metric in ("diff_std", "diff_var"):
+        variance_raw = _derive_cv(pd.read_csv(variance_summary_path))
+        for metric in VARIANCE_METRICS:
             if metric in variance_raw.columns:
                 _plot_stabilization_curves(
                     variance_raw,
@@ -503,7 +557,7 @@ def main() -> None:
                 )
 
     _plot_stabilization_distribution(
-        summary_df=summary,
+        summary_df=summary[summary["metric"] == AGGREGATION_METRIC],
         chosen_b=chosen_b,
         out_stem=plots_dir / "stabilization_b_distribution",
     )
