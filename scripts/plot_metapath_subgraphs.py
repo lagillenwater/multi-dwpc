@@ -330,19 +330,91 @@ def plot_metapath_subgraph(
 
     node_name_lookup = node_name_lookup or {}
     genes = genes[:max_genes]
+    n_intermediate_hops = len(hop_node_types)
+
+    # Step 1: per-hop top-N candidate intermediates (based on source-gene coverage).
     hop_buckets: list[list[dict]] = _per_hop_intermediate_buckets(
         intermediates,
         hop_node_types,
         path_edges=path_edges,
         top_n_per_hop=max_intermediates_per_hop,
     )
+    allowed_per_hop: dict[int, set[str]] = {}
+    for hi, bucket in enumerate(hop_buckets):
+        allowed_per_hop[hi + 1] = {
+            str(it.get("intermediate_id", "") or "") for it in bucket if it.get("intermediate_id")
+        }
+
+    # Step 2: keep only paths where EVERY intermediate is in its hop's allowed set.
+    # This prevents split/ghost edges -- drawn paths are always end-to-end complete.
+    surviving_rows: list[dict] = []
+    if path_edges is not None and not path_edges.empty:
+        for row in path_edges.itertuples(index=False):
+            row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
+            ok = True
+            for hi in range(1, n_intermediate_hops + 1):
+                iid = row_dict.get(f"hop_{hi}_id")
+                if iid is None or (isinstance(iid, float) and pd.isna(iid)):
+                    ok = False
+                    break
+                if str(iid) not in allowed_per_hop.get(hi, set()):
+                    ok = False
+                    break
+            if ok:
+                surviving_rows.append(row_dict)
+
+    # Step 3: derive visible sources + actually-used intermediates from surviving paths.
+    visible_source_ids: set[str] = set()
+    used_per_hop: dict[int, set[str]] = {i: set() for i in range(1, n_intermediate_hops + 1)}
+    edge_counts: dict[tuple[int, str, str], int] = {}
+    for row in surviving_rows:
+        src = row.get("hop_0_id")
+        if src is not None and not (isinstance(src, float) and pd.isna(src)):
+            visible_source_ids.add(str(src))
+        for hi in range(1, n_intermediate_hops + 1):
+            iid = row.get(f"hop_{hi}_id")
+            if iid is not None and not (isinstance(iid, float) and pd.isna(iid)):
+                used_per_hop[hi].add(str(iid))
+        for i in range(n_cols - 1):
+            fid = row.get(f"hop_{i}_id")
+            tid = row.get(f"hop_{i + 1}_id")
+            if fid is None or tid is None:
+                continue
+            if (isinstance(fid, float) and pd.isna(fid)) or (
+                isinstance(tid, float) and pd.isna(tid)
+            ):
+                continue
+            key = (i, str(fid), str(tid))
+            edge_counts[key] = edge_counts.get(key, 0) + 1
+
+    # Step 4: filter displayed genes + intermediates to those on at least one surviving path.
+    if surviving_rows:
+        genes_to_draw = [
+            g for g in genes
+            if f"{source_type}:{g.get('gene_id')}" in visible_source_ids
+        ]
+        final_buckets: list[list[dict]] = []
+        for hi in range(n_intermediate_hops):
+            bucket = hop_buckets[hi]
+            used = used_per_hop.get(hi + 1, set())
+            final_buckets.append(
+                [it for it in bucket if str(it.get("intermediate_id", "") or "") in used]
+            )
+    else:
+        # No surviving paths (no path data, or no complete coverage): fall back to
+        # the raw bucketed view with no edges.
+        genes_to_draw = list(genes)
+        final_buckets = hop_buckets
 
     if figsize is None:
-        figsize = (max(10.0, 2.8 * n_cols + 2.5), max(8.0, 0.42 * max_genes + 3.0))
+        figsize = (
+            max(10.0, 2.8 * n_cols + 2.5),
+            max(8.0, 0.42 * max(len(genes_to_draw), 1) + 3.0),
+        )
     fig, ax = plt.subplots(figsize=figsize)
 
-    if not genes and all(not b for b in hop_buckets):
-        ax.text(0.5, 0.5, "No data to display", ha="center", va="center", fontsize=14)
+    if not genes_to_draw and all(not b for b in final_buckets):
+        ax.text(0.5, 0.5, "No complete paths to display", ha="center", va="center", fontsize=14)
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
         _save_figure(fig, output_stem)
         plt.close(fig)
@@ -353,22 +425,60 @@ def plot_metapath_subgraph(
     hop_xs = x_positions[1:-1]
     target_x = x_positions[-1]
 
-    gene_y = _y_coords(len(genes))
+    gene_y = _y_coords(len(genes_to_draw))
+    target_pos = (target_x, 0.5)
 
-    # Position map for edge drawing (keys: qualified node IDs like "G:123" / "A:UBERON:...").
-    node_positions: dict[str, tuple[float, float]] = {}
-    for i, gene in enumerate(genes):
+    # Position maps. Hop positions use (hop_idx, qualified_id) so the same id
+    # appearing at multiple hops (e.g. G-G-G-A) gets distinct coordinates.
+    source_positions: dict[str, tuple[float, float]] = {}
+    for i, gene in enumerate(genes_to_draw):
         gid = gene.get("gene_id")
         if gid is not None:
-            node_positions[f"{source_type}:{gid}"] = (gene_x, gene_y[i])
+            source_positions[f"{source_type}:{gid}"] = (gene_x, gene_y[i])
 
-    # Draw gene nodes (no edges out of this column)
+    hop_positions: dict[int, dict[str, tuple[float, float]]] = {}
+    for hop_idx, hop_x in enumerate(hop_xs):
+        items = final_buckets[hop_idx]
+        ys = _y_coords(len(items))
+        pos_map: dict[str, tuple[float, float]] = {}
+        for j, interm in enumerate(items):
+            int_id = str(interm.get("intermediate_id", "") or "")
+            if int_id:
+                pos_map[int_id] = (hop_x, ys[j])
+        hop_positions[hop_idx + 1] = pos_map
+
+    # Draw edges first (lowest z-order) so nodes cover their endpoints.
+    if edge_counts:
+        max_count = max(edge_counts.values())
+        for (i, fid, tid), cnt in edge_counts.items():
+            # Determine from_pos
+            if i == 0:
+                from_pos = source_positions.get(fid)
+            else:
+                from_pos = hop_positions.get(i, {}).get(fid)
+            # Determine to_pos
+            if i + 1 == n_cols - 1:
+                to_pos = target_pos
+            else:
+                to_pos = hop_positions.get(i + 1, {}).get(tid)
+            if from_pos is None or to_pos is None:
+                continue
+            frac = cnt / max_count if max_count else 0.0
+            ax.plot(
+                [from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
+                color="#546E7A",
+                alpha=0.15 + 0.55 * frac,
+                linewidth=0.4 + 2.2 * frac,
+                zorder=1,
+            )
+
+    # Draw source gene nodes
     gene_color = NODE_COLORS.get(source_type, DEFAULT_COLOR)
-    dwpc_values = [float(g.get("dwpc", 1.0)) for g in genes]
+    dwpc_values = [float(g.get("dwpc", 1.0)) for g in genes_to_draw]
     max_dwpc = max(dwpc_values) if dwpc_values else 1.0
     min_dwpc = min(dwpc_values) if dwpc_values else 0.0
 
-    for i, gene in enumerate(genes):
+    for i, gene in enumerate(genes_to_draw):
         gy = gene_y[i]
         gene_name = gene.get("gene_name") or str(gene.get("gene_id", "?"))
         dwpc = float(gene.get("dwpc", 1.0))
@@ -382,15 +492,14 @@ def plot_metapath_subgraph(
         ax.text(gene_x - 0.015, gy, label, ha="right", va="center",
                 fontsize=8, fontweight="medium")
 
-    # Draw intermediate node columns
-    last_hop_x: float | None = None
-    last_hop_ys: list[float] = []
-    last_hop_items: list[dict] = []
+    # Draw intermediate nodes
     for hop_idx, hop_x in enumerate(hop_xs):
-        items = hop_buckets[hop_idx]
+        items = final_buckets[hop_idx]
         if not items:
-            ax.text(hop_x, 0.5, "(no data)", ha="center", va="center",
-                    fontsize=9, color="#888888", style="italic")
+            # Only happens when no path in top-N per-hop selection survived;
+            # be explicit rather than silently showing a blank column.
+            ax.text(hop_x, 0.5, "(no complete paths at this hop)",
+                    ha="center", va="center", fontsize=9, color="#888888", style="italic")
             continue
         node_type = hop_node_types[hop_idx]
         color = NODE_COLORS.get(node_type, DEFAULT_COLOR)
@@ -399,9 +508,7 @@ def plot_metapath_subgraph(
         ys = _y_coords(len(items))
         for j, interm in enumerate(items):
             iy = ys[j]
-            int_id = str(interm.get("intermediate_id", ""))
-            # Prefer the upstream-provided name; fall back to the loaded
-            # node-TSV name lookup; finally strip the type prefix off the id.
+            int_id = str(interm.get("intermediate_id", "") or "")
             int_name = interm.get("intermediate_name")
             if not int_name or (isinstance(int_name, float) and pd.isna(int_name)):
                 int_name = _format_intermediate_label(int_id, node_name_lookup)
@@ -417,63 +524,6 @@ def plot_metapath_subgraph(
             )
             ax.text(hop_x + 0.012, iy, f"{label}{pct_suffix}",
                     ha="left", va="center", fontsize=7)
-            if int_id:
-                node_positions[int_id] = (hop_x, iy)
-        last_hop_x = hop_x
-        last_hop_ys = ys
-        last_hop_items = items
-
-    target_pos = (target_x, 0.5)
-
-    # Real edges: aggregate (from_id, to_id) pairs across the path records
-    # for every adjacent hop transition.
-    edges_drawn = False
-    if path_edges is not None and not path_edges.empty:
-        n_hops = len(node_types)
-        edge_counts: dict[tuple[int, str, str], int] = {}
-        for row in path_edges.itertuples(index=False):
-            row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
-            for i in range(n_hops - 1):
-                from_id = row_dict.get(f"hop_{i}_id")
-                to_id = row_dict.get(f"hop_{i + 1}_id")
-                if from_id is None or (isinstance(from_id, float) and pd.isna(from_id)):
-                    continue
-                if to_id is None or (isinstance(to_id, float) and pd.isna(to_id)):
-                    continue
-                key = (i, str(from_id), str(to_id))
-                edge_counts[key] = edge_counts.get(key, 0) + 1
-        if edge_counts:
-            max_count = max(edge_counts.values())
-            for (hop_idx, fid, tid), cnt in edge_counts.items():
-                from_pos = node_positions.get(fid)
-                if hop_idx + 1 == len(node_types) - 1:
-                    to_pos = target_pos
-                else:
-                    to_pos = node_positions.get(tid)
-                if from_pos is None or to_pos is None:
-                    continue
-                frac = cnt / max_count if max_count else 0.0
-                ax.plot(
-                    [from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
-                    color="#546E7A",
-                    alpha=0.15 + 0.55 * frac,
-                    linewidth=0.4 + 2.2 * frac,
-                    zorder=1,
-                )
-                edges_drawn = True
-
-    # Fallback when no path-level data: at least draw last-intermediate -> target
-    if not edges_drawn and last_hop_x is not None and last_hop_items:
-        usages = [float(it.get("n_genes_using", 1)) for it in last_hop_items]
-        max_usage = max(usages) if usages else 1.0
-        for iy, interm in zip(last_hop_ys, last_hop_items):
-            usage = float(interm.get("n_genes_using", 1))
-            edge_width = 0.5 + 2.5 * (usage / max_usage if max_usage > 0 else 0)
-            ax.plot(
-                [last_hop_x, target_x], [iy, 0.5],
-                color="#78909C", alpha=0.45,
-                linewidth=edge_width, zorder=1,
-            )
 
     # Draw target node
     target_color = NODE_COLORS.get(target_type, DEFAULT_COLOR)
