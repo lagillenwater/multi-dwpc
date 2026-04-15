@@ -566,104 +566,138 @@ def plot_combined_lv_subgraph(
     intermediate_names: dict[str, str],
     output_stem: Path,
     max_genes: int = 20,
-    top_n_intermediates: int = 25,
+    top_n_per_hop: int = 15,
     figsize: tuple[float, float] | None = None,
 ) -> None:
     """Pooled per-LV subgraph across multiple metapaths.
 
-    Columns are Source | Hop 1 | Hop 2 | ... | Hop max_hops | Target. Shorter
-    metapaths jump from their last intermediate directly to Target, producing
-    edges that span the unused intermediate columns. Each intermediate is
-    placed in the hop column it traverses most often; if it serves more than
-    one hop across metapaths, the majority wins and a footnote is appended
-    to its label.
+    Layout: Source | Hop 1 | ... | Hop max_hops | Target. Every displayed
+    edge belongs to a path that traverses fully from source to target, so
+    there are no orphan source genes, no half-drawn paths, and no apparent
+    source-to-target direct edges. Intermediates are ranked per-hop (not
+    overall) and an intermediate can appear in multiple hop columns if it
+    genuinely serves both positions across the pooled metapaths.
     """
     if path_edges is None or path_edges.empty:
         print(f"  [combined] {gene_set_id}: no path-level data, skipping")
         return
 
-    # Determine hop counts per metapath (intermediate hops only) and max.
+    # Intermediate hop count per metapath (0 means trivial, skip).
     hop_counts = {mp: max(len(parse_metapath_nodes(mp)) - 2, 0) for mp in metapaths}
     max_hops = max(hop_counts.values()) if hop_counts else 1
     if max_hops == 0:
         max_hops = 1
-    n_cols = max_hops + 2  # source + hops + target
 
-    # Rank intermediates by traversal count across all top-K metapaths.
-    intermediate_rows: list[dict] = []
-    edge_counts: dict[tuple[int, str, str], int] = {}  # (hop_idx_from, from_id, to_id) -> count
-    hop_assignments: dict[str, dict[int, int]] = {}  # int_id -> {hop_idx: count}
-    traversal_counts: dict[str, int] = {}
+    # Step 1: walk path_edges once, accumulate per-intermediate-per-hop stats
+    # plus remember the intermediate's node type for coloring.
+    per_hop_traversals: dict[int, dict[str, int]] = {h: {} for h in range(1, max_hops + 1)}
+    per_hop_gene_sets: dict[int, dict[str, set[str]]] = {h: {} for h in range(1, max_hops + 1)}
     intermediate_types: dict[str, str] = {}
-    source_edges: dict[tuple[str, str], int] = {}  # (source_qualified, first_hop_id) -> count
-    target_edges: dict[tuple[int, str], int] = {}  # (last_hop_idx, last_hop_id) -> count (last hop -> target)
 
+    path_rows: list[dict] = []
     for row in path_edges.itertuples(index=False):
         row_dict = row._asdict() if hasattr(row, "_asdict") else dict(zip(path_edges.columns, row))
         mp = str(row_dict.get("metapath", ""))
-        mp_hop_count = hop_counts.get(mp, 0)  # intermediate hop count
+        mp_hop_count = hop_counts.get(mp, 0)
         if mp_hop_count == 0:
-            continue  # metapath has no intermediates
-        # hop_0 = source gene, hop_1..hop_mp_hop_count = intermediates, hop_{mp_hop_count+1} = target
+            continue
+        path_rows.append((row_dict, mp_hop_count))
         source_id = row_dict.get("hop_0_id")
-        target_id = row_dict.get(f"hop_{mp_hop_count + 1}_id")
-
-        # Record per-intermediate traversals (one increment per path per intermediate).
-        for int_idx in range(1, mp_hop_count + 1):
-            int_id = row_dict.get(f"hop_{int_idx}_id")
-            int_type = row_dict.get(f"hop_{int_idx}_type")
-            if int_id is None or (isinstance(int_id, float) and pd.isna(int_id)):
+        for hi in range(1, mp_hop_count + 1):
+            iid = row_dict.get(f"hop_{hi}_id")
+            itype = row_dict.get(f"hop_{hi}_type")
+            if iid is None or (isinstance(iid, float) and pd.isna(iid)):
                 continue
-            int_id = str(int_id)
-            traversal_counts[int_id] = traversal_counts.get(int_id, 0) + 1
-            if int_type and not (isinstance(int_type, float) and pd.isna(int_type)):
-                intermediate_types.setdefault(int_id, str(int_type))
-            hop_assignments.setdefault(int_id, {})
-            hop_assignments[int_id][int_idx] = hop_assignments[int_id].get(int_idx, 0) + 1
+            iid = str(iid)
+            per_hop_traversals[hi][iid] = per_hop_traversals[hi].get(iid, 0) + 1
+            per_hop_gene_sets[hi].setdefault(iid, set())
+            if source_id is not None and not (isinstance(source_id, float) and pd.isna(source_id)):
+                per_hop_gene_sets[hi][iid].add(str(source_id))
+            if itype and not (isinstance(itype, float) and pd.isna(itype)):
+                intermediate_types.setdefault(iid, str(itype))
 
-        # Accumulate edges.
-        # source -> first hop (column 1)
-        first_int_id = row_dict.get("hop_1_id")
-        if source_id is not None and first_int_id is not None:
-            key = (str(source_id), str(first_int_id))
-            source_edges[key] = source_edges.get(key, 0) + 1
+    if not path_rows:
+        print(f"  [combined] {gene_set_id}: no usable paths found")
+        return
 
-        # Intermediate -> intermediate
-        for int_idx in range(1, mp_hop_count):
-            fid = row_dict.get(f"hop_{int_idx}_id")
-            tid = row_dict.get(f"hop_{int_idx + 1}_id")
+    # Step 2: per-hop top-N by distinct source-gene coverage, then by traversals as tiebreak.
+    allowed_per_hop: dict[int, set[str]] = {}
+    for hi in range(1, max_hops + 1):
+        candidates = per_hop_gene_sets[hi]
+        if not candidates:
+            allowed_per_hop[hi] = set()
+            continue
+        ranked = sorted(
+            candidates.items(),
+            key=lambda kv: (len(kv[1]), per_hop_traversals[hi].get(kv[0], 0)),
+            reverse=True,
+        )
+        allowed_per_hop[hi] = {iid for iid, _ in ranked[:top_n_per_hop]}
+
+    # Step 3: keep only paths whose every intermediate is in its hop's allow set.
+    surviving: list[tuple[dict, int]] = []
+    for row_dict, mp_hop_count in path_rows:
+        ok = True
+        for hi in range(1, mp_hop_count + 1):
+            iid = row_dict.get(f"hop_{hi}_id")
+            if iid is None or (isinstance(iid, float) and pd.isna(iid)):
+                ok = False
+                break
+            if str(iid) not in allowed_per_hop.get(hi, set()):
+                ok = False
+                break
+        if ok:
+            surviving.append((row_dict, mp_hop_count))
+
+    if not surviving:
+        print(f"  [combined] {gene_set_id}: no paths survived the per-hop top-N filter")
+        return
+
+    # Step 4: from survivors, collect visible sources, used-per-hop ids, edge counts.
+    visible_source_ids: set[str] = set()
+    used_per_hop: dict[int, dict[str, int]] = {h: {} for h in range(1, max_hops + 1)}
+    used_gene_sets_per_hop: dict[int, dict[str, set[str]]] = {h: {} for h in range(1, max_hops + 1)}
+    edges: dict[tuple[int, str, str], int] = {}  # (hop_idx_of_from, from_id, to_id)
+    # Target is always drawn at column index max_hops + 1; encode it with tid=None in the key.
+
+    for row_dict, mp_hop_count in surviving:
+        src = row_dict.get("hop_0_id")
+        if src is not None and not (isinstance(src, float) and pd.isna(src)):
+            visible_source_ids.add(str(src))
+
+        for hi in range(1, mp_hop_count + 1):
+            iid = str(row_dict.get(f"hop_{hi}_id"))
+            used_per_hop[hi][iid] = used_per_hop[hi].get(iid, 0) + 1
+            used_gene_sets_per_hop[hi].setdefault(iid, set())
+            if src is not None and not (isinstance(src, float) and pd.isna(src)):
+                used_gene_sets_per_hop[hi][iid].add(str(src))
+
+        # Edges within the path
+        # source (hop 0) -> hop 1
+        if src is not None and mp_hop_count >= 1:
+            first = row_dict.get("hop_1_id")
+            if first is not None and not (isinstance(first, float) and pd.isna(first)):
+                edges[(0, str(src), str(first))] = edges.get((0, str(src), str(first)), 0) + 1
+        # intermediate -> intermediate
+        for hi in range(1, mp_hop_count):
+            fid = row_dict.get(f"hop_{hi}_id")
+            tid = row_dict.get(f"hop_{hi + 1}_id")
             if fid is None or tid is None:
                 continue
             if (isinstance(fid, float) and pd.isna(fid)) or (isinstance(tid, float) and pd.isna(tid)):
                 continue
-            edge_counts[(int_idx, str(fid), str(tid))] = (
-                edge_counts.get((int_idx, str(fid), str(tid)), 0) + 1
+            edges[(hi, str(fid), str(tid))] = edges.get((hi, str(fid), str(tid)), 0) + 1
+        # last intermediate -> target (may skip columns if mp_hop_count < max_hops)
+        last = row_dict.get(f"hop_{mp_hop_count}_id")
+        if last is not None and not (isinstance(last, float) and pd.isna(last)):
+            # Use sentinel "__target__" for the target side of the key.
+            edges[(mp_hop_count, str(last), "__target__")] = (
+                edges.get((mp_hop_count, str(last), "__target__"), 0) + 1
             )
 
-        # last intermediate -> target (may skip hop columns)
-        last_int_id = row_dict.get(f"hop_{mp_hop_count}_id")
-        if last_int_id is not None and target_id is not None:
-            target_edges[(mp_hop_count, str(last_int_id))] = (
-                target_edges.get((mp_hop_count, str(last_int_id)), 0) + 1
-            )
-
-    if not traversal_counts:
-        print(f"  [combined] {gene_set_id}: no intermediate traversals found")
-        return
-
-    # Top N intermediates overall
-    ranked = sorted(traversal_counts.items(), key=lambda kv: kv[1], reverse=True)[:top_n_intermediates]
-    kept_ids = {iid for iid, _ in ranked}
-
-    # Assign each kept intermediate to its majority hop index
-    int_hop: dict[str, int] = {}
-    for iid, _ in ranked:
-        hops = hop_assignments.get(iid, {})
-        if not hops:
-            continue
-        int_hop[iid] = max(hops.items(), key=lambda kv: kv[1])[0]
-
-    # Layout
+    # Step 5: layout. An intermediate can appear in more than one hop, so we key
+    # positions by (hop_idx, qualified_id).
+    n_cols = max_hops + 2
     if figsize is None:
         figsize = (max(11.0, 2.6 * n_cols + 3.0), max(8.0, 0.42 * max_genes + 3.0))
     fig, ax = plt.subplots(figsize=figsize)
@@ -673,76 +707,72 @@ def plot_combined_lv_subgraph(
     hop_xs = x_positions[1:-1]
     target_x = x_positions[-1]
 
-    genes = genes[:max_genes]
-    gene_y = _y_coords(len(genes)) if genes else []
+    # Drop source genes that had no surviving path.
+    genes_to_draw = [
+        g for g in genes[:max_genes]
+        if f"G:{g.get('gene_id')}" in visible_source_ids
+    ]
+    gene_y = _y_coords(len(genes_to_draw)) if genes_to_draw else []
 
-    # Group kept intermediates by hop index for positioning
-    hop_items: dict[int, list[str]] = {h: [] for h in range(1, max_hops + 1)}
-    for iid, h in int_hop.items():
-        if iid in kept_ids:
-            hop_items.setdefault(h, []).append(iid)
-    # Sort each hop's intermediates by traversal count desc
-    for h in hop_items:
-        hop_items[h].sort(key=lambda iid: traversal_counts.get(iid, 0), reverse=True)
-
-    # Build position map for drawing edges
-    node_positions: dict[str, tuple[float, float]] = {}
-    for i, gene in enumerate(genes):
+    source_positions: dict[str, tuple[float, float]] = {}
+    for i, gene in enumerate(genes_to_draw):
         gid = gene.get("gene_id")
         if gid is not None:
-            node_positions[f"G:{gid}"] = (source_x, gene_y[i])
-    hop_ys: dict[int, list[float]] = {}
-    for hop_idx in range(1, max_hops + 1):
-        items = hop_items.get(hop_idx, [])
+            source_positions[f"G:{gid}"] = (source_x, gene_y[i])
+
+    # Per-hop items sorted by gene coverage desc.
+    hop_items: dict[int, list[str]] = {}
+    for hi in range(1, max_hops + 1):
+        iids = list(used_per_hop.get(hi, {}).keys())
+        iids.sort(
+            key=lambda i: (
+                len(used_gene_sets_per_hop[hi].get(i, set())),
+                used_per_hop[hi].get(i, 0),
+            ),
+            reverse=True,
+        )
+        hop_items[hi] = iids
+
+    # Position map keyed by (hop_idx, qualified_id).
+    hop_positions: dict[int, dict[str, tuple[float, float]]] = {}
+    for hi in range(1, max_hops + 1):
+        items = hop_items[hi]
         ys = _y_coords(len(items))
-        hop_ys[hop_idx] = ys
+        pos_map: dict[str, tuple[float, float]] = {}
         for rank, iid in enumerate(items):
-            node_positions[iid] = (hop_xs[hop_idx - 1], ys[rank])
+            pos_map[iid] = (hop_xs[hi - 1], ys[rank])
+        hop_positions[hi] = pos_map
 
     target_pos = (target_x, 0.5)
 
-    # Draw edges (lowest z-order)
-    all_counts = (
-        list(source_edges.values())
-        + [c for (_, _, _), c in edge_counts.items()]
-        + list(target_edges.values())
-    )
-    max_count = max(all_counts) if all_counts else 1
+    # Total source-gene pool size for pct display.
+    total_source_genes = len(visible_source_ids) if visible_source_ids else 1
+
+    # Step 6: draw edges (lowest zorder).
+    max_count = max(edges.values()) if edges else 1
 
     def _edge_style(cnt: int) -> tuple[float, float]:
         frac = cnt / max_count if max_count else 0.0
-        return (0.15 + 0.55 * frac, 0.4 + 2.2 * frac)  # alpha, width
+        return (0.15 + 0.55 * frac, 0.4 + 2.2 * frac)
 
-    for (sid, fid), cnt in source_edges.items():
-        # `sid` is already qualified (e.g., "G:123") as written by lv_intermediate_sharing.
-        from_pos = node_positions.get(str(sid))
-        to_pos = node_positions.get(fid)
+    for (hop_idx_from, fid, tid), cnt in edges.items():
+        if hop_idx_from == 0:
+            from_pos = source_positions.get(fid)
+        else:
+            from_pos = hop_positions.get(hop_idx_from, {}).get(fid)
+        if tid == "__target__":
+            to_pos = target_pos
+        else:
+            to_pos = hop_positions.get(hop_idx_from + 1, {}).get(tid)
         if from_pos is None or to_pos is None:
             continue
         a, lw = _edge_style(cnt)
         ax.plot([from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
                 color="#546E7A", alpha=a, linewidth=lw, zorder=1)
 
-    for (hop_idx, fid, tid), cnt in edge_counts.items():
-        from_pos = node_positions.get(fid)
-        to_pos = node_positions.get(tid)
-        if from_pos is None or to_pos is None:
-            continue
-        a, lw = _edge_style(cnt)
-        ax.plot([from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
-                color="#546E7A", alpha=a, linewidth=lw, zorder=1)
-
-    for (hop_idx, fid), cnt in target_edges.items():
-        from_pos = node_positions.get(fid)
-        if from_pos is None:
-            continue
-        a, lw = _edge_style(cnt)
-        ax.plot([from_pos[0], target_pos[0]], [from_pos[1], target_pos[1]],
-                color="#546E7A", alpha=a, linewidth=lw, zorder=1)
-
-    # Draw source genes
+    # Step 7: draw source genes.
     gene_color = NODE_COLORS.get("G", DEFAULT_COLOR)
-    for i, gene in enumerate(genes):
+    for i, gene in enumerate(genes_to_draw):
         gy = gene_y[i]
         gene_name = gene.get("gene_name") or str(gene.get("gene_id", "?"))
         ax.scatter(source_x, gy, s=320, c=gene_color,
@@ -750,24 +780,26 @@ def plot_combined_lv_subgraph(
         ax.text(source_x - 0.015, gy, str(gene_name)[:12],
                 ha="right", va="center", fontsize=8, fontweight="medium")
 
-    # Draw intermediates, color by their own node type
-    for hop_idx in range(1, max_hops + 1):
-        items = hop_items.get(hop_idx, [])
-        ys = hop_ys.get(hop_idx, [])
+    # Step 8: draw intermediates. Labels show "% of source genes at this hop".
+    for hi in range(1, max_hops + 1):
+        items = hop_items.get(hi, [])
         for rank, iid in enumerate(items):
-            cnt = traversal_counts.get(iid, 1)
+            gene_cov = len(used_gene_sets_per_hop[hi].get(iid, set()))
+            cnt = used_per_hop[hi].get(iid, 0)
+            pct = (gene_cov / total_source_genes * 100.0) if total_source_genes else 0.0
             node_type = intermediate_types.get(iid, "?")
             color = NODE_COLORS.get(node_type, DEFAULT_COLOR)
             node_size = 180 + 520 * (cnt / max_count if max_count > 0 else 0)
-            ax.scatter(hop_xs[hop_idx - 1], ys[rank], s=node_size, c=color,
+            pos = hop_positions[hi][iid]
+            ax.scatter(pos[0], pos[1], s=node_size, c=color,
                        edgecolors="white", linewidths=1.2, zorder=3)
             name = intermediate_names.get(iid)
             if not name:
                 name = _format_intermediate_label(iid, intermediate_names)
             label = str(name)[:22]
             ax.text(
-                hop_xs[hop_idx - 1] + 0.012, ys[rank],
-                f"{label} ({cnt} traversals)",
+                pos[0] + 0.012, pos[1],
+                f"{label} ({pct:.0f}% genes)",
                 ha="left", va="center", fontsize=7,
             )
 
