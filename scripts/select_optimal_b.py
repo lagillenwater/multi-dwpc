@@ -196,7 +196,13 @@ def select_optimal_b(
 
     b_values = all_points["stabilization_b"].dropna()
     min_b = int(b_values.min())
-    median_b = int(round(b_values.median()))
+    # interpolation="higher" guarantees the reported median is a B value that
+    # at least one curve actually stabilized at (i.e., a sampled B). With the
+    # default linear interpolation, an even-sized sample with tied middle
+    # groups can yield a B that was never tested (e.g. median of [...20s..., ...30s...]
+    # becomes 25). The higher variant picks the upper-middle observation,
+    # which is also the conservative choice for stability coverage.
+    median_b = int(b_values.quantile(0.5, interpolation="higher"))
     max_b = int(b_values.max())
 
     chosen_b = median_b if aggregation == "median" else max_b
@@ -274,15 +280,29 @@ def main() -> None:
     summary.to_csv(summary_path, index=False)
     print(f"Saved stabilization summary: {summary_path}")
 
+    stab_b_counts = (
+        summary["stabilization_b"].value_counts().sort_index().astype(int).to_dict()
+    )
+    stab_b_counts = {str(int(k)): int(v) for k, v in stab_b_counts.items()}
+
+    n_curves = len(summary)
+    curves_at_max_sampled_b = int(
+        (summary["stabilization_b"] == summary["stabilization_b"].max()).sum()
+    )
+
     result = {
         "chosen_b": chosen_b,
         "aggregation": args.aggregation,
         "threshold": args.threshold,
         "analysis_type": args.analysis_type,
         "min_stabilization_b": int(summary["stabilization_b"].min()),
-        "median_stabilization_b": int(round(summary["stabilization_b"].median())),
+        "median_stabilization_b": int(
+            summary["stabilization_b"].quantile(0.5, interpolation="higher")
+        ),
         "max_stabilization_b": int(summary["stabilization_b"].max()),
-        "n_curves": len(summary),
+        "stabilization_b_counts": stab_b_counts,
+        "n_curves": n_curves,
+        "n_curves_at_max_sampled_b": curves_at_max_sampled_b,
         "metrics_used": sorted(summary["metric"].unique().tolist()),
     }
 
