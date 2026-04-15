@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Select optimal B value using elbow detection on variance and rank stability metrics.
+"""Select optimal B value by finding where variance/rank metrics stabilize.
 
-Aggregates elbow points from:
-- Null variance: diff_std, diff_var (decreasing metrics)
-- Rank stability: mean_spearman_rho, mean_topk_jaccard_5 (increasing metrics)
+For each per-entity-per-metric curve, finds the smallest sampled B at which the
+metric has reached (and stays at) a configurable fraction of the way from its
+first-sampled value to its asymptote (last-sampled value). Aggregates those
+stabilization points across metrics and entities via median (default) or max.
+
+Metrics used:
+- Null variance (decreasing): diff_std, diff_var
+- Rank stability (increasing): mean_spearman_rho, mean_topk_jaccard_5, mean_rbo
 
 Outputs chosen_b.json with selected B and rationale.
 
@@ -22,22 +27,31 @@ import numpy as np
 import pandas as pd
 
 
-def _compute_elbow(
+def _compute_stabilization_point(
     df: pd.DataFrame,
     group_cols: list[str],
     metric_col: str,
     increasing: bool,
+    threshold: float,
 ) -> pd.DataFrame:
-    """Compute elbow point for a metric using perpendicular distance method.
+    """Return the smallest B at which a metric has stabilized for each group.
+
+    Stabilization = the metric is within (1 - threshold) of its asymptote, and
+    stays there for every subsequent sampled B. We scan backwards from the
+    final B, treating the last-sampled value as the asymptote, and look for
+    the last point that violates the target so we can pick one beyond it.
 
     Args:
-        df: DataFrame with B values and metric values
-        group_cols: Columns to group by (e.g., ["control", "lv_id"])
-        metric_col: Column containing metric values
-        increasing: True if higher values are better (stability), False if lower (variance)
+        df: DataFrame with a "b" column and the metric column.
+        group_cols: Grouping columns (e.g., ["control", "lv_id"]).
+        metric_col: Name of the metric column.
+        increasing: True if the metric grows toward its asymptote (stability);
+            False if it shrinks toward its asymptote (variance).
+        threshold: Fraction of the baseline-to-asymptote distance that must be
+            covered. 0.95 means "within 5% of asymptote".
 
     Returns:
-        DataFrame with elbow B value for each group
+        DataFrame with one row per group containing the stabilization point.
     """
     rows: list[dict] = []
 
@@ -51,34 +65,42 @@ def _compute_elbow(
         if len(curve) < 3:
             continue
 
-        x = curve["b"].astype(float).to_numpy()
+        b_vals = curve["b"].astype(float).to_numpy()
         y = curve[metric_col].astype(float).to_numpy()
 
-        # Normalize x to [0, 1]
-        x_range = x.max() - x.min()
-        x_norm = (x - x.min()) / x_range if x_range > 0 else np.zeros_like(x)
+        baseline = float(y[0])
+        asymptote = float(y[-1])
 
-        # Normalize y to [0, 1]
-        y_min, y_max = float(np.nanmin(y)), float(np.nanmax(y))
-        y_range = y_max - y_min
-        y_norm = (y - y_min) / y_range if y_range > 0 else np.zeros_like(y)
+        if asymptote == baseline:
+            chosen_idx = 0
+            target = baseline
+        else:
+            if increasing:
+                target = baseline + threshold * (asymptote - baseline)
+                passes = y >= target
+            else:
+                target = baseline - threshold * (baseline - asymptote)
+                passes = y <= target
 
-        # For decreasing metrics, flip so elbow detection works
-        if not increasing:
-            y_norm = 1.0 - y_norm
-
-        # Perpendicular distance from curve to straight line
-        line = np.linspace(y_norm[0], y_norm[-1], len(y_norm))
-        distance = y_norm - line
-        idx = int(np.argmax(distance))
+            if passes.all():
+                chosen_idx = 0
+            elif not passes[-1]:
+                # Asymptote itself fails target -- curve hasn't stabilized;
+                # fall back to the last sampled B.
+                chosen_idx = len(y) - 1
+            else:
+                failures = np.flatnonzero(~passes)
+                chosen_idx = int(failures[-1]) + 1
 
         row = {
             "metric": str(metric_col),
-            "elbow_b": int(curve["b"].iloc[idx]),
-            "elbow_value": float(curve[metric_col].iloc[idx]),
-            "elbow_distance": float(distance[idx]),
+            "stabilization_b": int(b_vals[chosen_idx]),
+            "stabilization_value": float(y[chosen_idx]),
+            "baseline_value": baseline,
+            "asymptote_value": asymptote,
+            "target_value": float(target),
+            "threshold": float(threshold),
         }
-        # Add group columns
         if isinstance(group_key, tuple):
             for col, val in zip(group_cols, group_key):
                 row[col] = str(val)
@@ -90,32 +112,35 @@ def _compute_elbow(
     return pd.DataFrame(rows)
 
 
-def load_variance_elbows(variance_dir: Path, analysis_type: str) -> pd.DataFrame:
-    """Load and compute elbows from null variance experiment."""
-    if analysis_type == "lv":
-        summary_path = variance_dir / "feature_variance_summary.csv"
-        group_cols = ["control", "lv_id"]
-    else:
-        summary_path = variance_dir / "feature_variance_summary.csv"
-        group_cols = ["control", "go_id"]
+def load_variance_stabilization(
+    variance_dir: Path, analysis_type: str, threshold: float
+) -> pd.DataFrame:
+    """Compute stabilization points for null-variance metrics."""
+    summary_path = variance_dir / "feature_variance_summary.csv"
+    group_cols = ["control", "lv_id"] if analysis_type == "lv" else ["control", "go_id"]
 
     if not summary_path.exists():
-        print(f"Warning: {summary_path} not found, skipping variance elbows")
+        print(f"Warning: {summary_path} not found, skipping variance metrics")
         return pd.DataFrame()
 
     df = pd.read_csv(summary_path)
 
-    elbows = []
+    frames = []
     for metric in ["diff_std", "diff_var"]:
         if metric in df.columns:
-            elbow_df = _compute_elbow(df, group_cols, metric, increasing=False)
-            elbows.append(elbow_df)
+            frames.append(
+                _compute_stabilization_point(
+                    df, group_cols, metric, increasing=False, threshold=threshold
+                )
+            )
 
-    return pd.concat(elbows, ignore_index=True) if elbows else pd.DataFrame()
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def load_rank_stability_elbows(rank_dir: Path, analysis_type: str) -> pd.DataFrame:
-    """Load and compute elbows from rank stability experiment."""
+def load_rank_stability_stabilization(
+    rank_dir: Path, analysis_type: str, threshold: float
+) -> pd.DataFrame:
+    """Compute stabilization points for rank-stability metrics."""
     if analysis_type == "lv":
         summary_path = rank_dir / "lv_stability_summary.csv"
         group_cols = ["control", "lv_id"]
@@ -123,69 +148,66 @@ def load_rank_stability_elbows(rank_dir: Path, analysis_type: str) -> pd.DataFra
         summary_path = rank_dir / "go_stability_summary.csv"
         group_cols = ["control", "go_id"]
 
-    if not summary_path.exists():
-        # Try legacy path
+    if summary_path.exists():
+        df = pd.read_csv(summary_path)
+    else:
         legacy_path = rank_dir / "metapath_pairwise_metrics.csv"
         if legacy_path.exists():
             df = pd.read_csv(legacy_path)
             if "control" not in df.columns:
                 df["control"] = "combined"
         else:
-            print(f"Warning: {summary_path} not found, skipping rank stability elbows")
+            print(f"Warning: {summary_path} not found, skipping rank stability metrics")
             return pd.DataFrame()
-    else:
-        df = pd.read_csv(summary_path)
 
-    elbows = []
+    frames = []
     for metric in ["mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo"]:
         if metric in df.columns:
-            elbow_df = _compute_elbow(df, group_cols, metric, increasing=True)
-            elbows.append(elbow_df)
+            frames.append(
+                _compute_stabilization_point(
+                    df, group_cols, metric, increasing=True, threshold=threshold
+                )
+            )
 
-    return pd.concat(elbows, ignore_index=True) if elbows else pd.DataFrame()
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def select_optimal_b(
     variance_dir: Path,
     rank_dir: Path,
     analysis_type: str,
-    aggregation: str = "median",
+    aggregation: str,
+    threshold: float,
 ) -> tuple[int, pd.DataFrame]:
-    """Select optimal B by aggregating elbows from variance and rank stability.
-
-    Args:
-        variance_dir: Directory containing null variance experiment results
-        rank_dir: Directory containing rank stability experiment results
-        analysis_type: "lv" or "year"
-        aggregation: "median" or "max"
+    """Select optimal B by aggregating per-curve stabilization points.
 
     Returns:
-        Tuple of (chosen_b, elbow_summary_df)
+        Tuple of (chosen_b, stabilization_summary_df).
     """
-    variance_elbows = load_variance_elbows(variance_dir, analysis_type)
-    rank_elbows = load_rank_stability_elbows(rank_dir, analysis_type)
+    variance_points = load_variance_stabilization(variance_dir, analysis_type, threshold)
+    rank_points = load_rank_stability_stabilization(rank_dir, analysis_type, threshold)
 
-    all_elbows = pd.concat([variance_elbows, rank_elbows], ignore_index=True)
+    all_points = pd.concat([variance_points, rank_points], ignore_index=True)
 
-    if all_elbows.empty:
-        raise ValueError("No elbow data found. Run variance and rank stability experiments first.")
+    if all_points.empty:
+        raise ValueError(
+            "No stabilization data found. Run variance and rank stability experiments first."
+        )
 
-    # Compute statistics
-    elbow_b_values = all_elbows["elbow_b"].dropna()
-    min_b = int(elbow_b_values.min())
-    median_b = int(round(elbow_b_values.median()))
-    max_b = int(elbow_b_values.max())
+    b_values = all_points["stabilization_b"].dropna()
+    min_b = int(b_values.min())
+    median_b = int(round(b_values.median()))
+    max_b = int(b_values.max())
 
-    # Select based on aggregation method
-    if aggregation == "median":
-        chosen_b = median_b
-    else:  # max
-        chosen_b = max_b
+    chosen_b = median_b if aggregation == "median" else max_b
 
-    print(f"Elbow B values: min={min_b}, median={median_b}, max={max_b}")
+    print(
+        f"Stabilization B (threshold={threshold}): "
+        f"min={min_b}, median={median_b}, max={max_b}"
+    )
     print(f"Chosen B ({aggregation}): {chosen_b}")
 
-    return chosen_b, all_elbows
+    return chosen_b, all_points
 
 
 def parse_args() -> argparse.Namespace:
@@ -207,13 +229,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         required=True,
-        help="Output directory for chosen_b.json and elbow_summary.csv",
+        help="Output directory for chosen_b.json and stabilization_summary.csv",
     )
     parser.add_argument(
         "--aggregation",
         choices=["median", "max"],
         default="median",
-        help="How to aggregate elbow B values (default: median)",
+        help="How to aggregate per-curve stabilization B values (default: median)",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.95,
+        help=(
+            "Fraction of the baseline-to-asymptote distance required to declare "
+            "stabilization (default: 0.95 = within 5%% of asymptote)"
+        ),
     )
     return parser.parse_args()
 
@@ -221,37 +252,38 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # Set default directories based on analysis type
     if args.analysis_type == "lv":
         variance_dir = Path(args.variance_dir or "output/lv_experiment/lv_null_variance_experiment")
         rank_dir = Path(args.rank_dir or "output/lv_experiment/lv_rank_stability_experiment")
     else:
-        variance_dir = Path(args.variance_dir or "output/year_null_variance_exp/year_null_variance_experiment")
-        rank_dir = Path(args.rank_dir or "output/year_rank_stability_exp/year_rank_stability_experiment")
+        variance_dir = Path(
+            args.variance_dir or "output/year_null_variance_exp/year_null_variance_experiment"
+        )
+        rank_dir = Path(
+            args.rank_dir or "output/year_rank_stability_exp/year_rank_stability_experiment"
+        )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Select optimal B
-    chosen_b, elbow_summary = select_optimal_b(
-        variance_dir, rank_dir, args.analysis_type, args.aggregation
+    chosen_b, summary = select_optimal_b(
+        variance_dir, rank_dir, args.analysis_type, args.aggregation, args.threshold
     )
 
-    # Save elbow summary
-    elbow_path = output_dir / "elbow_summary.csv"
-    elbow_summary.to_csv(elbow_path, index=False)
-    print(f"Saved elbow summary: {elbow_path}")
+    summary_path = output_dir / "stabilization_summary.csv"
+    summary.to_csv(summary_path, index=False)
+    print(f"Saved stabilization summary: {summary_path}")
 
-    # Save chosen B as JSON
     result = {
         "chosen_b": chosen_b,
         "aggregation": args.aggregation,
+        "threshold": args.threshold,
         "analysis_type": args.analysis_type,
-        "min_elbow_b": int(elbow_summary["elbow_b"].min()),
-        "median_elbow_b": int(round(elbow_summary["elbow_b"].median())),
-        "max_elbow_b": int(elbow_summary["elbow_b"].max()),
-        "n_elbows": len(elbow_summary),
-        "metrics_used": sorted(elbow_summary["metric"].unique().tolist()),
+        "min_stabilization_b": int(summary["stabilization_b"].min()),
+        "median_stabilization_b": int(round(summary["stabilization_b"].median())),
+        "max_stabilization_b": int(summary["stabilization_b"].max()),
+        "n_curves": len(summary),
+        "metrics_used": sorted(summary["metric"].unique().tolist()),
     }
 
     chosen_path = output_dir / "chosen_b.json"
