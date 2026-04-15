@@ -18,7 +18,9 @@
 #   bash hpc/submit_year_full_pipeline.sh
 #
 # Environment variables:
-#   YEAR_OUTPUT_DIR       - Upstream year experiment dir (variance/rank source)
+#   YEAR_OUTPUT_DIR       - Upstream year experiment dir (default layout root)
+#   YEAR_VARIANCE_DIR     - Override: path to the null-variance experiment dir
+#   YEAR_RANK_DIR         - Override: path to the rank-stability experiment dir
 #   YEAR_PIPELINE_OUTPUT  - Where all pipeline outputs go
 #   YEAR_B_VALUES         - Default intermediate-sharing grid if ever needed
 #   YEAR_TOP_GO_TERMS     - Top N GO terms for consumables (default: 10)
@@ -92,8 +94,9 @@ if [[ "$SKIP_B_SELECT" == "1" ]] && [[ -f "$CHOSEN_B_PATH" ]]; then
     CHOSEN_B=$(python3 scripts/read_json_value.py "$CHOSEN_B_PATH" chosen_b)
     echo "Chosen B = $CHOSEN_B"
 else
-    VARIANCE_DIR="$YEAR_OUTPUT_DIR/year_null_variance_experiment"
-    RANK_DIR="$YEAR_OUTPUT_DIR/year_rank_stability_experiment"
+    # Explicit overrides win; otherwise fall back to the legacy single-root layout.
+    VARIANCE_DIR="${YEAR_VARIANCE_DIR:-$YEAR_OUTPUT_DIR/year_null_variance_experiment}"
+    RANK_DIR="${YEAR_RANK_DIR:-$YEAR_OUTPUT_DIR/year_rank_stability_experiment}"
 
     if [[ ! -d "$VARIANCE_DIR" ]] || [[ ! -d "$RANK_DIR" ]]; then
         echo "Warning: Variance or rank stability directories not found at"
