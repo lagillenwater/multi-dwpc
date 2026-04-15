@@ -558,6 +558,7 @@ async def run_metapaths_for_df(
     periodic_check_interval: int = 100,
     periodic_failure_threshold: float = 0.5,
     progress_position: int = 0,
+    client: Optional[httpx.AsyncClient] = None,
 ) -> pd.DataFrame:
     """
     Process all GO-gene pairs and fetch DWPC via Het.io API.
@@ -604,6 +605,11 @@ async def run_metapaths_for_df(
         Failure rate threshold for warnings
     progress_position : int
         tqdm screen position for the active dataset progress bar
+    client : httpx.AsyncClient, optional
+        Externally managed shared client. When provided, this function reuses
+        it and does NOT close it — the caller owns its lifecycle. When None,
+        a client is created and closed internally (with a 30s timeout on
+        aclose() to protect against stalled teardowns).
 
     Returns
     -------
@@ -640,26 +646,27 @@ async def run_metapaths_for_df(
         print("All pairs already processed!")
         return pd.DataFrame()
 
-    limits = httpx.Limits(
-        max_keepalive_connections=200,
-        max_connections=250,
-        keepalive_expiry=60.0
-    )
+    _owns_client = client is None
+    if _owns_client:
+        limits = httpx.Limits(
+            max_keepalive_connections=200,
+            max_connections=250,
+            keepalive_expiry=60.0,
+        )
+        timeout = httpx.Timeout(
+            timeout=90.0,
+            connect=10.0,
+            read=70.0,
+            write=10.0,
+        )
+        print("Connection pooling configuration:")
+        print(f"  Max connections: {limits.max_connections}")
+        print(f"  Keepalive connections: {limits.max_keepalive_connections}")
+        print(f"  Global concurrency: {max_concurrency}")
+        print(f"  Timeout: {90.0}s")
+        client = httpx.AsyncClient(limits=limits, timeout=timeout)
 
-    timeout = httpx.Timeout(
-        timeout=90.0,
-        connect=10.0,
-        read=70.0,
-        write=10.0
-    )
-
-    print("Connection pooling configuration:")
-    print(f"  Max connections: {limits.max_connections}")
-    print(f"  Keepalive connections: {limits.max_keepalive_connections}")
-    print(f"  Global concurrency: {max_concurrency}")
-    print(f"  Timeout: {90.0}s")
-
-    async with httpx.AsyncClient(limits=limits, timeout=timeout) as shared_client:
+    try:
         sem = asyncio.Semaphore(max_concurrency)
 
         coroutines = []
@@ -672,7 +679,7 @@ async def run_metapaths_for_df(
                     source_col_name=col_source,
                     target_col_name=col_target,
                     group_dir=group_dir,
-                    client=shared_client,
+                    client=client,
                     sem=sem,
                     compression=compression,
                     retries=retries,
@@ -715,13 +722,33 @@ async def run_metapaths_for_df(
                         check_periodic_progress(
                             summaries,
                             check_interval=periodic_check_interval,
-                            failure_threshold=periodic_failure_threshold
+                            failure_threshold=periodic_failure_threshold,
                         )
         else:
             summaries = await asyncio.gather(*coroutines, return_exceptions=False)
 
-    total_sec = time.perf_counter() - start
-    print(f"\n[{group}] Finished {len(coroutines)} unique pairs in {total_sec:.2f}s")
+        total_sec = time.perf_counter() - start
+        print(
+            f"\n[{group}] Finished {len(coroutines)} unique pairs in {total_sec:.2f}s",
+            flush=True,
+        )
+    finally:
+        if _owns_client:
+            try:
+                await asyncio.wait_for(client.aclose(), timeout=30.0)
+            except asyncio.TimeoutError:
+                print(
+                    "Warning: httpx client.aclose() timed out after 30s; "
+                    "continuing without clean shutdown.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            except Exception as exc:
+                print(
+                    f"Warning: httpx client.aclose() raised {exc!r}; continuing.",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
     summary_df = pd.DataFrame(summaries)
     cols_front = [

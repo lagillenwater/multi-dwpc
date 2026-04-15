@@ -108,6 +108,7 @@ async def _time_api_call(
     parquet_dir: Path,
     tag: str,
     max_concurrency: int,
+    client: httpx.AsyncClient,
 ) -> float:
     t0 = time.perf_counter()
     await run_metapaths_for_df(
@@ -122,8 +123,84 @@ async def _time_api_call(
         backoff_first=2.0,
         show_progress=True,
         check_health=False,
+        client=client,
     )
     return time.perf_counter() - t0
+
+
+async def _run_all_api_timings(
+    perms_by_b: dict[int, list[pd.DataFrame]],
+    b_values: list[int],
+    n_pairs: int,
+    n_metapaths: int,
+    data_dir: Path,
+    parquet_dir: Path,
+    max_concurrency: int,
+) -> list[dict]:
+    limits = httpx.Limits(
+        max_keepalive_connections=200,
+        max_connections=250,
+        keepalive_expiry=60.0,
+    )
+    timeout = httpx.Timeout(timeout=90.0, connect=10.0, read=70.0, write=10.0)
+
+    print("Shared API client configuration:")
+    print(f"  Max connections: {limits.max_connections}")
+    print(f"  Keepalive connections: {limits.max_keepalive_connections}")
+    print(f"  Global concurrency: {max_concurrency}")
+    print(f"  Timeout: {90.0}s")
+
+    api_rows: list[dict] = []
+    client = httpx.AsyncClient(limits=limits, timeout=timeout)
+    try:
+        for b in b_values:
+            perms = perms_by_b[b]
+            t_api_total = 0.0
+            for rep_idx, perm_df in enumerate(perms):
+                perm_neo = attach_neo4j_ids(perm_df, data_dir)
+                tag = f"bench_b{b:03d}_r{rep_idx:03d}"
+                print(
+                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} -- "
+                    f"calling API ({len(perm_neo)} pairs, concurrency={max_concurrency})",
+                    flush=True,
+                )
+                t_rep = await _time_api_call(
+                    perm_neo, parquet_dir, tag, max_concurrency, client
+                )
+                t_api_total += t_rep
+                print(
+                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} done in {t_rep:.2f}s",
+                    flush=True,
+                )
+            api_rows.append(
+                {
+                    "method": "api",
+                    "b": int(b),
+                    "n_pairs": int(n_pairs),
+                    "n_metapaths": int(n_metapaths),
+                    "time_seconds": float(t_api_total),
+                    "time_per_replicate_ms": float(t_api_total * 1000.0 / b),
+                }
+            )
+            print(
+                f"  B={b:>3d}  api:    {t_api_total:7.3f}s total"
+                f"   ({t_api_total * 1000.0 / b:6.1f} ms/replicate)"
+            )
+    finally:
+        try:
+            await asyncio.wait_for(client.aclose(), timeout=30.0)
+        except asyncio.TimeoutError:
+            print(
+                "Warning: shared httpx client.aclose() timed out after 30s; "
+                "continuing.",
+                flush=True,
+            )
+        except Exception as exc:
+            print(
+                f"Warning: shared httpx client.aclose() raised {exc!r}; continuing.",
+                flush=True,
+            )
+    return api_rows
 
 
 def _time_direct_call(
@@ -198,8 +275,10 @@ def main() -> None:
         print("Warmup complete")
 
     rows: list[dict] = []
+    perms_by_b: dict[int, list[pd.DataFrame]] = {}
     for b in b_values:
         perms = generate_permutations(pairs, b=b, seed=args.seed)
+        perms_by_b[b] = perms
 
         t_direct_total = 0.0
         for perm_df in perms:
@@ -220,38 +299,19 @@ def main() -> None:
             f"   ({t_direct_total * 1000.0 / b:6.1f} ms/replicate)"
         )
 
-        if api_available:
-            t_api_total = 0.0
-            for rep_idx, perm_df in enumerate(perms):
-                perm_neo = attach_neo4j_ids(perm_df, data_dir)
-                tag = f"bench_b{b:03d}_r{rep_idx:03d}"
-                print(
-                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} -- "
-                    f"calling API ({len(perm_neo)} pairs, concurrency={args.max_concurrency})",
-                    flush=True,
-                )
-                t_rep = asyncio.run(
-                    _time_api_call(perm_neo, parquet_dir, tag, args.max_concurrency)
-                )
-                t_api_total += t_rep
-                print(
-                    f"  [bench] B={b} replicate {rep_idx + 1}/{b} done in {t_rep:.2f}s",
-                    flush=True,
-                )
-            rows.append(
-                {
-                    "method": "api",
-                    "b": int(b),
-                    "n_pairs": int(len(pairs)),
-                    "n_metapaths": len(metapaths),
-                    "time_seconds": float(t_api_total),
-                    "time_per_replicate_ms": float(t_api_total * 1000.0 / b),
-                }
+    if api_available:
+        api_rows = asyncio.run(
+            _run_all_api_timings(
+                perms_by_b=perms_by_b,
+                b_values=b_values,
+                n_pairs=len(pairs),
+                n_metapaths=len(metapaths),
+                data_dir=data_dir,
+                parquet_dir=parquet_dir,
+                max_concurrency=args.max_concurrency,
             )
-            print(
-                f"  B={b:>3d}  api:    {t_api_total:7.3f}s total"
-                f"   ({t_api_total * 1000.0 / b:6.1f} ms/replicate)"
-            )
+        )
+        rows.extend(api_rows)
 
     results_df = pd.DataFrame(rows)
     results_path = out_dir / "benchmark_permutation_scaling.csv"

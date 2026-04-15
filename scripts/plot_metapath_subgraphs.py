@@ -329,7 +329,8 @@ def plot_metapath_subgraph(
     n_cols = len(node_types)
 
     node_name_lookup = node_name_lookup or {}
-    genes = genes[:max_genes]
+    # Don't slice yet -- the filter-by-surviving-paths step below needs to see
+    # every candidate gene before we cap at max_genes.
     n_intermediate_hops = len(hop_node_types)
 
     # Step 1: per-hop top-N candidate intermediates (based on source-gene coverage).
@@ -389,10 +390,11 @@ def plot_metapath_subgraph(
 
     # Step 4: filter displayed genes + intermediates to those on at least one surviving path.
     if surviving_rows:
-        genes_to_draw = [
+        genes_with_paths = [
             g for g in genes
             if f"{source_type}:{g.get('gene_id')}" in visible_source_ids
         ]
+        genes_to_draw = genes_with_paths[:max_genes]
         final_buckets: list[list[dict]] = []
         for hi in range(n_intermediate_hops):
             bucket = hop_buckets[hi]
@@ -403,7 +405,7 @@ def plot_metapath_subgraph(
     else:
         # No surviving paths (no path data, or no complete coverage): fall back to
         # the raw bucketed view with no edges.
-        genes_to_draw = list(genes)
+        genes_to_draw = list(genes)[:max_genes]
         final_buckets = hop_buckets
 
     if figsize is None:
@@ -667,11 +669,13 @@ def _render_pooled_subgraph(
     hop_xs = x_positions[1:-1]
     target_x = x_positions[-1]
 
-    # Drop source genes that had no surviving path.
-    genes_to_draw = [
-        g for g in genes[:max_genes]
+    # Filter BEFORE slicing so a source gene needed by a surviving path isn't
+    # cut off just because it's past position `max_genes` in the input list.
+    genes_with_paths = [
+        g for g in genes
         if f"G:{g.get('gene_id')}" in visible_source_ids
     ]
+    genes_to_draw = genes_with_paths[:max_genes]
     gene_y = _y_coords(len(genes_to_draw)) if genes_to_draw else []
 
     source_positions: dict[str, tuple[float, float]] = {}
@@ -934,8 +938,22 @@ def plot_lv_top_paths_subgraph(
         except (TypeError, ValueError):
             return -float("inf")
 
-    path_rows.sort(key=lambda pair: _row_score(pair[0]), reverse=True)
-    surviving = path_rows[:top_n_paths]
+    # Stratified selection: top N/K paths per metapath, so single-intermediate
+    # metapaths (GaDrD, etc.) aren't squeezed out by longer ones whose scores
+    # typically dominate a global ranking.
+    k = max(len(hop_counts), 1)
+    per_metapath_budget = max(1, top_n_paths // k)
+    grouped: dict[str, list[tuple[dict, int]]] = {}
+    for row_dict, mp_hop_count in path_rows:
+        mp = str(row_dict.get("metapath", ""))
+        grouped.setdefault(mp, []).append((row_dict, mp_hop_count))
+
+    surviving: list[tuple[dict, int]] = []
+    for mp, rows in grouped.items():
+        rows_sorted = sorted(rows, key=lambda pair: _row_score(pair[0]), reverse=True)
+        surviving.extend(rows_sorted[:per_metapath_budget])
+    # Sort the final selection by score for deterministic ordering.
+    surviving.sort(key=lambda pair: _row_score(pair[0]), reverse=True)
 
     _render_pooled_subgraph(
         surviving=surviving,
@@ -1080,20 +1098,34 @@ def generate_subgraphs(
             ]
             if not combined_paths.empty:
                 combined_target = str(gs_df.iloc[0].get("target_name", "Unknown"))
+                # Every source gene_id appearing in combined_paths must be in
+                # combined_genes or its edges will be skipped at draw time.
+                # Start from gene_table (preferred names/scores), then backfill
+                # any missing ids from combined_paths using Gene.tsv symbols.
+                combined_genes_by_id: dict[int, dict] = {}
                 if not gene_table.empty and "gene_set_id" in gene_table.columns:
-                    combined_genes = gene_table[
+                    gt_rows = gene_table[
                         gene_table["gene_set_id"].astype(str) == gene_set_id
                     ].drop_duplicates(subset=["gene_id"]).to_dict("records")
-                else:
-                    combined_gene_ids = combined_paths["gene_id"].dropna().unique().tolist()
-                    combined_genes = [
-                        {
-                            "gene_id": int(g),
-                            "gene_name": gene_names.get(int(g), str(g)),
+                    for rec in gt_rows:
+                        try:
+                            gid = int(rec.get("gene_id"))
+                        except (TypeError, ValueError):
+                            continue
+                        combined_genes_by_id[gid] = rec
+                path_gene_ids = combined_paths["gene_id"].dropna().unique().tolist()
+                for g in path_gene_ids:
+                    try:
+                        gid = int(g)
+                    except (TypeError, ValueError):
+                        continue
+                    if gid not in combined_genes_by_id:
+                        combined_genes_by_id[gid] = {
+                            "gene_id": gid,
+                            "gene_name": gene_names.get(gid, str(gid)),
                             "dwpc": 1.0,
                         }
-                        for g in combined_gene_ids
-                    ]
+                combined_genes = list(combined_genes_by_id.values())
 
                 shared_stem = output_dir / f"{gene_set_id}_top_shared"
                 print(f"Generating: {shared_stem.name}")
