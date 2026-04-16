@@ -1072,7 +1072,21 @@ def generate_subgraphs(
 
         for _, mp_row in top_mps.iterrows():
             metapath = str(mp_row["metapath"])
-            target_name = str(mp_row.get("target_name", "Unknown"))
+            raw_target_name = mp_row.get("target_name")
+            if raw_target_name is None or (isinstance(raw_target_name, float) and pd.isna(raw_target_name)):
+                raw_target_name = ""
+            target_name = str(raw_target_name).strip()
+            # For year mode the target IS the gene-set's GO term; resolve its
+            # human name via the node TSV lookup rather than falling back to
+            # the literal string "Unknown".
+            if (not target_name or target_name == "Unknown") and analysis_type == "year":
+                resolved = int_name_lookup.get(f"BP:{gene_set_id}")
+                if resolved:
+                    target_name = str(resolved)
+                else:
+                    target_name = gene_set_id
+            if not target_name:
+                target_name = "Unknown"
 
             if not top_int_df.empty:
                 mp_ints = top_int_df[
@@ -1097,6 +1111,26 @@ def generate_subgraphs(
                 ].to_dict("records")
             else:
                 mp_genes = []
+
+            # Derive source genes from the per-path records when gene_table
+            # has no entries. Using actual hop_0_id values (not placeholders
+            # like Gene_0 / Gene_1) ensures they match visible_source_ids so
+            # the Source column and its edges actually render.
+            if not mp_genes and not mp_paths.empty and "gene_id" in mp_paths.columns:
+                mp_gene_ids = (
+                    mp_paths["gene_id"].dropna().unique().tolist()
+                )
+                mp_genes = []
+                for g in mp_gene_ids:
+                    try:
+                        gid = int(g)
+                    except (TypeError, ValueError):
+                        continue
+                    mp_genes.append({
+                        "gene_id": gid,
+                        "gene_name": gene_names.get(gid, str(gid)),
+                        "dwpc": 1.0,
+                    })
 
             if not mp_genes:
                 n_genes = int(mp_row.get("n_genes_with_paths", 0) or 0)
@@ -1129,7 +1163,17 @@ def generate_subgraphs(
                 & (gene_paths_df["metapath"].astype(str).isin(all_metapaths))
             ]
             if not combined_paths.empty:
-                combined_target = str(gs_df.iloc[0].get("target_name", "Unknown"))
+                raw_combined_target = gs_df.iloc[0].get("target_name")
+                if raw_combined_target is None or (
+                    isinstance(raw_combined_target, float) and pd.isna(raw_combined_target)
+                ):
+                    raw_combined_target = ""
+                combined_target = str(raw_combined_target).strip()
+                if (not combined_target or combined_target == "Unknown") and analysis_type == "year":
+                    resolved = int_name_lookup.get(f"BP:{gene_set_id}")
+                    combined_target = str(resolved) if resolved else gene_set_id
+                if not combined_target:
+                    combined_target = "Unknown"
                 # Every source gene_id appearing in combined_paths must be in
                 # combined_genes or its edges will be skipped at draw time.
                 # Start from gene_table (preferred names/scores), then backfill

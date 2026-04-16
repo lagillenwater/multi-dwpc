@@ -90,15 +90,22 @@ def plot_lv_selection_diagnostics(
         return
     all_lvs = all_lvs.sort_values("max_effect_size_d", ascending=False).reset_index(drop=True)
 
-    # Plain horizontal bar chart (one color for all LVs). The threshold line
-    # is the only status indicator; bars can be negative when an LV's best
+    # Cap the number of entities drawn so year-scale datasets (hundreds of
+    # GO terms) don't produce 170-inch-tall figures. Keep the top entities by
+    # max effect size and surface the total count in the title.
+    MAX_BARS = 50
+    full_count = len(all_lvs)
+    bars_df = all_lvs.head(MAX_BARS).copy()
+
+    # Plain horizontal bar chart (one color for all entities). Threshold line
+    # is the only status indicator; bars can be negative when an entity's best
     # metapath has a negative effect size.
-    max_d = all_lvs["max_effect_size_d"].astype(float)
-    fig, ax = plt.subplots(figsize=(9, max(3.5, 0.28 * len(all_lvs))))
-    y = np.arange(len(all_lvs))
+    max_d = bars_df["max_effect_size_d"].astype(float)
+    fig, ax = plt.subplots(figsize=(9, max(3.5, 0.28 * len(bars_df))))
+    y = np.arange(len(bars_df))
     ax.barh(y, max_d, color="#1f77b4", edgecolor="black", linewidth=0.3)
     ax.set_yticks(y)
-    ax.set_yticklabels(all_lvs[id_col].astype(str).tolist(), fontsize=8)
+    ax.set_yticklabels(bars_df[id_col].astype(str).tolist(), fontsize=8)
     ax.invert_yaxis()
     ax.axvline(0, color="black", linewidth=0.6, alpha=0.5)
     ax.axvline(
@@ -106,13 +113,15 @@ def plot_lv_selection_diagnostics(
         color="red", linestyle="--", linewidth=1.3,
         label=f"d threshold = {effect_size_threshold}",
     )
-    # Pad x-limits so negative values are visible with headroom on both sides.
     lo, hi = float(min(0.0, max_d.min())), float(max(effect_size_threshold, max_d.max()))
     span = max(hi - lo, 1e-6)
     ax.set_xlim(lo - 0.05 * span, hi + 0.05 * span)
     ax.set_xlabel("Max effect size d across metapaths")
     ax.set_ylabel(id_col)
-    ax.set_title("LV selection: max effect size per LV")
+    title = f"{id_col} selection: max effect size per {id_col}"
+    if full_count > MAX_BARS:
+        title += f"  (top {len(bars_df)} of {full_count})"
+    ax.set_title(title)
     ax.legend(loc="lower right", fontsize=9)
     ax.grid(axis="x", alpha=0.25)
     fig.tight_layout()
@@ -122,9 +131,13 @@ def plot_lv_selection_diagnostics(
     # Plot 2: strip of effect sizes for selected LVs (one row per LV)
     if by_metapath_df.empty or id_col not in by_metapath_df.columns:
         return
-    selected_ids = all_lvs[all_lvs["status"] == "selected"][id_col].astype(str).tolist()
-    if not selected_ids:
+    selected_ids_all = all_lvs[all_lvs["status"] == "selected"][id_col].astype(str).tolist()
+    if not selected_ids_all:
         return
+
+    # Same cap as plot 1 so both diagnostics agree on the displayed subset.
+    selected_ids = selected_ids_all[:MAX_BARS]
+    full_selected = len(selected_ids_all)
 
     strip_df = by_metapath_df[by_metapath_df[id_col].astype(str).isin(selected_ids)].copy()
     if strip_df.empty:
@@ -153,7 +166,10 @@ def plot_lv_selection_diagnostics(
     ax.invert_yaxis()
     ax.set_xlabel("Effect size d (per metapath)")
     ax.set_ylabel(id_col)
-    ax.set_title("Per-metapath effect size distribution for selected LVs")
+    title = f"Per-metapath effect size distribution for selected {id_col}"
+    if full_selected > len(id_order):
+        title += f"  (top {len(id_order)} of {full_selected})"
+    ax.set_title(title)
     ax.legend(loc="lower right", fontsize=9)
     ax.grid(axis="x", alpha=0.25)
     fig.tight_layout()
