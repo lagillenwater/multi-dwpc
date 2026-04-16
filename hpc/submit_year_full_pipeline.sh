@@ -366,6 +366,61 @@ INT_PLOTS_JOB_ID=$(sbatch \
 echo "Submitted intermediate sharing plots: $INT_PLOTS_JOB_ID"
 
 # ============================================
+# Stage 8: Metapath Selection Comparison (2016 vs 2024)
+# ============================================
+echo ""
+echo "Stage 8: Metapath Selection Comparison"
+echo "---------------------------------------"
+
+YEAR_RUNS_PATH="${YEAR_RANK_RUNS_PATH:-$YEAR_OUTPUT_DIR/year_rank_stability_experiment/all_runs_long.csv}"
+
+MP_COMPARE_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for metapath selection comparison\"
+
+# 1. Build GO-term support CSV at the chosen B (one row per year x metapath x GO).
+python3 scripts/year_go_term_support.py \\
+    --runs-path \"$YEAR_RUNS_PATH\" \\
+    --b \$CHOSEN_B \\
+    --go-support-output \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
+    --global-support-output \"$OUTPUT_DIR/metapath_analysis/year_direct_global_metapath_support.csv\"
+
+# 2. Grouped bar chart: metapath selection frequency per year.
+python3 scripts/plot_year_effective_metapath_selection.py \\
+    --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
+    --output-dir \"$OUTPUT_DIR/metapath_analysis/selection_frequency\"
+
+# 3. Rank-similarity scatter (2016 rank vs 2024 rank) with Spearman rho.
+python3 scripts/year_snapshot_rank_similarity.py \\
+    --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
+    --rank-metric selected_fraction_all \\
+    --b \$CHOSEN_B \\
+    --output-dir \"$OUTPUT_DIR/metapath_analysis/rank_similarity\" \\
+    --label-metapaths
+"
+
+if [[ -n "${B_SELECT_JOB_ID:-}" ]]; then
+    MP_DEP_FLAG="--dependency=afterok:$B_SELECT_JOB_ID"
+else
+    MP_DEP_FLAG=""
+fi
+
+MP_COMPARE_JOB_ID=$(sbatch \
+    --parsable \
+    $MP_DEP_FLAG \
+    --export=ALL \
+    --job-name="year-mp-compare" \
+    --partition=amilan \
+    --qos=normal \
+    --cpus-per-task=2 \
+    --mem="16G" \
+    --time="01:00:00" \
+    --output="$LOG_DIR/mp_compare_%j.out" \
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $MP_COMPARE_CMD'")
+
+echo "Submitted metapath comparison: $MP_COMPARE_JOB_ID"
+
+# ============================================
 # Summary
 # ============================================
 echo ""
@@ -381,6 +436,7 @@ echo "  4. Global Summary:       $SUMMARY_JOB_ID"
 echo "  5. Gene Table:           $GENE_JOB_ID"
 echo "  6. Visualization:        $VIZ_JOB_ID"
 echo "  7. Int-sharing plots:    $INT_PLOTS_JOB_ID"
+echo "  8. Metapath comparison:  $MP_COMPARE_JOB_ID"
 echo ""
 echo "Monitor progress:"
 echo "  squeue -u \$USER"
