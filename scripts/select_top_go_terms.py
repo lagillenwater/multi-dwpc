@@ -52,6 +52,17 @@ def parse_args() -> argparse.Namespace:
         choices=["median_effect_size_d", "max_effect_size_d"],
         help="Column used to rank GO terms (default: median_effect_size_d).",
     )
+    parser.add_argument(
+        "--min-added-genes",
+        type=int,
+        default=5,
+        help=(
+            "Require at least this many 2024-added genes per GO term. "
+            "Guards against small-cohort artifacts in within-cohort Jaccards "
+            "and against z-score inflation from low null variance on tiny "
+            "cohorts. Default: 5."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -83,6 +94,16 @@ def main() -> None:
             agg[optional] = (optional, "first")
 
     go_summary = df.groupby("go_id").agg(**agg).reset_index()
+
+    n_before_filter = len(go_summary)
+    if args.min_added_genes > 0 and "n_genes_2024_added" in go_summary.columns:
+        go_summary = go_summary[
+            go_summary["n_genes_2024_added"] >= int(args.min_added_genes)
+        ].reset_index(drop=True)
+        print(
+            f"Filter: n_genes_2024_added >= {args.min_added_genes} "
+            f"kept {len(go_summary)} of {n_before_filter} GO terms"
+        )
 
     top_go = go_summary.nlargest(int(args.top_n), args.rank_by).reset_index(drop=True)
     top_go.to_csv(output_dir / "top_go_terms.csv", index=False)

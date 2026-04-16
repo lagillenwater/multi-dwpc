@@ -177,6 +177,127 @@ def plot_lv_selection_diagnostics(
     plt.close(fig)
 
 
+def _load_all_entities_z_from_runs(
+    runs_path: Path, b: int | None, analysis_type: str
+) -> pd.DataFrame:
+    """Load upstream all_runs_long.csv and aggregate to one z per (entity, metapath).
+
+    Uses permuted null only. Averages effect_size_d (true z) across seeds at the
+    chosen B. Returns a frame with columns [entity_id, metapath, effect_size_d,
+    target_name] matching what plot_top_metapaths_per_entity expects.
+    """
+    runs = pd.read_csv(runs_path)
+    if b is not None and "b" in runs.columns:
+        runs = runs[runs["b"] == int(b)]
+    if "control" in runs.columns:
+        runs = runs[runs["control"] == "permuted"]
+    if runs.empty:
+        return pd.DataFrame()
+
+    if "effect_size_d" in runs.columns:
+        z_col = "effect_size_d"
+    elif "d" in runs.columns:
+        z_col = "d"
+    else:
+        raise ValueError(
+            f"{runs_path} has neither 'effect_size_d' nor 'd' column"
+        )
+
+    id_col = "lv_id" if analysis_type == "lv" else "go_id"
+    group_cols = [id_col, "metapath"]
+    if "target_name" in runs.columns:
+        group_cols.insert(1, "target_name")
+
+    agg = runs.groupby(group_cols, as_index=False).agg(
+        effect_size_d=(z_col, "mean"),
+    )
+    return agg
+
+
+def plot_top_metapaths_per_entity(
+    by_metapath_df: pd.DataFrame,
+    effect_size_threshold: float,
+    analysis_type: str,
+    out_dir: Path,
+    top_n: int = 5,
+    max_panels: int = 50,
+    ncols: int = 3,
+    filename_suffix: str = "",
+) -> None:
+    """One panel per selected LV/GO term, horizontal bars of its top-N metapaths by z."""
+    if by_metapath_df.empty:
+        return
+    id_col = "lv_id" if analysis_type == "lv" else "go_id"
+    if id_col not in by_metapath_df.columns or "effect_size_d" not in by_metapath_df.columns:
+        return
+
+    ordering = (
+        by_metapath_df.groupby(id_col)["effect_size_d"].max()
+        .sort_values(ascending=False)
+    )
+    entity_ids = ordering.head(max_panels).index.astype(str).tolist()
+    if not entity_ids:
+        return
+    full_count = len(ordering)
+
+    name_lookup: dict[str, str] = {}
+    if "target_name" in by_metapath_df.columns:
+        for eid, group in by_metapath_df.groupby(id_col):
+            names = group["target_name"].dropna().astype(str).unique().tolist()
+            if names:
+                name_lookup[str(eid)] = names[0]
+
+    n_panels = len(entity_ids)
+    nrows = (n_panels + ncols - 1) // ncols
+    fig, axes = plt.subplots(
+        nrows, ncols,
+        figsize=(4.4 * ncols, 2.4 * nrows),
+        squeeze=False,
+    )
+
+    vmax = float(by_metapath_df["effect_size_d"].max())
+    vmin = min(0.0, float(by_metapath_df["effect_size_d"].min()))
+    span = max(vmax - vmin, 1e-6)
+    xlim = (vmin - 0.03 * span, vmax + 0.05 * span)
+
+    for idx, eid in enumerate(entity_ids):
+        r, c = divmod(idx, ncols)
+        ax = axes[r][c]
+        sub = (
+            by_metapath_df[by_metapath_df[id_col].astype(str) == eid]
+            .nlargest(top_n, "effect_size_d")
+        )
+        y = np.arange(len(sub))
+        ax.barh(y, sub["effect_size_d"].astype(float),
+                color="#2ca02c", edgecolor="black", linewidth=0.3)
+        ax.set_yticks(y)
+        ax.set_yticklabels(sub["metapath"].astype(str).tolist(), fontsize=7)
+        ax.invert_yaxis()
+        ax.axvline(float(effect_size_threshold),
+                   color="red", linestyle="--", linewidth=1.0)
+        ax.set_xlim(xlim)
+        ax.tick_params(axis="x", labelsize=7)
+        ax.grid(axis="x", alpha=0.25)
+        panel_title = eid
+        target = name_lookup.get(eid)
+        if target:
+            panel_title = f"{eid}: {target}"
+        ax.set_title(panel_title, fontsize=9)
+
+    for idx in range(n_panels, nrows * ncols):
+        r, c = divmod(idx, ncols)
+        axes[r][c].axis("off")
+
+    suptitle = f"Top {top_n} metapaths by z per {id_col}"
+    if full_count > n_panels:
+        suptitle += f"  (top {n_panels} of {full_count})"
+    fig.suptitle(suptitle, fontsize=11)
+    fig.supxlabel("z", fontsize=10)
+    fig.tight_layout(rect=[0, 0.02, 1, 0.96])
+    _save_figure(fig, out_dir / f"top_metapaths_per_{id_col}{filename_suffix}")
+    plt.close(fig)
+
+
 def load_intermediate_sharing_data(
     input_dir: Path,
     b_value: int | None = None,
@@ -406,6 +527,23 @@ def parse_args() -> argparse.Namespace:
             "drawn on the LV selection diagnostic plots (default: 0.5)"
         ),
     )
+    parser.add_argument(
+        "--all-runs-path",
+        default=None,
+        help=(
+            "Optional path to upstream all_runs_long.csv "
+            "(e.g. <lv_output_dir>/lv_rank_stability_experiment/all_runs_long.csv). "
+            "When provided, produce an additional barplot of top-10 metapaths per "
+            "entity computed across ALL entities (including ones that didn't clear "
+            "the effect-size threshold)."
+        ),
+    )
+    parser.add_argument(
+        "--all-runs-top-n",
+        type=int,
+        default=10,
+        help="Top-N metapaths per entity for the --all-runs-path plot (default: 10).",
+    )
     return parser.parse_args()
 
 
@@ -501,6 +639,37 @@ def main() -> None:
             analysis_type=args.analysis_type,
             out_dir=plots_dir,
         )
+        plot_top_metapaths_per_entity(
+            by_metapath_df=by_metapath_df_plot,
+            effect_size_threshold=args.effect_size_threshold,
+            analysis_type=args.analysis_type,
+            out_dir=plots_dir,
+        )
+        if args.all_runs_path:
+            runs_path = Path(args.all_runs_path)
+            if runs_path.exists():
+                runs_b = plot_b if plot_b is not None else chosen_b
+                all_runs_df = _load_all_entities_z_from_runs(runs_path, runs_b, args.analysis_type)
+                if not all_runs_df.empty:
+                    plot_top_metapaths_per_entity(
+                        by_metapath_df=all_runs_df,
+                        effect_size_threshold=args.effect_size_threshold,
+                        analysis_type=args.analysis_type,
+                        out_dir=plots_dir,
+                        top_n=int(args.all_runs_top_n),
+                        filename_suffix="_all_entities",
+                    )
+                    print(
+                        f"Saved top-{args.all_runs_top_n} metapath barplot for all "
+                        f"entities (pre-selection) to {plots_dir}/"
+                    )
+                else:
+                    print(
+                        f"Warning: {runs_path} had no rows at B={runs_b}, control=permuted; "
+                        f"skipping all-entities barplot"
+                    )
+            else:
+                print(f"Warning: {runs_path} not found; skipping all-entities barplot")
         print(f"Saved LV selection diagnostic plots to {plots_dir}/")
 
 

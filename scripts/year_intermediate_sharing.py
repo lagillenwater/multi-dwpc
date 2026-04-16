@@ -97,16 +97,21 @@ def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
     if "year" in runs_df.columns:
         group_cols.append("year")
 
-    if "d" in runs_df.columns:
-        result = runs_df.groupby(group_cols, as_index=False).agg(
-            effect_size_d=("d", "mean"),
-            diff_perm=("diff", "mean"),
-        )
+    if "effect_size_d" in runs_df.columns:
+        z_col = "effect_size_d"
+    elif "d" in runs_df.columns:
+        z_col = "d"
     else:
-        result = runs_df.groupby(group_cols, as_index=False).agg(
-            diff_perm=("diff", "mean"),
+        raise ValueError(
+            f"{runs_path} has neither 'effect_size_d' nor 'd' column; "
+            f"cannot compute per-metapath z. Columns present: "
+            f"{sorted(runs_df.columns.tolist())}"
         )
-        result["effect_size_d"] = result["diff_perm"]
+
+    result = runs_df.groupby(group_cols, as_index=False).agg(
+        effect_size_d=(z_col, "mean"),
+        diff_perm=("diff", "mean"),
+    )
 
     return result
 

@@ -28,6 +28,7 @@
 #   YEAR_STOP_AFTER_B     - "1" to submit only Stage 1 and exit
 #   YEAR_EFFECT_THRESHOLD - Cohen's d cutoff for metapath selection (default: 0.5)
 #   YEAR_DWPC_PERCENTILE  - Percentile filter for DWPC (default: 75)
+#   YEAR_MIN_ADDED_GENES  - Minimum 2024-added genes per GO for top-N ranking (default: 5)
 #
 
 set -euo pipefail
@@ -45,6 +46,7 @@ SKIP_B_SELECT="${YEAR_SKIP_B_SELECT:-0}"
 STOP_AFTER_B="${YEAR_STOP_AFTER_B:-0}"
 EFFECT_THRESHOLD="${YEAR_EFFECT_THRESHOLD:-1.65}"
 DWPC_PERCENTILE="${YEAR_DWPC_PERCENTILE:-75}"
+MIN_ADDED_GENES="${YEAR_MIN_ADDED_GENES:-5}"
 
 # SBATCH resource knobs (year data is substantially larger than LV -- longer
 # walltimes + more memory than the LV pipeline).
@@ -204,6 +206,7 @@ echo \"Using chosen B = \$CHOSEN_B for top GO selection\"
 python3 scripts/select_top_go_terms.py \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
     --top-n $TOP_GO_TERMS \\
+    --min-added-genes $MIN_ADDED_GENES \\
     --output-dir \"$OUTPUT_DIR\"
 "
 
@@ -375,6 +378,7 @@ echo "---------------------------------------"
 YEAR_RUNS_PATH="${YEAR_RANK_RUNS_PATH:-$YEAR_OUTPUT_DIR/year_rank_stability_experiment/all_runs_long.csv}"
 
 MP_COMPARE_CMD="
+set -e
 CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for metapath selection comparison\"
 

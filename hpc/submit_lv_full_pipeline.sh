@@ -163,8 +163,18 @@ echo "Stage 3: Global Summary"
 echo "-----------------------"
 
 SUMMARY_CMD="
+set -e
 CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for global summary\"
+
+ALL_RUNS_ARG=\"\"
+for lv_dir in $LV_OUTPUT_DIRS; do
+    candidate=\"\$lv_dir/lv_rank_stability_experiment/all_runs_long.csv\"
+    if [[ -f \"\$candidate\" ]]; then
+        ALL_RUNS_ARG=\"--all-runs-path \$candidate\"
+        break
+    fi
+done
 
 python3 scripts/generate_global_summary.py \\
     --analysis-type lv \\
@@ -172,7 +182,8 @@ python3 scripts/generate_global_summary.py \\
     --b-values \$CHOSEN_B \\
     --chosen-b-json \"$OUTPUT_DIR/b_selection/chosen_b.json\" \\
     --effect-size-threshold $EFFECT_THRESHOLD \\
-    --output-dir \"$OUTPUT_DIR/global_summary\"
+    --output-dir \"$OUTPUT_DIR/global_summary\" \\
+    \$ALL_RUNS_ARG
 "
 
 SUMMARY_JOB_ID=$(sbatch \
