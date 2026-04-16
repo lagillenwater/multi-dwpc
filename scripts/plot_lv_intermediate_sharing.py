@@ -802,38 +802,18 @@ def main() -> None:
     summary_df = pd.read_csv(summary_path)
     top_int_df = pd.read_csv(top_int_path) if top_int_path.exists() else None
 
-    # --- Year adapter ---
-    # The plotting helpers below reference `lv_id` and `target_name` columns.
-    # For year runs we rename go_id -> lv_id and synthesize a target_name
-    # from Biological Process.tsv so the rest of the code works unchanged.
+    # Year data should use scripts/plot_year_intermediate_sharing.py, which
+    # preserves the 2016-vs-2024 cohort split. This LV-only script's column
+    # assumptions (single n_genes_with_paths, single pct_genes_sharing) don't
+    # map to year semantics without pooling cohorts, which destroys the
+    # comparison. Bail out with a clear message rather than render misleading
+    # numbers.
     if args.analysis_type == "year":
-        def _rename_go(df: pd.DataFrame) -> pd.DataFrame:
-            if df is None or df.empty:
-                return df
-            if "go_id" in df.columns and "lv_id" not in df.columns:
-                df = df.rename(columns={"go_id": "lv_id"})
-            if "target_id" not in df.columns:
-                df["target_id"] = df["lv_id"]
-            return df
-
-        metapath_df = _rename_go(metapath_df)
-        summary_df = _rename_go(summary_df)
-        if top_int_df is not None:
-            top_int_df = _rename_go(top_int_df)
-
-        # Resolve target names from Biological Process.tsv (GO term name).
-        nodes_dir = Path(args.nodes_dir)
-        bp_path = nodes_dir / "Biological Process.tsv"
-        bp_name_lookup: dict[str, str] = {}
-        if bp_path.exists():
-            bp_df = pd.read_csv(bp_path, sep="\t")
-            if {"identifier", "name"}.issubset(bp_df.columns):
-                bp_name_lookup = dict(zip(bp_df["identifier"].astype(str), bp_df["name"].astype(str)))
-
-        if "target_name" not in summary_df.columns:
-            summary_df["target_name"] = summary_df["lv_id"].astype(str).map(bp_name_lookup).fillna(summary_df["lv_id"])
-        if "target_name" not in metapath_df.columns:
-            metapath_df["target_name"] = metapath_df["lv_id"].astype(str).map(bp_name_lookup).fillna(metapath_df["lv_id"])
+        raise SystemExit(
+            "This script is LV-only. For year data use "
+            "scripts/plot_year_intermediate_sharing.py (preserves the "
+            "2016-vs-2024 cohort split)."
+        )
 
     # Optional filter to a provided list of ids (top GOs for year, etc.).
     if args.top_ids_json:

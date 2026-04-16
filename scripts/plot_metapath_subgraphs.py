@@ -63,6 +63,14 @@ NODE_COLORS = {
 
 DEFAULT_COLOR = "#BDBDBD"
 
+# Cohort colors for year-analysis source genes. Keys are values appearing in
+# `gene["cohort"]` (set by generate_subgraphs from gene_paths.csv's "year"
+# column). Unset cohort falls back to the default gene color.
+COHORT_COLORS = {
+    "2016": "#4CAF50",  # green -- matches the default Gene node color
+    "2024": "#E65100",  # deep orange -- visually distinct from 2016 baseline
+}
+
 NODE_TYPE_FULL_NAMES = {
     "G": "Gene",
     "A": "Anatomy",
@@ -427,6 +435,15 @@ def plot_metapath_subgraph(
     hop_xs = x_positions[1:-1]
     target_x = x_positions[-1]
 
+    # If any gene carries a cohort label (year mode), sort so 2016 baseline
+    # genes stack above 2024-added genes for a visually cleaner split.
+    if any(g.get("cohort") for g in genes_to_draw):
+        cohort_rank = {"2016": 0, "2024": 1}
+        genes_to_draw = sorted(
+            genes_to_draw,
+            key=lambda g: (cohort_rank.get(str(g.get("cohort", "")), 2), str(g.get("gene_name") or g.get("gene_id", ""))),
+        )
+
     gene_y = _y_coords(len(genes_to_draw))
     target_pos = (target_x, 0.5)
 
@@ -488,11 +505,24 @@ def plot_metapath_subgraph(
             node_size = 160 + 340 * (dwpc - min_dwpc) / (max_dwpc - min_dwpc)
         else:
             node_size = 320
-        ax.scatter(gene_x, gy, s=node_size, c=gene_color,
+        node_color = COHORT_COLORS.get(str(gene.get("cohort", "")), gene_color)
+        ax.scatter(gene_x, gy, s=node_size, c=node_color,
                    edgecolors="white", linewidths=1.2, zorder=3)
         label = gene_name[:12] if len(gene_name) > 12 else gene_name
         ax.text(gene_x - 0.015, gy, label, ha="right", va="center",
                 fontsize=8, fontweight="medium")
+
+    # Year mode: attach a cohort legend if any gene carried a cohort label.
+    cohorts_present = sorted({str(g.get("cohort", "")) for g in genes_to_draw if g.get("cohort")})
+    if cohorts_present:
+        handles = []
+        for c in cohorts_present:
+            label = "2016 baseline" if c == "2016" else "2024-added" if c == "2024" else c
+            handles.append(plt.Line2D([], [], marker="o", color="w",
+                                       markerfacecolor=COHORT_COLORS.get(c, gene_color),
+                                       markersize=10, label=label))
+        ax.legend(handles=handles, title="Source gene cohort",
+                  loc="lower left", fontsize=8, framealpha=0.9)
 
     # Draw intermediate nodes
     for hop_idx, hop_x in enumerate(hop_xs):
@@ -675,6 +705,14 @@ def _render_pooled_subgraph(
         g for g in genes
         if f"G:{g.get('gene_id')}" in visible_source_ids
     ]
+    # Year mode: sort by cohort so 2016 baseline stacks above 2024-added.
+    if any(g.get("cohort") for g in genes_with_paths):
+        cohort_rank = {"2016": 0, "2024": 1}
+        genes_with_paths = sorted(
+            genes_with_paths,
+            key=lambda g: (cohort_rank.get(str(g.get("cohort", "")), 2),
+                           str(g.get("gene_name") or g.get("gene_id", ""))),
+        )
     genes_to_draw = genes_with_paths[:max_genes]
     gene_y = _y_coords(len(genes_to_draw)) if genes_to_draw else []
 
@@ -746,12 +784,13 @@ def _render_pooled_subgraph(
         ax.plot([from_pos[0], to_pos[0]], [from_pos[1], to_pos[1]],
                 color=edge_color, alpha=a, linewidth=lw, zorder=1)
 
-    # Step 7: draw source genes.
+    # Step 7: draw source genes (color by cohort when present).
     gene_color = NODE_COLORS.get("G", DEFAULT_COLOR)
     for i, gene in enumerate(genes_to_draw):
         gy = gene_y[i]
         gene_name = gene.get("gene_name") or str(gene.get("gene_id", "?"))
-        ax.scatter(source_x, gy, s=320, c=gene_color,
+        node_color = COHORT_COLORS.get(str(gene.get("cohort", "")), gene_color)
+        ax.scatter(source_x, gy, s=320, c=node_color,
                    edgecolors="white", linewidths=1.2, zorder=3)
         ax.text(source_x - 0.015, gy, str(gene_name)[:12],
                 ha="right", va="center", fontsize=8, fontweight="medium")
@@ -825,6 +864,17 @@ def _render_pooled_subgraph(
         legend_handles.append(
             plt.Line2D([], [], color=SKIP_EDGE_COLOR, linewidth=2.4,
                        label="Shortcut to target")
+        )
+    # Year-mode cohort legend entries (only when any source gene had a cohort).
+    cohorts_in_draw = sorted(
+        {str(g.get("cohort", "")) for g in genes_to_draw if g.get("cohort")}
+    )
+    for c in cohorts_in_draw:
+        label = "Source: 2016 baseline" if c == "2016" else "Source: 2024-added" if c == "2024" else f"Source: {c}"
+        legend_handles.append(
+            plt.Line2D([], [], marker="o", color="w",
+                       markerfacecolor=COHORT_COLORS.get(c, NODE_COLORS.get("G", DEFAULT_COLOR)),
+                       markersize=10, label=label)
         )
     if legend_handles:
         ax.legend(handles=legend_handles, title="Legend",
@@ -1117,6 +1167,18 @@ def generate_subgraphs(
             # like Gene_0 / Gene_1) ensures they match visible_source_ids so
             # the Source column and its edges actually render.
             if not mp_genes and not mp_paths.empty and "gene_id" in mp_paths.columns:
+                gene_cohort_map: dict[int, str] = {}
+                if analysis_type == "year" and "year" in mp_paths.columns:
+                    for gid_val, yr in zip(
+                        mp_paths["gene_id"].dropna(),
+                        mp_paths.loc[mp_paths["gene_id"].notna(), "year"],
+                    ):
+                        try:
+                            gid_int = int(gid_val)
+                        except (TypeError, ValueError):
+                            continue
+                        if gid_int not in gene_cohort_map:
+                            gene_cohort_map[gid_int] = str(yr)
                 mp_gene_ids = (
                     mp_paths["gene_id"].dropna().unique().tolist()
                 )
@@ -1126,11 +1188,14 @@ def generate_subgraphs(
                         gid = int(g)
                     except (TypeError, ValueError):
                         continue
-                    mp_genes.append({
+                    rec = {
                         "gene_id": gid,
                         "gene_name": gene_names.get(gid, str(gid)),
                         "dwpc": 1.0,
-                    })
+                    }
+                    if gid in gene_cohort_map:
+                        rec["cohort"] = gene_cohort_map[gid]
+                    mp_genes.append(rec)
 
             if not mp_genes:
                 n_genes = int(mp_row.get("n_genes_with_paths", 0) or 0)
@@ -1190,6 +1255,18 @@ def generate_subgraphs(
                             continue
                         combined_genes_by_id[gid] = rec
                 path_gene_ids = combined_paths["gene_id"].dropna().unique().tolist()
+                combined_cohort_map: dict[int, str] = {}
+                if analysis_type == "year" and "year" in combined_paths.columns:
+                    for gid_val, yr in zip(
+                        combined_paths["gene_id"].dropna(),
+                        combined_paths.loc[combined_paths["gene_id"].notna(), "year"],
+                    ):
+                        try:
+                            gid_int = int(gid_val)
+                        except (TypeError, ValueError):
+                            continue
+                        if gid_int not in combined_cohort_map:
+                            combined_cohort_map[gid_int] = str(yr)
                 for g in path_gene_ids:
                     try:
                         gid = int(g)
@@ -1201,6 +1278,8 @@ def generate_subgraphs(
                             "gene_name": gene_names.get(gid, str(gid)),
                             "dwpc": 1.0,
                         }
+                    if gid in combined_cohort_map:
+                        combined_genes_by_id[gid]["cohort"] = combined_cohort_map[gid]
                 combined_genes = list(combined_genes_by_id.values())
 
                 shared_stem = output_dir / f"{gene_set_id}_top_shared"

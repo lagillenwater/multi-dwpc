@@ -341,13 +341,13 @@ echo "-----------------------------------"
 
 INT_PLOTS_CMD="
 CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
-echo \"Using chosen B = \$CHOSEN_B for intermediate sharing plots\"
+echo \"Using chosen B = \$CHOSEN_B for year intermediate sharing plots\"
 
-python3 scripts/plot_lv_intermediate_sharing.py \\
+python3 scripts/plot_year_intermediate_sharing.py \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
     --output-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B/figures\" \\
-    --analysis-type year \\
-    --top-ids-json \"$OUTPUT_DIR/top_go_ids.json\"
+    --top-go-json \"$OUTPUT_DIR/top_go_ids.json\" \\
+    --repo-root .
 "
 
 INT_PLOTS_JOB_ID=$(sbatch \
