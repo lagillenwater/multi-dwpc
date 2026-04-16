@@ -750,8 +750,9 @@ def plot_metapath_intermediate_heatmap(
 
 
 def main() -> None:
+    import json as _json
     parser = argparse.ArgumentParser(
-        description="Visualize LV intermediate sharing results."
+        description="Visualize LV or year intermediate sharing results."
     )
     parser.add_argument(
         "--input-dir",
@@ -761,6 +762,25 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         help="Output directory for figures. Defaults to input-dir/figures.",
+    )
+    parser.add_argument(
+        "--analysis-type",
+        choices=["lv", "year"],
+        default="lv",
+        help="Dataset type. LV uses lv_id; year uses go_id (renamed internally).",
+    )
+    parser.add_argument(
+        "--top-ids-json",
+        help=(
+            "Optional JSON file holding a list of ids to include (e.g., "
+            "top_go_ids.json). If set, plots are restricted to those entities -- "
+            "essential for year runs where there may be hundreds of GO terms."
+        ),
+    )
+    parser.add_argument(
+        "--nodes-dir",
+        default="data/nodes",
+        help="Dir with node TSVs for resolving target names in year mode.",
     )
     args = parser.parse_args()
 
@@ -782,7 +802,55 @@ def main() -> None:
     summary_df = pd.read_csv(summary_path)
     top_int_df = pd.read_csv(top_int_path) if top_int_path.exists() else None
 
-    print(f"Loaded {len(metapath_df)} metapath rows, {len(summary_df)} LV-target pairs")
+    # --- Year adapter ---
+    # The plotting helpers below reference `lv_id` and `target_name` columns.
+    # For year runs we rename go_id -> lv_id and synthesize a target_name
+    # from Biological Process.tsv so the rest of the code works unchanged.
+    if args.analysis_type == "year":
+        def _rename_go(df: pd.DataFrame) -> pd.DataFrame:
+            if df is None or df.empty:
+                return df
+            if "go_id" in df.columns and "lv_id" not in df.columns:
+                df = df.rename(columns={"go_id": "lv_id"})
+            if "target_id" not in df.columns:
+                df["target_id"] = df["lv_id"]
+            return df
+
+        metapath_df = _rename_go(metapath_df)
+        summary_df = _rename_go(summary_df)
+        if top_int_df is not None:
+            top_int_df = _rename_go(top_int_df)
+
+        # Resolve target names from Biological Process.tsv (GO term name).
+        nodes_dir = Path(args.nodes_dir)
+        bp_path = nodes_dir / "Biological Process.tsv"
+        bp_name_lookup: dict[str, str] = {}
+        if bp_path.exists():
+            bp_df = pd.read_csv(bp_path, sep="\t")
+            if {"identifier", "name"}.issubset(bp_df.columns):
+                bp_name_lookup = dict(zip(bp_df["identifier"].astype(str), bp_df["name"].astype(str)))
+
+        if "target_name" not in summary_df.columns:
+            summary_df["target_name"] = summary_df["lv_id"].astype(str).map(bp_name_lookup).fillna(summary_df["lv_id"])
+        if "target_name" not in metapath_df.columns:
+            metapath_df["target_name"] = metapath_df["lv_id"].astype(str).map(bp_name_lookup).fillna(metapath_df["lv_id"])
+
+    # Optional filter to a provided list of ids (top GOs for year, etc.).
+    if args.top_ids_json:
+        with open(args.top_ids_json) as fh:
+            top_ids = [str(x) for x in _json.load(fh)]
+        before = len(summary_df)
+        summary_df = summary_df[summary_df["lv_id"].astype(str).isin(top_ids)].copy()
+        metapath_df = metapath_df[metapath_df["lv_id"].astype(str).isin(top_ids)].copy()
+        if top_int_df is not None and not top_int_df.empty:
+            top_int_df = top_int_df[top_int_df["lv_id"].astype(str).isin(top_ids)].copy()
+        print(f"Filtered to {len(summary_df)} of {before} ids from {args.top_ids_json}")
+
+    if summary_df.empty:
+        print("Nothing to plot after filtering -- exiting.")
+        return
+
+    print(f"Loaded {len(metapath_df)} metapath rows, {len(summary_df)} gene-set pairs")
     if top_int_df is not None:
         print(f"Loaded {len(top_int_df)} top intermediate rows")
 

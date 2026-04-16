@@ -333,6 +333,39 @@ VIZ_JOB_ID=$(sbatch \
 echo "Submitted visualization: $VIZ_JOB_ID"
 
 # ============================================
+# Stage 7: Intermediate Sharing Plots (top GO terms)
+# ============================================
+echo ""
+echo "Stage 7: Intermediate Sharing Plots"
+echo "-----------------------------------"
+
+INT_PLOTS_CMD="
+CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+echo \"Using chosen B = \$CHOSEN_B for intermediate sharing plots\"
+
+python3 scripts/plot_lv_intermediate_sharing.py \\
+    --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
+    --output-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B/figures\" \\
+    --analysis-type year \\
+    --top-ids-json \"$OUTPUT_DIR/top_go_ids.json\"
+"
+
+INT_PLOTS_JOB_ID=$(sbatch \
+    --parsable \
+    --dependency=afterok:$TOP_GO_JOB_ID \
+    --export=ALL \
+    --job-name="year-int-plots" \
+    --partition=amilan \
+    --qos=normal \
+    --cpus-per-task=2 \
+    --mem="8G" \
+    --time="00:30:00" \
+    --output="$LOG_DIR/int_plots_%j.out" \
+    --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && $INT_PLOTS_CMD'")
+
+echo "Submitted intermediate sharing plots: $INT_PLOTS_JOB_ID"
+
+# ============================================
 # Summary
 # ============================================
 echo ""
@@ -347,6 +380,7 @@ echo "  3. Top GO Selection:     $TOP_GO_JOB_ID"
 echo "  4. Global Summary:       $SUMMARY_JOB_ID"
 echo "  5. Gene Table:           $GENE_JOB_ID"
 echo "  6. Visualization:        $VIZ_JOB_ID"
+echo "  7. Int-sharing plots:    $INT_PLOTS_JOB_ID"
 echo ""
 echo "Monitor progress:"
 echo "  squeue -u \$USER"
