@@ -133,7 +133,7 @@ def plot_sharing_by_rank(
             linewidth=1,
         )
 
-        ax.set_xlabel("Metapath Rank (by effect size)")
+        ax.set_xlabel("Metapath Rank (by z)")
         ax.set_ylabel("% Genes Sharing Intermediates")
         ax.set_title(f"{lv_id}: {target_name}")
         ax.set_ylim(-5, 105)
@@ -180,7 +180,7 @@ def plot_effect_size_vs_sharing(
             cbar = plt.colorbar(sc, ax=ax)
             cbar.set_label("Metapath Rank")
 
-        ax.set_xlabel("Effect Size (Cohen's d)")
+        ax.set_xlabel("z")
         ax.set_ylabel("% Genes Sharing Intermediates")
         ax.set_title(f"{lv_id}: {target_name}")
         ax.axhline(y=50, color="gray", linestyle="--", alpha=0.5)
@@ -271,7 +271,7 @@ def plot_top_metapaths(
         ax.barh(y_pos, top_metapaths["effect_size_d"], color=bar_colors, alpha=0.8)
         ax.set_yticks(y_pos)
         ax.set_yticklabels(top_metapaths["metapath"], fontsize=8)
-        ax.set_xlabel("Effect Size (Cohen's d)")
+        ax.set_xlabel("z")
         ax.set_title(f"{lv_id}: {target_name}\nTop {top_n} Metapaths")
         ax.invert_yaxis()
 

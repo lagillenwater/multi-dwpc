@@ -391,8 +391,10 @@ python3 scripts/plot_year_effective_metapath_selection.py \\
     --output-dir \"$OUTPUT_DIR/metapath_analysis/selection_frequency\"
 
 # 3. Rank-similarity scatter (2016 rank vs 2024 rank) with Spearman rho.
+#    Uses the GLOBAL (per-metapath, per-year) support file -- that's where
+#    selected_fraction_all is computed.
 python3 scripts/year_snapshot_rank_similarity.py \\
-    --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
+    --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_global_metapath_support.csv\" \\
     --rank-metric selected_fraction_all \\
     --b \$CHOSEN_B \\
     --output-dir \"$OUTPUT_DIR/metapath_analysis/rank_similarity\" \\

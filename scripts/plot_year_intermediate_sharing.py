@@ -235,7 +235,7 @@ def plot_top_metapaths_per_go(
         ax.set_yticks(y)
         ax.set_yticklabels(sub["metapath"].astype(str).tolist(), fontsize=8)
         ax.invert_yaxis()
-        ax.set_xlabel("Effect size d")
+        ax.set_xlabel("z")
         ax.set_title(_go_label(go_id, bp_names), fontsize=10)
         ax.grid(axis="x", alpha=0.25)
 

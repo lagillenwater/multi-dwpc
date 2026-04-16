@@ -111,12 +111,12 @@ def plot_lv_selection_diagnostics(
     ax.axvline(
         float(effect_size_threshold),
         color="red", linestyle="--", linewidth=1.3,
-        label=f"d threshold = {effect_size_threshold}",
+        label=f"z threshold = {effect_size_threshold}",
     )
     lo, hi = float(min(0.0, max_d.min())), float(max(effect_size_threshold, max_d.max()))
     span = max(hi - lo, 1e-6)
     ax.set_xlim(lo - 0.05 * span, hi + 0.05 * span)
-    ax.set_xlabel("Max effect size d across metapaths")
+    ax.set_xlabel("Max z across metapaths")
     ax.set_ylabel(id_col)
     title = f"{id_col} selection: max effect size per {id_col}"
     if full_count > MAX_BARS:
@@ -159,12 +159,12 @@ def plot_lv_selection_diagnostics(
     ax.axvline(
         float(effect_size_threshold),
         color="red", linestyle="--", linewidth=1.3,
-        label=f"d threshold = {effect_size_threshold}",
+        label=f"z threshold = {effect_size_threshold}",
     )
     ax.set_yticks(np.arange(len(id_order)))
     ax.set_yticklabels(id_order, fontsize=8)
     ax.invert_yaxis()
-    ax.set_xlabel("Effect size d (per metapath)")
+    ax.set_xlabel("z (per metapath)")
     ax.set_ylabel(id_col)
     title = f"Per-metapath effect size distribution for selected {id_col}"
     if full_selected > len(id_order):
