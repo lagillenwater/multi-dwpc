@@ -268,11 +268,14 @@ def main() -> None:
 
     hetmat = HetMat(data_dir, damping=0.5)
 
+    t_warmup = 0.0
     if args.warmup:
         warmup_pairs = attach_hetmat_indices(pairs, hetmat)
+        t_warmup_start = time.perf_counter()
         for mp in metapaths:
             hetmat.get_dwpc_for_pairs(mp, warmup_pairs["bp_idx"].values, warmup_pairs["gene_idx"].values)
-        print("Warmup complete")
+        t_warmup = time.perf_counter() - t_warmup_start
+        print(f"Warmup complete ({t_warmup * 1000.0:.1f} ms)")
 
     rows: list[dict] = []
     perms_by_b: dict[int, list[pd.DataFrame]] = {}
@@ -284,6 +287,7 @@ def main() -> None:
         for perm_df in perms:
             perm_idx = attach_hetmat_indices(perm_df, hetmat)
             t_direct_total += _time_direct_call(perm_idx, hetmat, metapaths)
+        t_direct_total += t_warmup
         rows.append(
             {
                 "method": "direct",

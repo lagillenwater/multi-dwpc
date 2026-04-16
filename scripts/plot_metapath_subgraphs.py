@@ -1030,7 +1030,16 @@ def generate_subgraphs(
     if gene_paths_df.empty:
         print(f"Warning: No gene_paths.csv at {gene_paths_path} -- edges will be minimal")
 
-    gene_table = pd.read_csv(gene_table_path) if (gene_table_path and gene_table_path.exists()) else pd.DataFrame()
+    # Tolerate an empty gene-table CSV: treat it like "no gene table" so the
+    # viz still renders with placeholder gene rows instead of crashing.
+    if gene_table_path and gene_table_path.exists():
+        try:
+            gene_table = pd.read_csv(gene_table_path)
+        except pd.errors.EmptyDataError:
+            print(f"Warning: {gene_table_path} is empty; proceeding without gene-table data")
+            gene_table = pd.DataFrame()
+    else:
+        gene_table = pd.DataFrame()
     gene_names = load_gene_names(REPO_ROOT)
     # Qualified-id -> human-name lookup spanning every node type.
     node_name_lookup = load_all_node_names(REPO_ROOT)

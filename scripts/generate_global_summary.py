@@ -249,13 +249,27 @@ def compute_global_summary(
         row["max_effect_size_d"] = group["effect_size_d"].max()
         row["min_effect_size_d"] = group["effect_size_d"].min()
 
-        # Gene coverage
-        row["n_genes_total"] = group["n_genes_total"].iloc[0]
+        # Gene coverage. LV mode stores a single `n_genes_total` column;
+        # year mode stores `n_genes_2016` + `n_genes_2024_added`. Accept either.
+        if "n_genes_total" in group.columns:
+            row["n_genes_total"] = int(group["n_genes_total"].iloc[0] or 0)
+        elif {"n_genes_2016", "n_genes_2024_added"}.issubset(group.columns):
+            n2016 = int(group["n_genes_2016"].iloc[0] or 0)
+            n2024 = int(group["n_genes_2024_added"].iloc[0] or 0)
+            row["n_genes_2016"] = n2016
+            row["n_genes_2024_added"] = n2024
+            row["n_genes_total"] = n2016 + n2024
+        else:
+            row["n_genes_total"] = 0
 
         # Compute unique genes with paths across all metapaths
         # Use the max n_genes_with_paths as approximation (true value requires path data)
-        row["max_genes_with_paths_per_mp"] = group["n_genes_with_paths"].max()
-        row["median_genes_with_paths_per_mp"] = group["n_genes_with_paths"].median()
+        if "n_genes_with_paths" in group.columns:
+            row["max_genes_with_paths_per_mp"] = group["n_genes_with_paths"].max()
+            row["median_genes_with_paths_per_mp"] = group["n_genes_with_paths"].median()
+        else:
+            row["max_genes_with_paths_per_mp"] = 0
+            row["median_genes_with_paths_per_mp"] = 0
 
         # Approximate coverage: max genes with paths / total genes
         if row["n_genes_total"] > 0:
