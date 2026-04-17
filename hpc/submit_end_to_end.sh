@@ -70,10 +70,10 @@ if [[ "$MODE" == "smoke" ]]; then
     YEAR_DWPC_WORKERS=2
     EXP_MEM="8G"
     EXP_TIME="01:00:00"
-    DWPC_MEM="16G"
-    DWPC_TIME="02:00:00"
-    PIPELINE_MEM="16G"
-    PIPELINE_TIME="02:00:00"
+    DWPC_MEM="64G"
+    DWPC_TIME="04:00:00"
+    PIPELINE_MEM="32G"
+    PIPELINE_TIME="04:00:00"
 else
     B_VALUES="1,2,5,10,20"
     SEEDS="11,22,33,44,55"
@@ -85,7 +85,7 @@ else
     YEAR_DWPC_WORKERS=4
     EXP_MEM="16G"
     EXP_TIME="04:00:00"
-    DWPC_MEM="32G"
+    DWPC_MEM="128G"
     DWPC_TIME="08:00:00"
     PIPELINE_MEM="64G"
     PIPELINE_TIME="24:00:00"
@@ -107,38 +107,78 @@ submit() {
     local name="$1" mem="$2" time="$3" cmd="$4" dep="${5:-}" cpus="${6:-4}"
     local dep_flag=""
     [[ -n "$dep" ]] && dep_flag="--dependency=afterok:$dep"
+    local activate="module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
     sbatch --parsable $dep_flag --export=ALL \
         --job-name="e2e-$name" --partition=amilan --qos=normal \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
         --output="$LOG_DIR/${name}_%j.out" \
-        --wrap="bash -lc 'cd \"$REPO_ROOT\" && module load anaconda && conda activate multi_dwpc && set -e && $cmd'"
+        --wrap="bash -c 'cd \"$REPO_ROOT\" && $activate && set -e && $cmd'"
 }
 
 # ============================================
-# Phase 1: Data Preparation (shared)
+# Phase 0: Validate prerequisites
 # ============================================
-echo "Phase 1: Data Preparation"
-echo "========================="
+# Data download requires internet access which HPC compute nodes may not
+# have.  Run these from a login node BEFORE submitting this script:
+#
+#   conda activate multi_dwpc
+#   python scripts/data_prep/load_data.py
+#   python scripts/data_prep/download_lv_loadings.py --output-dir data/lv_loadings  # if running LV
+#
+# The script checks for required files and exits if missing.
 
-DATA_CMD="python3 scripts/data_prep/load_data.py && \
-python3 scripts/data_prep/percent_change_and_filtering.py && \
-python3 scripts/data_prep/go_hierarchy_analysis.py && \
-python3 scripts/data_prep/jaccard_similarity_and_filtering.py"
+echo "Phase 0: Checking prerequisites"
+echo "==============================="
 
-DATA_JOB=$(submit "data-prep" "8G" "01:00:00" "$DATA_CMD" "" 2)
-echo "  Data prep: $DATA_JOB"
+REQUIRED_FILES=(
+    "data/edges/GpBP.sparse.npz"
+    "data/nodes/Gene.tsv"
+    "data/metagraph.json"
+)
 
-# ============================================
-# Phase 2a: Null Generation (depends on data prep)
-# ============================================
+MISSING=0
+for f in "${REQUIRED_FILES[@]}"; do
+    if [[ ! -f "$f" ]]; then
+        echo "  MISSING: $f"
+        MISSING=1
+    fi
+done
+
+if [[ "$MISSING" == "1" ]]; then
+    echo ""
+    echo "Required data files not found. Run on a login node first:"
+    echo "  conda activate multi_dwpc"
+    echo "  python scripts/data_prep/load_data.py"
+    exit 1
+fi
+echo "  All prerequisite files found."
+
+if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
+    if [[ ! -f "$LV_LOADINGS_PATH" ]]; then
+        echo ""
+        echo "  MISSING: $LV_LOADINGS_PATH"
+        echo "  Run on a login node: python scripts/data_prep/download_lv_loadings.py --output-dir data/lv_loadings"
+        exit 1
+    fi
+    echo "  LV loadings found."
+fi
+
 echo ""
-echo "Phase 2: Null Generation"
-echo "========================"
 
-NULL_CMD="python3 scripts/data_prep/permutation_null_datasets.py && \
+# ============================================
+# Phase 1: Data Filtering + Null Generation
+# ============================================
+echo "Phase 1: Data Filtering + Null Generation"
+echo "=========================================="
+
+FILTER_CMD="python3 scripts/data_prep/percent_change_and_filtering.py && \
+python3 scripts/data_prep/jaccard_similarity_and_filtering.py && \
+python3 scripts/data_prep/permutation_null_datasets.py && \
 python3 scripts/data_prep/random_null_datasets.py"
-NULL_JOB=$(submit "null-gen" "8G" "01:00:00" "$NULL_CMD" "$DATA_JOB" 2)
-echo "  Null generation: $NULL_JOB"
+
+DATA_JOB=$(submit "data-filter" "8G" "01:00:00" "$FILTER_CMD" "" 2)
+echo "  Data filtering + nulls: $DATA_JOB"
+NULL_JOB="$DATA_JOB"
 
 # ============================================
 # Year-specific chain
@@ -189,10 +229,8 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     echo ""
     echo "=== LV Analysis Chain ==="
 
-    # Phase 2b: Download LV loadings + prepare experiment (depends on data prep)
-    LV_PREP_CMD="python3 scripts/data_prep/download_lv_loadings.py \
-        --output-dir data/lv_loadings && \
-    python3 scripts/experiments/lv_prepare_experiment.py \
+    # Phase 2b: Prepare LV experiment (depends on data filtering)
+    LV_PREP_CMD="python3 scripts/experiments/lv_prepare_experiment.py \
         --output-dir $LV_OUTPUT_DIR \
         --lv-loadings $LV_LOADINGS_PATH \
         --resume --metapath-limit-per-target $LV_METAPATH_LIMIT"
