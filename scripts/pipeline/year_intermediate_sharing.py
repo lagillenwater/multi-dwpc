@@ -30,90 +30,28 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
-
 import numpy as np
 import pandas as pd
 
-if Path.cwd().name == "scripts":
-    REPO_ROOT = Path("..").resolve()
-else:
-    REPO_ROOT = Path.cwd()
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+import sys  # noqa: E402
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.extract_top_paths_local import (  # noqa: E402
+from src.path_enumeration import (  # noqa: E402
     EdgeLoader,
-    enumerate_paths,
     load_node_maps,
+    load_node_names,
     parse_metapath,
-    reverse_metapath_abbrev,
-    select_paths,
+)
+from src.intermediate_sharing import (  # noqa: E402
+    compute_dwpc_thresholds,
+    compute_intermediate_coverage,
+    enumerate_gene_intermediates,
+    load_runs_at_b,
 )
 
 
-# Node type abbreviation to full name mapping
-NODE_TYPE_NAMES = {
-    "G": "Gene",
-    "A": "Anatomy",
-    "BP": "Biological Process",
-    "CC": "Cellular Component",
-    "C": "Compound",
-    "D": "Disease",
-    "MF": "Molecular Function",
-    "PC": "Pharmacologic Class",
-    "PW": "Pathway",
-    "SE": "Side Effect",
-    "S": "Symptom",
-}
-
-
-def _load_node_names(repo_root: Path) -> dict[str, dict[str, str]]:
-    """Load node ID to name mappings for all node types."""
-    nodes_dir = repo_root / "data" / "nodes"
-    name_maps: dict[str, dict[str, str]] = {}
-
-    for abbrev, full_name in NODE_TYPE_NAMES.items():
-        node_file = nodes_dir / f"{full_name}.tsv"
-        if not node_file.exists():
-            continue
-        df = pd.read_csv(node_file, sep="\t")
-        name_maps[abbrev] = dict(zip(df["identifier"].astype(str), df["name"]))
-
-    return name_maps
-
-
-def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
-    """Load all_runs_long.csv and get effect sizes from permutation null."""
-    runs_df = pd.read_csv(runs_path)
-
-    # Filter to specified b and permutation null only
-    runs_df = runs_df[(runs_df["b"] == b) & (runs_df["control"] == "permuted")].copy()
-    if runs_df.empty:
-        raise ValueError(f"No permuted rows found for b={b} in {runs_path}")
-
-    # Average effect size d across seeds
-    group_cols = ["go_id", "metapath"]
-    if "year" in runs_df.columns:
-        group_cols.append("year")
-
-    if "effect_size_d" in runs_df.columns:
-        z_col = "effect_size_d"
-    elif "d" in runs_df.columns:
-        z_col = "d"
-    else:
-        raise ValueError(
-            f"{runs_path} has neither 'effect_size_d' nor 'd' column; "
-            f"cannot compute per-metapath z. Columns present: "
-            f"{sorted(runs_df.columns.tolist())}"
-        )
-
-    result = runs_df.groupby(group_cols, as_index=False).agg(
-        effect_size_d=(z_col, "mean"),
-        diff_perm=("diff", "mean"),
-    )
-
-    return result
 
 
 def _select_metapaths_by_effect_size(
@@ -165,120 +103,6 @@ def _select_metapaths_by_effect_size(
         above = above.sort_values(["go_id", "effect_size_d"], ascending=[True, False])
         above["metapath_rank"] = above.groupby("go_id").cumcount() + 1
         return above[["go_id", "metapath", "metapath_rank", "effect_size_d"]]
-
-
-def _compute_dwpc_thresholds(
-    dwpc_lookup: Dict[Tuple, float],
-    percentile: float,
-) -> Dict[Tuple[str, str], float]:
-    """Compute DWPC percentile thresholds for each (go_id, metapath)."""
-    grouped: Dict[Tuple[str, str], list] = {}
-    for (go_id, metapath, gene_id), dwpc in dwpc_lookup.items():
-        key = (go_id, metapath)
-        if key not in grouped:
-            grouped[key] = []
-        grouped[key].append(dwpc)
-
-    thresholds: Dict[Tuple[str, str], float] = {}
-    for key, values in grouped.items():
-        if values:
-            thresholds[key] = float(np.percentile(values, percentile))
-
-    return thresholds
-
-
-def _enumerate_gene_intermediates(
-    genes: list[int],
-    go_id: str,
-    metapath: str,
-    edge_loader: EdgeLoader,
-    maps,
-    *,
-    path_top_k: int = 100,
-    degree_d: float = 0.5,
-    dwpc_lookup: dict[tuple, float] | None = None,
-    dwpc_thresholds: dict[tuple, float] | None = None,
-    record_paths: list | None = None,
-    year_label: str | None = None,
-) -> dict[int, set[str]]:
-    """Enumerate paths for genes and return {gene_id: set of intermediate_ids}."""
-    # Metapath goes Gene -> ... -> BP, reverse for enumeration
-    reversed_mp = reverse_metapath_abbrev(metapath)
-    nodes, edges = parse_metapath(reversed_mp)
-
-    bp_pos = maps.id_to_pos.get("BP", {}).get(go_id)
-    if bp_pos is None:
-        return {}
-
-    gene_intermediates: dict[int, set[str]] = {}
-
-    # Get DWPC threshold for this (go_id, metapath)
-    dwpc_threshold = 0.0
-    if dwpc_thresholds is not None:
-        dwpc_threshold = dwpc_thresholds.get((go_id, metapath), 0.0)
-
-    for gene_id in genes:
-        gene_pos = maps.id_to_pos.get("G", {}).get(gene_id)
-        if gene_pos is None:
-            continue
-
-        # Filter by DWPC threshold
-        if dwpc_lookup is not None and dwpc_threshold > 0:
-            dwpc = dwpc_lookup.get((go_id, metapath, gene_id), 0.0)
-            if dwpc < dwpc_threshold:
-                continue
-
-        try:
-            candidate_paths = enumerate_paths(
-                bp_pos, gene_pos, nodes, edges, edge_loader,
-                top_k=path_top_k, degree_d=degree_d,
-            )
-            paths = select_paths(
-                candidate_paths,
-                selection_method="effective_number",
-                top_paths=path_top_k,
-                path_cumulative_frac=None,
-                path_min_count=1,
-                path_max_count=None,
-            )
-        except Exception:
-            continue
-
-        intermediates = set()
-        for path_rank, (score, pos_path) in enumerate(paths, start=1):
-            # pos_path is [bp_pos, intermediate1, ..., gene_pos] because
-            # enumerate_paths walks the reversed metapath. Build qualified IDs
-            # in the same order, then flip so hop_0 = source gene, hop_N = target BP
-            # (matches the LV gene_paths.csv convention).
-            path_node_ids: list[str | None] = []
-            for i, (node_type, pos) in enumerate(zip(nodes, pos_path)):
-                node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
-                qualified = f"{node_type}:{node_id}" if node_id is not None else None
-                path_node_ids.append(qualified)
-                if 0 < i < len(nodes) - 1 and qualified is not None:
-                    intermediates.add(qualified)
-
-            if record_paths is not None:
-                reversed_ids = list(reversed(path_node_ids))
-                reversed_types = list(reversed(nodes))
-                record = {
-                    "go_id": go_id,
-                    "metapath": metapath,
-                    "gene_id": gene_id,
-                    "path_rank": int(path_rank),
-                    "path_score": float(score),
-                }
-                if year_label is not None:
-                    record["year"] = year_label
-                for hop_idx, (node_type, qualified) in enumerate(zip(reversed_types, reversed_ids)):
-                    record[f"hop_{hop_idx}_type"] = node_type
-                    record[f"hop_{hop_idx}_id"] = qualified
-                record_paths.append(record)
-
-        if intermediates:
-            gene_intermediates[gene_id] = intermediates
-
-    return gene_intermediates
 
 
 def _compute_sharing_stats(
@@ -354,70 +178,6 @@ def _compute_sharing_stats(
         "n_unique_intermediates_2016": len(all_2016_intermediates),
         "n_unique_intermediates_2024": len(all_2024_intermediates),
     }
-
-
-def _compute_intermediate_coverage(
-    gene_intermediates: dict[int, set[str]],
-    node_name_maps: dict[str, dict[str, str]] | None = None,
-) -> tuple[dict, list[dict]]:
-    """Compute intermediate coverage statistics."""
-    n_genes = len(gene_intermediates)
-    if n_genes == 0:
-        return {
-            "top1_intermediate_coverage": 0.0,
-            "top5_intermediate_coverage": 0.0,
-            "pct_intermediates_shared_quarter": 0.0,
-            "pct_intermediates_shared_majority": 0.0,
-        }, []
-
-    # Count genes using each intermediate
-    intermediate_gene_counts: dict[str, set[int]] = {}
-    for gene_id, ints in gene_intermediates.items():
-        for int_id in ints:
-            if int_id not in intermediate_gene_counts:
-                intermediate_gene_counts[int_id] = set()
-            intermediate_gene_counts[int_id].add(gene_id)
-
-    # Build per-intermediate stats
-    intermediate_stats = []
-    for int_id, genes_using in intermediate_gene_counts.items():
-        intermediate_name = None
-        if node_name_maps and ":" in int_id:
-            node_type = int_id.split(":")[0]
-            node_identifier = int_id.split(":", 1)[1]
-            if node_type in node_name_maps:
-                intermediate_name = node_name_maps[node_type].get(node_identifier)
-
-        intermediate_stats.append({
-            "intermediate_id": int_id,
-            "intermediate_name": intermediate_name,
-            "n_genes_using": len(genes_using),
-            "pct_genes_using": len(genes_using) / n_genes * 100,
-        })
-
-    intermediate_stats.sort(key=lambda x: x["n_genes_using"], reverse=True)
-
-    n_total = len(intermediate_gene_counts)
-    n_shared_quarter = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 4)
-    n_shared_majority = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 2)
-
-    top1_coverage = intermediate_stats[0]["pct_genes_using"] if intermediate_stats else 0.0
-    if len(intermediate_stats) >= 5:
-        top5_genes = set()
-        for stat in intermediate_stats[:5]:
-            top5_genes.update(intermediate_gene_counts[stat["intermediate_id"]])
-        top5_coverage = len(top5_genes) / n_genes * 100
-    else:
-        top5_coverage = 0.0
-
-    coverage_stats = {
-        "top1_intermediate_coverage": top1_coverage,
-        "top5_intermediate_coverage": top5_coverage,
-        "pct_intermediates_shared_quarter": n_shared_quarter / n_total * 100 if n_total > 0 else 0.0,
-        "pct_intermediates_shared_majority": n_shared_majority / n_total * 100 if n_total > 0 else 0.0,
-    }
-
-    return coverage_stats, intermediate_stats[:20]
 
 
 def parse_args() -> argparse.Namespace:
@@ -508,7 +268,7 @@ def main() -> None:
         return
 
     # Load node name mappings
-    node_name_maps = _load_node_names(REPO_ROOT)
+    node_name_maps = load_node_names(REPO_ROOT)
     print(f"Loaded node name maps for: {list(node_name_maps.keys())}")
 
     # Setup edge loader
@@ -520,7 +280,7 @@ def main() -> None:
     dwpc_thresholds: dict[tuple, float] = {}
 
     if args.dwpc_percentile > 0 and dwpc_lookup:
-        dwpc_thresholds = _compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
+        dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
         print(f"Computed DWPC thresholds for {len(dwpc_thresholds)} pairs")
 
     # Initialize node maps (will be populated on first iteration)
@@ -545,7 +305,7 @@ def main() -> None:
             continue
 
         try:
-            results_df = _load_runs_at_b(runs_path, b_value)
+            results_df = load_runs_at_b(runs_path, b_value, ["go_id", "metapath", "year"])
         except ValueError as e:
             print(f"Warning: {e}")
             continue
@@ -598,29 +358,34 @@ def main() -> None:
 
             print(f"\n{go_id}: {len(genes_2016)} genes (2016), {len(genes_2024)} added (2024), {len(go_mps)} metapaths")
 
+            bp_pos = maps.id_to_pos.get("BP", {}).get(go_id)
+            if bp_pos is None:
+                print(f"  Warning: BP position not found for {go_id}, skipping")
+                continue
+
             for _, mp_row in go_mps.iterrows():
                 metapath = mp_row["metapath"]
                 mp_rank = mp_row["metapath_rank"]
                 effect_size = mp_row["effect_size_d"]
 
-                # Enumerate intermediates for 2016 genes
-                ints_2016 = _enumerate_gene_intermediates(
-                    genes_2016, go_id, metapath, edge_loader, maps,
+                ints_2016 = enumerate_gene_intermediates(
+                    genes_2016, bp_pos, metapath, edge_loader, maps,
                     path_top_k=args.path_top_k,
-                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                    dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
+                    gene_set_id=go_id,
+                    dwpc_lookup=dwpc_lookup or None,
+                    dwpc_thresholds=dwpc_thresholds or None,
                     record_paths=gene_path_records,
-                    year_label="2016",
+                    record_extra={"go_id": go_id, "year": "2016"},
                 )
 
-                # Enumerate intermediates for 2024-added genes
-                ints_2024 = _enumerate_gene_intermediates(
-                    genes_2024, go_id, metapath, edge_loader, maps,
+                ints_2024 = enumerate_gene_intermediates(
+                    genes_2024, bp_pos, metapath, edge_loader, maps,
                     path_top_k=args.path_top_k,
-                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                    dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
+                    gene_set_id=go_id,
+                    dwpc_lookup=dwpc_lookup or None,
+                    dwpc_thresholds=dwpc_thresholds or None,
                     record_paths=gene_path_records,
-                    year_label="2024",
+                    record_extra={"go_id": go_id, "year": "2024"},
                 )
 
                 # Compute sharing stats
@@ -630,7 +395,7 @@ def main() -> None:
 
                 # Compute coverage for combined gene set
                 combined_ints = {**ints_2016, **ints_2024}
-                coverage_stats, int_stats = _compute_intermediate_coverage(
+                coverage_stats, int_stats = compute_intermediate_coverage(
                     combined_ints, node_name_maps
                 )
                 stats.update(coverage_stats)

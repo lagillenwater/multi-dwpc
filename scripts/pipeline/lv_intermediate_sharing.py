@@ -37,57 +37,23 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 
-if Path.cwd().name == "scripts":
-    REPO_ROOT = Path("..").resolve()
-else:
-    REPO_ROOT = Path.cwd()
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+import sys  # noqa: E402
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.extract_top_paths_local import (  # noqa: E402
+from src.path_enumeration import (  # noqa: E402
     EdgeLoader,
-    enumerate_paths,
     load_node_maps,
+    load_node_names,
     parse_metapath,
-    reverse_metapath_abbrev,
-    select_paths,
 )
-
-
-# Node type abbreviation to full name mapping
-NODE_TYPE_NAMES = {
-    "G": "Gene",
-    "A": "Anatomy",
-    "BP": "Biological Process",
-    "CC": "Cellular Component",
-    "C": "Compound",
-    "D": "Disease",
-    "MF": "Molecular Function",
-    "PC": "Pharmacologic Class",
-    "PW": "Pathway",
-    "SE": "Side Effect",
-    "S": "Symptom",
-}
-
-
-def _load_node_names(repo_root: Path) -> dict[str, dict[str, str]]:
-    """Load node ID to name mappings for all node types.
-
-    Returns dict mapping node_type_abbrev -> {identifier -> name}
-    """
-    nodes_dir = repo_root / "data" / "nodes"
-    name_maps: dict[str, dict[str, str]] = {}
-
-    for abbrev, full_name in NODE_TYPE_NAMES.items():
-        node_file = nodes_dir / f"{full_name}.tsv"
-        if not node_file.exists():
-            continue
-
-        df = pd.read_csv(node_file, sep="\t")
-        # Map identifier to name
-        name_maps[abbrev] = dict(zip(df["identifier"].astype(str), df["name"]))
-
-    return name_maps
+from src.intermediate_sharing import (  # noqa: E402
+    compute_dwpc_thresholds,
+    compute_intermediate_coverage,
+    enumerate_gene_intermediates,
+    load_runs_at_b,
+)
 
 
 def _select_metapaths_by_effect_size(
@@ -156,141 +122,6 @@ def _select_metapaths_by_effect_size(
     return pd.concat(selected_rows, ignore_index=True), pd.DataFrame(dropped_rows)
 
 
-def _enumerate_gene_intermediates(
-    genes: list[int],
-    target_pos: int,
-    metapath: str,
-    edge_loader: EdgeLoader,
-    maps,
-    *,
-    path_top_k: int = 100,
-    degree_d: float = 0.5,
-    debug: bool = False,
-    dwpc_lookup: dict[tuple, float] | None = None,
-    dwpc_thresholds: dict[tuple, float] | None = None,
-    lv_id: str | None = None,
-    record_paths: list | None = None,
-) -> dict[int, set[str]]:
-    """Enumerate paths for genes and return {gene_id: set of intermediate_ids}.
-
-    The metapath is Gene -> ... -> Target, but enumerate_paths expects
-    Target -> ... -> Gene, so we reverse the metapath for enumeration
-    and then reverse the resulting paths.
-
-    Args:
-        genes: List of gene IDs to process
-        target_pos: Target node position
-        metapath: Metapath string (Gene -> ... -> Target)
-        edge_loader: EdgeLoader instance
-        maps: Node maps
-        path_top_k: Number of top paths to enumerate
-        degree_d: Degree damping factor
-        debug: Print debug info
-        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
-        dwpc_thresholds: dict mapping (lv_id, metapath) -> percentile threshold
-        lv_id: LV identifier for DWPC lookup
-    """
-    # Metapath goes Gene -> ... -> Target, reverse it for enumeration
-    reversed_mp = reverse_metapath_abbrev(metapath)
-    nodes, edges = parse_metapath(reversed_mp)
-
-    if debug:
-        print(f"      Metapath {metapath} -> reversed {reversed_mp}: nodes={nodes}, edges={edges}")
-
-    gene_intermediates: dict[int, set[str]] = {}
-    genes_found = 0
-    genes_with_paths = 0
-    genes_filtered_by_dwpc = 0
-
-    gene_id_map = maps.id_to_pos.get("G", {})
-    if debug:
-        print(f"      Gene map has {len(gene_id_map)} entries, sample keys: {list(gene_id_map.keys())[:3]} (types: {[type(k) for k in list(gene_id_map.keys())[:3]]})")
-        print(f"      Input genes sample: {genes[:3]} (types: {[type(g) for g in genes[:3]]})")
-
-    # Get DWPC threshold for this (lv_id, metapath) if available
-    dwpc_threshold = 0.0
-    if dwpc_thresholds is not None and lv_id is not None:
-        dwpc_threshold = dwpc_thresholds.get((lv_id, metapath), 0.0)
-        if debug and dwpc_threshold > 0:
-            print(f"      DWPC threshold for {lv_id}/{metapath}: {dwpc_threshold:.4f}")
-
-    for gene_id in genes:
-        # Filter by DWPC percentile threshold if available
-        if dwpc_lookup is not None and lv_id is not None and dwpc_threshold > 0:
-            dwpc = dwpc_lookup.get((lv_id, metapath, gene_id), 0.0)
-            if dwpc < dwpc_threshold:
-                genes_filtered_by_dwpc += 1
-                continue
-
-        # Try both int and string lookups since Gene.tsv identifiers may be int
-        gene_pos = gene_id_map.get(gene_id) or gene_id_map.get(str(gene_id)) or gene_id_map.get(int(gene_id) if isinstance(gene_id, str) else gene_id)
-        if gene_pos is None:
-            continue
-        genes_found += 1
-
-        try:
-            # enumerate_paths goes from target_pos -> gene_pos
-            paths = enumerate_paths(
-                target_pos, gene_pos, nodes, edges, edge_loader,
-                top_k=path_top_k, degree_d=degree_d,
-            )
-        except Exception as e:
-            if debug:
-                print(f"      Exception for gene {gene_id}: {e}")
-            continue
-
-        # Select top paths by effective number
-        if not paths:
-            continue
-        genes_with_paths += 1
-
-        selected = select_paths(
-            paths,
-            selection_method="effective_number",
-            top_paths=path_top_k,
-            path_cumulative_frac=None,
-            path_min_count=1,
-            path_max_count=None,
-        )
-
-        intermediates = set()
-        for path_rank, (score, pos_path) in enumerate(selected, start=1):
-            # pos_path is [target_pos, intermediate1, intermediate2, ..., gene_pos]
-            # (nodes list is Target,...,Gene because enumerate_paths walks reversed)
-            path_node_ids: list[str | None] = []
-            for i, (node_type, pos) in enumerate(zip(nodes, pos_path)):
-                node_id = maps.pos_to_id.get(node_type, {}).get(int(pos))
-                qualified = f"{node_type}:{node_id}" if node_id is not None else None
-                path_node_ids.append(qualified)
-                if 0 < i < len(nodes) - 1 and qualified is not None:
-                    intermediates.add(qualified)
-
-            if record_paths is not None:
-                # Flip so hop_0 = source gene, hop_N = target -- the direction
-                # the plotting layer expects. Node types are flipped too.
-                reversed_ids = list(reversed(path_node_ids))
-                reversed_types = list(reversed(nodes))
-                record = {
-                    "lv_id": lv_id,
-                    "metapath": metapath,
-                    "gene_id": gene_id,
-                    "path_rank": int(path_rank),
-                    "path_score": float(score),
-                }
-                for hop_idx, (node_type, qualified) in enumerate(zip(reversed_types, reversed_ids)):
-                    record[f"hop_{hop_idx}_type"] = node_type
-                    record[f"hop_{hop_idx}_id"] = qualified
-                record_paths.append(record)
-
-        if intermediates:
-            gene_intermediates[gene_id] = intermediates
-
-    if debug:
-        print(f"      genes_found={genes_found}, genes_with_paths={genes_with_paths}, intermediates={len(gene_intermediates)}, filtered_by_dwpc={genes_filtered_by_dwpc}")
-
-    return gene_intermediates
-
-
 def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     """Compute sharing statistics for a set of genes."""
     n_genes = len(gene_intermediates)
@@ -336,121 +167,6 @@ def _compute_sharing_stats(gene_intermediates: dict[int, set[str]]) -> dict:
     }
 
 
-def _compute_intermediate_coverage(
-    gene_intermediates: dict[int, set[str]],
-    node_name_maps: dict[str, dict[str, str]] | None = None,
-) -> tuple[dict, list[dict]]:
-    """Compute intermediate coverage statistics.
-
-    Args:
-        gene_intermediates: dict mapping gene_id -> set of intermediate IDs (format: "TYPE:ID")
-        node_name_maps: dict mapping node_type_abbrev -> {identifier -> name}
-
-    Returns:
-        coverage_stats: dict with summary coverage metrics
-        top_intermediates: list of dicts with per-intermediate statistics
-    """
-    n_genes = len(gene_intermediates)
-    if n_genes == 0:
-        # Return 0 (not None) so metapaths without paths are included in median calculations
-        return {
-            "n_shared_intermediates_2plus": 0,
-            "n_shared_intermediates_quarter": 0,
-            "n_shared_intermediates_majority": 0,
-            "n_shared_intermediates_all": 0,
-            "pct_intermediates_shared_2plus": 0.0,
-            "pct_intermediates_shared_quarter": 0.0,
-            "pct_intermediates_shared_majority": 0.0,
-            "pct_intermediates_shared_all": 0.0,
-            "n_intermediates_cover_50pct": None,
-            "n_intermediates_cover_80pct": None,
-            "top1_intermediate_coverage": 0.0,
-            "top5_intermediate_coverage": 0.0,
-        }, []
-
-    # Count how many genes use each intermediate
-    intermediate_gene_counts: dict[str, set[int]] = {}
-    for gene_id, ints in gene_intermediates.items():
-        for int_id in ints:
-            if int_id not in intermediate_gene_counts:
-                intermediate_gene_counts[int_id] = set()
-            intermediate_gene_counts[int_id].add(gene_id)
-
-    # Build per-intermediate stats
-    intermediate_stats = []
-    for int_id, genes_using in intermediate_gene_counts.items():
-        # Parse intermediate ID to get name
-        intermediate_name = None
-        if node_name_maps and ":" in int_id:
-            node_type = int_id.split(":")[0]
-            node_identifier = int_id.split(":", 1)[1]
-            if node_type in node_name_maps:
-                intermediate_name = node_name_maps[node_type].get(node_identifier)
-
-        intermediate_stats.append({
-            "intermediate_id": int_id,
-            "intermediate_name": intermediate_name,
-            "n_genes_using": len(genes_using),
-            "pct_genes_using": len(genes_using) / n_genes * 100,
-            "genes_using": sorted(genes_using),
-        })
-
-    # Sort by number of genes using (descending)
-    intermediate_stats.sort(key=lambda x: x["n_genes_using"], reverse=True)
-
-    # Compute coverage metrics
-    n_total_intermediates = len(intermediate_gene_counts)
-
-    # Count intermediates at different sharing thresholds
-    n_shared_2plus = sum(1 for genes in intermediate_gene_counts.values() if len(genes) >= 2)
-    n_shared_quarter = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 4)
-    n_shared_majority = sum(1 for genes in intermediate_gene_counts.values() if len(genes) > n_genes / 2)
-    n_shared_all = sum(1 for genes in intermediate_gene_counts.values() if len(genes) == n_genes)
-
-    # Greedy set cover: how many intermediates needed to cover X% of genes?
-    genes_covered: set[int] = set()
-    all_genes = set(gene_intermediates.keys())
-    n_for_50pct = None
-    n_for_80pct = None
-
-    for i, stat in enumerate(intermediate_stats, 1):
-        genes_covered.update(stat["genes_using"])
-        coverage_pct = len(genes_covered) / n_genes * 100
-        if n_for_50pct is None and coverage_pct >= 50:
-            n_for_50pct = i
-        if n_for_80pct is None and coverage_pct >= 80:
-            n_for_80pct = i
-        if coverage_pct >= 100:
-            break
-
-    # Top-k intermediate coverage
-    top1_coverage = intermediate_stats[0]["pct_genes_using"] if intermediate_stats else None
-    if len(intermediate_stats) >= 5:
-        top5_genes = set()
-        for stat in intermediate_stats[:5]:
-            top5_genes.update(stat["genes_using"])
-        top5_coverage = len(top5_genes) / n_genes * 100
-    else:
-        top5_coverage = None
-
-    coverage_stats = {
-        "n_shared_intermediates_2plus": n_shared_2plus,
-        "n_shared_intermediates_quarter": n_shared_quarter,
-        "n_shared_intermediates_majority": n_shared_majority,
-        "n_shared_intermediates_all": n_shared_all,
-        "pct_intermediates_shared_2plus": n_shared_2plus / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
-        "pct_intermediates_shared_quarter": n_shared_quarter / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
-        "pct_intermediates_shared_majority": n_shared_majority / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
-        "pct_intermediates_shared_all": n_shared_all / n_total_intermediates * 100 if n_total_intermediates > 0 else None,
-        "n_intermediates_cover_50pct": n_for_50pct,
-        "n_intermediates_cover_80pct": n_for_80pct,
-        "top1_intermediate_coverage": top1_coverage,
-        "top5_intermediate_coverage": top5_coverage,
-    }
-
-    return coverage_stats, intermediate_stats
-
-
 def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]:
     """Load per-gene DWPC values from numpy arrays.
 
@@ -482,79 +198,6 @@ def _load_dwpc_from_numpy(lv_output_dir: Path, lv_id: str) -> Dict[Tuple, float]
                 dwpc_lookup[key] = float(dwpc)
 
     return dwpc_lookup
-
-
-def _compute_dwpc_thresholds(
-    dwpc_lookup: Dict[Tuple, float],
-    percentile: float,
-) -> Dict[Tuple[str, str], float]:
-    """Compute DWPC percentile thresholds for each (lv_id, metapath).
-
-    Args:
-        dwpc_lookup: dict mapping (lv_id, metapath, gene_id) -> dwpc
-        percentile: percentile threshold (e.g., 75 means keep top 25%)
-
-    Returns:
-        dict mapping (lv_id, metapath) -> threshold_value
-    """
-    # Group DWPC values by (lv_id, metapath)
-    grouped: Dict[Tuple[str, str], list] = {}
-    for (lv_id, metapath, gene_id), dwpc in dwpc_lookup.items():
-        key = (lv_id, metapath)
-        if key not in grouped:
-            grouped[key] = []
-        grouped[key].append(dwpc)
-
-    # Compute percentile threshold for each group
-    thresholds: Dict[Tuple[str, str], float] = {}
-    for key, values in grouped.items():
-        if values:
-            thresholds[key] = float(np.percentile(values, percentile))
-
-    return thresholds
-
-
-def _load_runs_at_b(runs_path: Path, b: int) -> pd.DataFrame:
-    """Load all_runs_long.csv and get effect sizes from permutation null.
-
-    Per web_tool_discussion.md (section 1.2):
-    - Use permutation null only (drop random null)
-    - Effect size d is already computed in the data
-
-    Args:
-        runs_path: Path to all_runs_long.csv
-        b: Number of replicates to use
-
-    Returns:
-        DataFrame with effect_size_d for permutation null
-    """
-    runs_df = pd.read_csv(runs_path)
-
-    # Filter to specified b and permutation null only
-    runs_df = runs_df[(runs_df["b"] == b) & (runs_df["control"] == "permuted")].copy()
-    if runs_df.empty:
-        raise ValueError(f"No permuted rows found for b={b} in {runs_path}")
-
-    # Average effect size d across seeds for each (lv_id, metapath)
-    group_cols = ["lv_id", "target_id", "target_name", "node_type", "metapath"]
-
-    if "effect_size_d" in runs_df.columns:
-        z_col = "effect_size_d"
-    elif "d" in runs_df.columns:
-        z_col = "d"
-    else:
-        raise ValueError(
-            f"{runs_path} has neither 'effect_size_d' nor 'd' column; "
-            f"cannot compute per-metapath z. Columns present: "
-            f"{sorted(runs_df.columns.tolist())}"
-        )
-
-    result = runs_df.groupby(group_cols, as_index=False).agg(
-        effect_size_d=(z_col, "mean"),
-        diff_perm=("diff", "mean"),
-    )
-
-    return result
 
 
 def parse_args() -> argparse.Namespace:
@@ -643,7 +286,7 @@ def main() -> None:
     # For each (gene_set, metapath), include only genes above the specified percentile
     dwpc_percentile = args.dwpc_percentile
     if dwpc_lookup and dwpc_percentile > 0:
-        dwpc_thresholds = _compute_dwpc_thresholds(dwpc_lookup, dwpc_percentile)
+        dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, dwpc_percentile)
         print(f"DWPC percentile threshold: {dwpc_percentile} (top {100 - dwpc_percentile:.0f}% of genes per metapath)")
         print(f"Computed thresholds for {len(dwpc_thresholds)} (lv_id, metapath) pairs")
     else:
@@ -664,7 +307,7 @@ def main() -> None:
     print(f"Loaded {len(lv_targets)} LV target entries")
 
     # Load node name mappings for human-readable intermediate names
-    node_name_maps = _load_node_names(REPO_ROOT)
+    node_name_maps = load_node_names(REPO_ROOT)
     print(f"Loaded node name maps for: {list(node_name_maps.keys())}")
 
     # Setup for path enumeration (shared across B values)
@@ -690,7 +333,7 @@ def main() -> None:
         results_frames = []
         for runs_path in runs_paths:
             try:
-                results_frames.append(_load_runs_at_b(runs_path, b_value))
+                results_frames.append(load_runs_at_b(runs_path, b_value, ["lv_id", "target_id", "target_name", "node_type", "metapath"]))
             except ValueError as e:
                 print(f"  Warning: {e}")
                 continue
@@ -779,20 +422,21 @@ def main() -> None:
 
                 is_first_mp = (mp_rank == 1)
 
-                gene_ints = _enumerate_gene_intermediates(
+                gene_ints = enumerate_gene_intermediates(
                     lv_genes, int(target_position), metapath, edge_loader, maps,
                     path_top_k=args.path_top_k, degree_d=args.degree_d,
                     debug=is_first_mp,
-                    dwpc_lookup=dwpc_lookup if dwpc_lookup else None,
-                    dwpc_thresholds=dwpc_thresholds if dwpc_thresholds else None,
-                    lv_id=lv_id,
+                    gene_set_id=lv_id,
+                    dwpc_lookup=dwpc_lookup or None,
+                    dwpc_thresholds=dwpc_thresholds or None,
                     record_paths=gene_path_records,
+                    record_extra={"lv_id": lv_id},
                 )
                 if gene_ints:
                     print(f"    Found paths for {len(gene_ints)} genes")
 
                 stats = _compute_sharing_stats(gene_ints)
-                coverage_stats, intermediate_stats = _compute_intermediate_coverage(
+                coverage_stats, intermediate_stats = compute_intermediate_coverage(
                     gene_ints, node_name_maps=node_name_maps
                 )
                 stats.update(coverage_stats)
