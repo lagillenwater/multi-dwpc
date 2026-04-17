@@ -31,8 +31,8 @@ def build_b_seed_runs(
 ) -> pd.DataFrame:
     """Generic B/seed resampling for explicit real-vs-null replicate analyses.
 
-    Computes both raw difference (diff) and effect size (d = diff / null_std).
-    Effect size uses the standard deviation of null scores across sampled replicates.
+    Computes both raw difference (diff) and permutation z-statistic (z = diff / null_std).
+    The z-statistic uses the standard deviation of null scores across sampled replicates.
     """
     if summary_df.empty:
         return pd.DataFrame()
@@ -93,10 +93,10 @@ def build_b_seed_runs(
                 merged["b"] = int(b)
                 merged["seed"] = int(seed)
                 merged["diff"] = merged["real_mean_score"] - merged["null_mean_score"]
-                # Compute effect size (Cohen's d)
+                # Compute permutation z-statistic (z = diff / null_std)
                 # Use ddof=1 for sample std; handle cases where std=0 or NaN
                 merged["null_std_score"] = merged["null_std_score"].replace(0, np.nan)
-                merged["effect_size_d"] = merged["diff"] / merged["null_std_score"]
+                merged["permutation_z"] = merged["diff"] / merged["null_std_score"]
                 rows.append(merged)
 
     if not rows:
@@ -105,7 +105,7 @@ def build_b_seed_runs(
     out = pd.concat(rows, ignore_index=True)
     ordered = [
         *replicate_pool_keys, "b", "seed", *join_keys,
-        "real_mean_score", "null_mean_score", "null_std_score", "diff", "effect_size_d"
+        "real_mean_score", "null_mean_score", "null_std_score", "diff", "permutation_z"
     ]
     ordered = [col for idx, col in enumerate(ordered) if col in out.columns and col not in ordered[:idx]]
     return out[ordered]

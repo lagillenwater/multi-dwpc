@@ -328,8 +328,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resample-seeds", default="11,22,33,44,55")
     parser.add_argument(
         "--rank-metric",
-        default="effect_size_d",
-        choices=["effect_size_d", "diff"],
+        default="permutation_z",
+        choices=["permutation_z", "diff"],
         help="Score used to rank metapaths per (GO term, seed) for rank stability",
     )
     parser.add_argument(

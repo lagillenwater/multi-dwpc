@@ -36,6 +36,8 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 
+from src.intermediate_sharing import load_dwpc_from_numpy  # noqa: E402
+
 
 def load_gene_names(repo_root: Path) -> dict[int, str]:
     """Load gene ID to gene symbol mapping."""
@@ -52,50 +54,8 @@ def load_dwpc_values(
     lv_output_dirs: list[Path],
     analysis_type: str,
 ) -> dict[tuple, float]:
-    """Load DWPC values from numpy arrays.
-
-    Returns dict mapping (gene_set_id, metapath, gene_id) -> dwpc
-    """
-    dwpc_lookup = {}
-
-    for lv_output_dir in lv_output_dirs:
-        scores_path = lv_output_dir / "gene_feature_scores.npy"
-        genes_path = lv_output_dir / "gene_ids.npy"
-        manifest_path = lv_output_dir / "feature_manifest.csv"
-
-        if not all(p.exists() for p in [scores_path, genes_path, manifest_path]):
-            continue
-
-        scores = np.load(scores_path)  # (n_genes, n_features)
-        gene_ids = np.load(genes_path)  # (n_genes,)
-        manifest = pd.read_csv(manifest_path)  # feature_idx -> metapath info
-
-        # Determine gene set ID column
-        if analysis_type == "lv":
-            id_col = "lv_id"
-        else:
-            id_col = "go_id"
-
-        if id_col not in manifest.columns:
-            # Try to infer from directory name
-            gene_set_id = lv_output_dir.name
-        else:
-            gene_set_id = None
-
-        for _, row in manifest.iterrows():
-            feature_idx = row["feature_idx"]
-            metapath = row["metapath"]
-            gs_id = row.get(id_col, gene_set_id)
-
-            feature_scores = scores[:, feature_idx]
-
-            for gene_idx, gene_id in enumerate(gene_ids):
-                dwpc = feature_scores[gene_idx]
-                if dwpc > 0:
-                    key = (gs_id, metapath, int(gene_id))
-                    dwpc_lookup[key] = float(dwpc)
-
-    return dwpc_lookup
+    """Load DWPC values from numpy arrays. Delegates to shared loader."""
+    return load_dwpc_from_numpy(lv_output_dirs, analysis_type=analysis_type)
 
 
 def load_top_genes(
@@ -194,7 +154,7 @@ def generate_gene_table(
         for _, mp_row in mp_df.iterrows():
             metapath = mp_row["metapath"]
             mp_rank = mp_row.get("metapath_rank", None)
-            effect_size = mp_row.get("effect_size_d", None)
+            effect_size = mp_row.get("permutation_z", None)
 
             # Get top intermediates for this metapath
             if not top_int_df.empty:
@@ -237,7 +197,7 @@ def generate_gene_table(
                     "gene_name": gene_name,
                     "metapath": metapath,
                     "metapath_rank": mp_rank,
-                    "effect_size_d": effect_size,
+                    "permutation_z": effect_size,
                     "dwpc": dwpc,
                     "top_intermediate_id": top_int_id,
                     "top_intermediate_name": top_int_name,

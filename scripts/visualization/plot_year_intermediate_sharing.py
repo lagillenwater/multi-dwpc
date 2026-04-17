@@ -197,7 +197,7 @@ def plot_top_metapaths_per_go(
     """For each top GO, a horizontal bar chart of its top-N metapaths by
     effect size, colored by which cohort contributes the stronger sharing
     signal (2024\u21922016 dominant vs 2016\u21662016 dominant)."""
-    if "metapath" not in by_metapath_df.columns or "effect_size_d" not in by_metapath_df.columns:
+    if "metapath" not in by_metapath_df.columns or "permutation_z" not in by_metapath_df.columns:
         print("  [top_metapaths] missing required columns; skipping")
         return
 
@@ -217,7 +217,7 @@ def plot_top_metapaths_per_go(
         if sub.empty:
             ax.axis("off")
             continue
-        sub = sub.sort_values("effect_size_d", ascending=False).head(top_n)
+        sub = sub.sort_values("permutation_z", ascending=False).head(top_n)
 
         # Cohort-dominant color: compare 2024-to-2016 pct vs 2016-to-2016 pct per metapath
         def _color(row: pd.Series) -> str:
@@ -231,7 +231,7 @@ def plot_top_metapaths_per_go(
 
         colors = [_color(r_) for _, r_ in sub.iterrows()]
         y = np.arange(len(sub))
-        ax.barh(y, sub["effect_size_d"].astype(float), color=colors, edgecolor="black", linewidth=0.3)
+        ax.barh(y, sub["permutation_z"].astype(float), color=colors, edgecolor="black", linewidth=0.3)
         ax.set_yticks(y)
         ax.set_yticklabels(sub["metapath"].astype(str).tolist(), fontsize=8)
         ax.invert_yaxis()

@@ -181,7 +181,7 @@ def plot_effect_size_vs_sharing(
 
         if len(subset_valid) > 0:
             sc = ax.scatter(
-                subset_valid["effect_size_d"],
+                subset_valid["permutation_z"],
                 subset_valid["pct_genes_sharing"],
                 c=subset_valid["metapath_rank"],
                 cmap="viridis_r",
@@ -279,7 +279,7 @@ def plot_top_metapaths(
 
         bar_colors = plt.cm.RdYlGn(top_metapaths["pct_genes_sharing"].fillna(0) / 100)
 
-        ax.barh(y_pos, top_metapaths["effect_size_d"], color=bar_colors, alpha=0.8)
+        ax.barh(y_pos, top_metapaths["permutation_z"], color=bar_colors, alpha=0.8)
         ax.set_yticks(y_pos)
         ax.set_yticklabels(top_metapaths["metapath"], fontsize=8)
         ax.set_xlabel("z")

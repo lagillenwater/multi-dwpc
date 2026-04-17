@@ -40,19 +40,21 @@ def load_runs_at_b(
     if runs_df.empty:
         raise ValueError(f"No permuted rows found for b={b} in {runs_path}")
 
-    if "effect_size_d" in runs_df.columns:
+    if "permutation_z" in runs_df.columns:
+        z_col = "permutation_z"
+    elif "effect_size_d" in runs_df.columns:
         z_col = "effect_size_d"
     elif "d" in runs_df.columns:
         z_col = "d"
     else:
         raise ValueError(
-            f"{runs_path} has neither 'effect_size_d' nor 'd' column; "
+            f"{runs_path} has neither 'permutation_z', 'effect_size_d', nor 'd' column; "
             f"columns present: {sorted(runs_df.columns.tolist())}"
         )
 
     present_cols = [c for c in group_cols if c in runs_df.columns]
     return runs_df.groupby(present_cols, as_index=False).agg(
-        effect_size_d=(z_col, "mean"),
+        permutation_z=(z_col, "mean"),
         diff_perm=("diff", "mean"),
     )
 
@@ -76,6 +78,66 @@ def compute_dwpc_thresholds(
         for k, v in grouped.items()
         if v
     }
+
+
+def load_dwpc_from_numpy(
+    output_dirs: list[Path] | Path,
+    analysis_type: str = "lv",
+    gene_set_id_override: str | None = None,
+) -> dict[tuple, float]:
+    """Load per-gene DWPC values from numpy arrays.
+
+    Returns dict mapping ``(gene_set_id, metapath, gene_id) -> dwpc``.
+    Works for both LV and year analyses by selecting the appropriate ID
+    column from the feature manifest.
+
+    Parameters
+    ----------
+    output_dirs
+        One or more experiment output directories containing
+        ``gene_feature_scores.npy``, ``gene_ids.npy``, and
+        ``feature_manifest.csv``.
+    analysis_type
+        ``"lv"`` reads ``lv_id`` from manifest; ``"year"`` reads ``go_id``.
+    gene_set_id_override
+        If set, use this as the gene-set ID for all entries instead of
+        reading from the manifest.  Useful when processing a single LV.
+    """
+    if isinstance(output_dirs, Path):
+        output_dirs = [output_dirs]
+
+    id_col = "lv_id" if analysis_type == "lv" else "go_id"
+    dwpc_lookup: dict[tuple, float] = {}
+
+    for out_dir in output_dirs:
+        scores_path = out_dir / "gene_feature_scores.npy"
+        genes_path = out_dir / "gene_ids.npy"
+        manifest_path = out_dir / "feature_manifest.csv"
+
+        if not all(p.exists() for p in [scores_path, genes_path, manifest_path]):
+            continue
+
+        scores = np.load(scores_path)
+        gene_ids = np.load(genes_path)
+        manifest = pd.read_csv(manifest_path)
+
+        fallback_id = gene_set_id_override or (
+            out_dir.name if id_col not in manifest.columns else None
+        )
+
+        for _, row in manifest.iterrows():
+            feature_idx = int(row["feature_idx"])
+            metapath = row["metapath"]
+            gs_id = gene_set_id_override or row.get(id_col, fallback_id)
+
+            feature_scores = scores[:, feature_idx]
+            nonzero = feature_scores > 0
+            for gene_idx in np.flatnonzero(nonzero):
+                dwpc_lookup[(gs_id, metapath, int(gene_ids[gene_idx]))] = float(
+                    feature_scores[gene_idx]
+                )
+
+    return dwpc_lookup
 
 
 def enumerate_gene_intermediates(

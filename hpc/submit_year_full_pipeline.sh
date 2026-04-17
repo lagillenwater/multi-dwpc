@@ -26,7 +26,7 @@
 #   YEAR_TOP_GO_TERMS     - Top N GO terms for consumables (default: 10)
 #   YEAR_SKIP_B_SELECT    - "1" to reuse existing chosen_b.json
 #   YEAR_STOP_AFTER_B     - "1" to submit only Stage 1 and exit
-#   YEAR_EFFECT_THRESHOLD - Cohen's d cutoff for metapath selection (default: 0.5)
+#   YEAR_EFFECT_THRESHOLD - permutation z cutoff for metapath selection (default: 0.5)
 #   YEAR_DWPC_PERCENTILE  - Percentile filter for DWPC (default: 75)
 #   YEAR_MIN_ADDED_GENES  - Minimum 2024-added genes per GO for top-N ranking (default: 5)
 #

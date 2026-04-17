@@ -73,22 +73,22 @@ def plot_lv_selection_diagnostics(
         selected_summary = (
             by_metapath_df.groupby(id_col, as_index=False)
             .agg(
-                max_effect_size_d=("effect_size_d", "max"),
-                n_metapaths_selected=("effect_size_d", "size"),
+                max_permutation_z=("permutation_z", "max"),
+                n_metapaths_selected=("permutation_z", "size"),
             )
             .assign(status="selected")
         )
 
     dropped_summary = pd.DataFrame()
     if not dropped_df.empty and id_col in dropped_df.columns:
-        dropped_summary = dropped_df[[id_col, "max_effect_size_d"]].copy()
+        dropped_summary = dropped_df[[id_col, "max_permutation_z"]].copy()
         dropped_summary["n_metapaths_selected"] = 0
         dropped_summary["status"] = "dropped"
 
     all_lvs = pd.concat([selected_summary, dropped_summary], ignore_index=True)
     if all_lvs.empty:
         return
-    all_lvs = all_lvs.sort_values("max_effect_size_d", ascending=False).reset_index(drop=True)
+    all_lvs = all_lvs.sort_values("max_permutation_z", ascending=False).reset_index(drop=True)
 
     # Cap the number of entities drawn so year-scale datasets (hundreds of
     # GO terms) don't produce 170-inch-tall figures. Keep the top entities by
@@ -100,7 +100,7 @@ def plot_lv_selection_diagnostics(
     # Plain horizontal bar chart (one color for all entities). Threshold line
     # is the only status indicator; bars can be negative when an entity's best
     # metapath has a negative effect size.
-    max_d = bars_df["max_effect_size_d"].astype(float)
+    max_d = bars_df["max_permutation_z"].astype(float)
     fig, ax = plt.subplots(figsize=(9, max(3.5, 0.28 * len(bars_df))))
     y = np.arange(len(bars_df))
     ax.barh(y, max_d, color="#1f77b4", edgecolor="black", linewidth=0.3)
@@ -143,7 +143,7 @@ def plot_lv_selection_diagnostics(
     if strip_df.empty:
         return
 
-    id_order = selected_ids  # already sorted by max_effect_size_d above
+    id_order = selected_ids  # already sorted by max_permutation_z above
     row_index = {lv: i for i, lv in enumerate(id_order)}
     strip_df["row"] = strip_df[id_col].astype(str).map(row_index)
 
@@ -151,7 +151,7 @@ def plot_lv_selection_diagnostics(
     rng = np.random.default_rng(0)
     jitter = rng.uniform(-0.22, 0.22, size=len(strip_df))
     ax.scatter(
-        strip_df["effect_size_d"].astype(float),
+        strip_df["permutation_z"].astype(float),
         strip_df["row"].astype(float) + jitter,
         s=22, alpha=0.55, color="#1f77b4", edgecolors="none",
     )
@@ -182,8 +182,8 @@ def _load_all_entities_z_from_runs(
 ) -> pd.DataFrame:
     """Load upstream all_runs_long.csv and aggregate to one z per (entity, metapath).
 
-    Uses permuted null only. Averages effect_size_d (true z) across seeds at the
-    chosen B. Returns a frame with columns [entity_id, metapath, effect_size_d,
+    Uses permuted null only. Averages permutation_z (true z) across seeds at the
+    chosen B. Returns a frame with columns [entity_id, metapath, permutation_z,
     target_name] matching what plot_top_metapaths_per_entity expects.
     """
     runs = pd.read_csv(runs_path)
@@ -194,13 +194,15 @@ def _load_all_entities_z_from_runs(
     if runs.empty:
         return pd.DataFrame()
 
-    if "effect_size_d" in runs.columns:
+    if "permutation_z" in runs.columns:
+        z_col = "permutation_z"
+    elif "effect_size_d" in runs.columns:
         z_col = "effect_size_d"
     elif "d" in runs.columns:
         z_col = "d"
     else:
         raise ValueError(
-            f"{runs_path} has neither 'effect_size_d' nor 'd' column"
+            f"{runs_path} has neither 'permutation_z', 'effect_size_d', nor 'd' column"
         )
 
     id_col = "lv_id" if analysis_type == "lv" else "go_id"
@@ -209,7 +211,7 @@ def _load_all_entities_z_from_runs(
         group_cols.insert(1, "target_name")
 
     agg = runs.groupby(group_cols, as_index=False).agg(
-        effect_size_d=(z_col, "mean"),
+        permutation_z=(z_col, "mean"),
     )
     return agg
 
@@ -228,11 +230,11 @@ def plot_top_metapaths_per_entity(
     if by_metapath_df.empty:
         return
     id_col = "lv_id" if analysis_type == "lv" else "go_id"
-    if id_col not in by_metapath_df.columns or "effect_size_d" not in by_metapath_df.columns:
+    if id_col not in by_metapath_df.columns or "permutation_z" not in by_metapath_df.columns:
         return
 
     ordering = (
-        by_metapath_df.groupby(id_col)["effect_size_d"].max()
+        by_metapath_df.groupby(id_col)["permutation_z"].max()
         .sort_values(ascending=False)
     )
     entity_ids = ordering.head(max_panels).index.astype(str).tolist()
@@ -255,8 +257,8 @@ def plot_top_metapaths_per_entity(
         squeeze=False,
     )
 
-    vmax = float(by_metapath_df["effect_size_d"].max())
-    vmin = min(0.0, float(by_metapath_df["effect_size_d"].min()))
+    vmax = float(by_metapath_df["permutation_z"].max())
+    vmin = min(0.0, float(by_metapath_df["permutation_z"].min()))
     span = max(vmax - vmin, 1e-6)
     xlim = (vmin - 0.03 * span, vmax + 0.05 * span)
 
@@ -265,10 +267,10 @@ def plot_top_metapaths_per_entity(
         ax = axes[r][c]
         sub = (
             by_metapath_df[by_metapath_df[id_col].astype(str) == eid]
-            .nlargest(top_n, "effect_size_d")
+            .nlargest(top_n, "permutation_z")
         )
         y = np.arange(len(sub))
-        ax.barh(y, sub["effect_size_d"].astype(float),
+        ax.barh(y, sub["permutation_z"].astype(float),
                 color="#2ca02c", edgecolor="black", linewidth=0.3)
         ax.set_yticks(y)
         ax.set_yticklabels(sub["metapath"].astype(str).tolist(), fontsize=7)
@@ -377,14 +379,14 @@ def compute_global_summary(
         row["n_metapaths_selected"] = len(group)
 
         # Top metapath by effect size
-        top_mp_row = group.loc[group["effect_size_d"].idxmax()]
+        top_mp_row = group.loc[group["permutation_z"].idxmax()]
         row["top_metapath"] = top_mp_row["metapath"]
-        row["top_metapath_d"] = top_mp_row["effect_size_d"]
+        row["top_metapath_d"] = top_mp_row["permutation_z"]
 
         # Effect size distribution
-        row["median_effect_size_d"] = group["effect_size_d"].median()
-        row["max_effect_size_d"] = group["effect_size_d"].max()
-        row["min_effect_size_d"] = group["effect_size_d"].min()
+        row["median_permutation_z"] = group["permutation_z"].median()
+        row["max_permutation_z"] = group["permutation_z"].max()
+        row["min_permutation_z"] = group["permutation_z"].min()
 
         # Gene coverage. LV mode stores a single `n_genes_total` column;
         # year mode stores `n_genes_2016` + `n_genes_2024_added`. Accept either.
@@ -523,7 +525,7 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.5,
         help=(
-            "Effect-size (Cohen's d) threshold used by the upstream filter, "
+            "Permutation z-statistic threshold used by the upstream filter, "
             "drawn on the LV selection diagnostic plots (default: 0.5)"
         ),
     )
