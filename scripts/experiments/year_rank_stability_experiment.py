@@ -240,9 +240,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rbo-p", default="0.9", help="RBO persistence in (0,1), or 'none' to disable")
     parser.add_argument(
         "--rank-metric",
-        default="permutation_z",
-        choices=["diff", "permutation_z"],
-        help="Metric to use for ranking metapaths (default: permutation_z)"
+        default="effect_size_z",
+        choices=["diff", "effect_size_z"],
+        help="Metric to use for ranking metapaths (default: effect_size_z)"
     )
     return parser.parse_args()
 
@@ -277,7 +277,7 @@ def main() -> None:
     exp_dir.mkdir(parents=True, exist_ok=True)
     runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
 
-    # Select ranking metric (permutation_z or diff)
+    # Select ranking metric (effect_size_z or diff)
     rank_metric = str(args.rank_metric)
     if rank_metric not in runs_df.columns:
         print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")

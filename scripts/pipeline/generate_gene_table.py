@@ -154,7 +154,7 @@ def generate_gene_table(
         for _, mp_row in mp_df.iterrows():
             metapath = mp_row["metapath"]
             mp_rank = mp_row.get("metapath_rank", None)
-            effect_size = mp_row.get("permutation_z", None)
+            effect_size = mp_row.get("effect_size_z", None)
 
             # Get top intermediates for this metapath
             if not top_int_df.empty:
@@ -197,7 +197,7 @@ def generate_gene_table(
                     "gene_name": gene_name,
                     "metapath": metapath,
                     "metapath_rank": mp_rank,
-                    "permutation_z": effect_size,
+                    "effect_size_z": effect_size,
                     "dwpc": dwpc,
                     "top_intermediate_id": top_int_id,
                     "top_intermediate_name": top_int_name,

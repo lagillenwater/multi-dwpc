@@ -44,6 +44,7 @@ def _compute_stabilization_point(
     metric_col: str,
     increasing: bool,
     threshold: float,
+    convergence_threshold: float = 0.05,
 ) -> pd.DataFrame:
     """Return the smallest B at which a metric has stabilized for each group.
 
@@ -112,6 +113,14 @@ def _compute_stabilization_point(
             "target_value": float(target),
             "threshold": float(threshold),
         }
+        total_range = abs(asymptote - baseline)
+        if total_range > 0 and len(y) >= 2:
+            last_segment_slope = abs(float(y[-1]) - float(y[-2])) / total_range
+        else:
+            last_segment_slope = 0.0
+        row["last_segment_slope"] = last_segment_slope
+        row["converged"] = last_segment_slope < convergence_threshold
+
         if isinstance(group_key, tuple):
             for col, val in zip(group_cols, group_key):
                 row[col] = str(val)
@@ -242,64 +251,61 @@ VARIANCE_METRICS = ("diff_std", "diff_var")
 RANK_METRICS = ("mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo")
 
 
-def load_variance_stabilization(
-    variance_dir: Path, analysis_type: str, threshold: float
+def _load_stabilization_data(
+    data_dir: Path,
+    analysis_type: str,
+    threshold: float,
+    metrics: tuple[str, ...],
+    increasing: bool,
+    primary_filename: str,
+    legacy_filename: str | None = None,
+    convergence_threshold: float = 0.05,
 ) -> pd.DataFrame:
-    """Compute stabilization points for null-variance metrics (std, var, cv)."""
-    summary_path = variance_dir / "feature_variance_summary.csv"
-    group_cols = ["control", "lv_id"] if analysis_type == "lv" else ["control", "go_id"]
+    entity_col = "lv_id" if analysis_type == "lv" else "go_id"
+    group_cols = ["control", entity_col]
 
-    if not summary_path.exists():
-        print(f"Warning: {summary_path} not found, skipping variance metrics")
+    summary_path = data_dir / primary_filename
+    if summary_path.exists():
+        df = pd.read_csv(summary_path)
+    elif legacy_filename and (data_dir / legacy_filename).exists():
+        df = pd.read_csv(data_dir / legacy_filename)
+        if "control" not in df.columns:
+            df["control"] = "combined"
+    else:
+        print(f"Warning: {summary_path} not found, skipping")
         return pd.DataFrame()
 
-    df = pd.read_csv(summary_path)
-
-    frames = []
-    for metric in VARIANCE_METRICS:
-        if metric in df.columns:
-            frames.append(
-                _compute_stabilization_point(
-                    df, group_cols, metric, increasing=False, threshold=threshold
-                )
-            )
+    frames = [
+        _compute_stabilization_point(df, group_cols, m, increasing=increasing, threshold=threshold, convergence_threshold=convergence_threshold)
+        for m in metrics
+        if m in df.columns
+    ]
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def load_variance_stabilization(
+    variance_dir: Path, analysis_type: str, threshold: float, convergence_threshold: float = 0.05,
+) -> pd.DataFrame:
+    return _load_stabilization_data(
+        variance_dir, analysis_type, threshold,
+        metrics=VARIANCE_METRICS, increasing=False,
+        primary_filename="feature_variance_summary.csv",
+        convergence_threshold=convergence_threshold,
+    )
 
 
 def load_rank_stability_stabilization(
-    rank_dir: Path, analysis_type: str, threshold: float
+    rank_dir: Path, analysis_type: str, threshold: float, convergence_threshold: float = 0.05,
 ) -> pd.DataFrame:
-    """Compute stabilization points for rank-stability metrics."""
-    if analysis_type == "lv":
-        summary_path = rank_dir / "lv_stability_summary.csv"
-        group_cols = ["control", "lv_id"]
-    else:
-        summary_path = rank_dir / "go_stability_summary.csv"
-        group_cols = ["control", "go_id"]
-
-    if summary_path.exists():
-        df = pd.read_csv(summary_path)
-    else:
-        legacy_path = rank_dir / "metapath_pairwise_metrics.csv"
-        if legacy_path.exists():
-            df = pd.read_csv(legacy_path)
-            if "control" not in df.columns:
-                df["control"] = "combined"
-        else:
-            print(f"Warning: {summary_path} not found, skipping rank stability metrics")
-            return pd.DataFrame()
-
-    frames = []
-    for metric in ["mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo"]:
-        if metric in df.columns:
-            frames.append(
-                _compute_stabilization_point(
-                    df, group_cols, metric, increasing=True, threshold=threshold
-                )
-            )
-
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    primary = "lv_stability_summary.csv" if analysis_type == "lv" else "go_stability_summary.csv"
+    return _load_stabilization_data(
+        rank_dir, analysis_type, threshold,
+        metrics=RANK_METRICS, increasing=True,
+        primary_filename=primary,
+        legacy_filename="metapath_pairwise_metrics.csv",
+        convergence_threshold=convergence_threshold,
+    )
 
 
 AGGREGATION_METRIC = "diff_var"
@@ -311,6 +317,7 @@ def select_optimal_b(
     analysis_type: str,
     aggregation: str,
     threshold: float,
+    convergence_threshold: float = 0.05,
 ) -> tuple[int, pd.DataFrame]:
     """Select optimal B from diff_var stabilization points.
 
@@ -321,8 +328,8 @@ def select_optimal_b(
     Returns:
         Tuple of (chosen_b, stabilization_summary_df).
     """
-    variance_points = load_variance_stabilization(variance_dir, analysis_type, threshold)
-    rank_points = load_rank_stability_stabilization(rank_dir, analysis_type, threshold)
+    variance_points = load_variance_stabilization(variance_dir, analysis_type, threshold, convergence_threshold)
+    rank_points = load_rank_stability_stabilization(rank_dir, analysis_type, threshold, convergence_threshold)
 
     all_points = pd.concat([variance_points, rank_points], ignore_index=True)
 
@@ -396,6 +403,15 @@ def parse_args() -> argparse.Namespace:
             "stabilization (default: 0.9 = within 10%% of asymptote)"
         ),
     )
+    parser.add_argument(
+        "--convergence-threshold",
+        type=float,
+        default=0.05,
+        help=(
+            "Maximum last-segment relative slope to consider a curve converged "
+            "(default: 0.05 = last segment < 5%% of total range)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -417,7 +433,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     chosen_b, summary = select_optimal_b(
-        variance_dir, rank_dir, args.analysis_type, args.aggregation, args.threshold
+        variance_dir, rank_dir, args.analysis_type, args.aggregation, args.threshold,
+        convergence_threshold=args.convergence_threshold,
     )
 
     summary_path = output_dir / "stabilization_summary.csv"
@@ -454,56 +471,59 @@ def main() -> None:
         "metrics_in_summary": sorted(summary["metric"].unique().tolist()),
     }
 
+    if "converged" in summary.columns:
+        n_converged = int(summary["converged"].sum())
+        n_total_curves = len(summary)
+        result["convergence_summary"] = {
+            "convergence_threshold": args.convergence_threshold,
+            "n_curves_total": n_total_curves,
+            "n_converged": n_converged,
+            "pct_converged": round(100 * n_converged / n_total_curves, 1) if n_total_curves > 0 else 0,
+            "unconverged_metrics": sorted(
+                summary[~summary["converged"]]["metric"].unique().tolist()
+            ),
+        }
+
     chosen_path = output_dir / "chosen_b.json"
     with open(chosen_path, "w") as f:
         json.dump(result, f, indent=2)
     print(f"Saved chosen B: {chosen_path}")
     print(f"\nChosen B = {chosen_b}")
 
-    # ---- Plots ----
     plots_dir = output_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
-
     entity_col = "lv_id" if args.analysis_type == "lv" else "go_id"
     group_cols = ["control", entity_col]
+    pct_label = int(args.threshold * 100)
 
-    variance_summary_path = variance_dir / "feature_variance_summary.csv"
-    if variance_summary_path.exists():
-        variance_raw = pd.read_csv(variance_summary_path)
-        for metric in VARIANCE_METRICS:
-            if metric in variance_raw.columns:
+    plot_specs = [
+        (variance_dir, "feature_variance_summary.csv", None, VARIANCE_METRICS, False, "Null-variance"),
+        (rank_dir,
+         "lv_stability_summary.csv" if args.analysis_type == "lv" else "go_stability_summary.csv",
+         "metapath_pairwise_metrics.csv",
+         RANK_METRICS, True, "Rank-stability"),
+    ]
+
+    for data_dir, primary, legacy, metrics, increasing, label in plot_specs:
+        primary_path = data_dir / primary
+        if primary_path.exists():
+            raw_df = pd.read_csv(primary_path)
+        elif legacy and (data_dir / legacy).exists():
+            raw_df = pd.read_csv(data_dir / legacy)
+            if "control" not in raw_df.columns:
+                raw_df["control"] = "combined"
+        else:
+            continue
+
+        for metric in metrics:
+            if metric in raw_df.columns:
                 _plot_stabilization_curves(
-                    variance_raw,
+                    raw_df,
                     group_cols=group_cols,
                     metric_col=metric,
-                    increasing=False,
+                    increasing=increasing,
                     threshold=args.threshold,
-                    title=f"Null-variance curves: {metric} (stabilization @ {int(args.threshold * 100)}%)",
-                    out_stem=plots_dir / f"stabilization_curves_{metric}",
-                )
-
-    rank_summary_path = (
-        rank_dir / ("lv_stability_summary.csv" if args.analysis_type == "lv" else "go_stability_summary.csv")
-    )
-    if rank_summary_path.exists():
-        rank_raw = pd.read_csv(rank_summary_path)
-    elif (rank_dir / "metapath_pairwise_metrics.csv").exists():
-        rank_raw = pd.read_csv(rank_dir / "metapath_pairwise_metrics.csv")
-        if "control" not in rank_raw.columns:
-            rank_raw["control"] = "combined"
-    else:
-        rank_raw = pd.DataFrame()
-
-    if not rank_raw.empty:
-        for metric in ("mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo"):
-            if metric in rank_raw.columns:
-                _plot_stabilization_curves(
-                    rank_raw,
-                    group_cols=group_cols,
-                    metric_col=metric,
-                    increasing=True,
-                    threshold=args.threshold,
-                    title=f"Rank-stability curves: {metric} (stabilization @ {int(args.threshold * 100)}%)",
+                    title=f"{label} curves: {metric} (stabilization @ {pct_label}%)",
                     out_stem=plots_dir / f"stabilization_curves_{metric}",
                 )
 

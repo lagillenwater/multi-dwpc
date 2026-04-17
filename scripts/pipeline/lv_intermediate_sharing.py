@@ -66,7 +66,7 @@ def _select_metapaths_by_effect_size(
     - Select metapaths with z > threshold
 
     Args:
-        results_df: DataFrame with columns including 'permutation_z' and 'lv_id'
+        results_df: DataFrame with columns including 'effect_size_z' and 'lv_id'
         z_threshold: Minimum permutation z to include
 
     Returns:
@@ -88,10 +88,10 @@ def _select_metapaths_by_effect_size(
         target_name = group["target_name"].iloc[0]
         node_type = group["node_type"].iloc[0]
         n_metapaths_total = len(group)
-        max_d = group["permutation_z"].max()
+        max_d = group["effect_size_z"].max()
 
         # Filter to metapaths with d > threshold
-        above_threshold = group[group["permutation_z"] > z_threshold].copy()
+        above_threshold = group[group["effect_size_z"] > z_threshold].copy()
 
         if above_threshold.empty:
             dropped_rows.append({
@@ -101,14 +101,14 @@ def _select_metapaths_by_effect_size(
                 "node_type": node_type,
                 "n_metapaths_total": n_metapaths_total,
                 "n_metapaths_selected": 0,
-                "max_permutation_z": max_d,
+                "max_effect_size_z": max_d,
                 "reason": f"No metapaths with permutation z > {z_threshold}",
             })
             continue
 
         # Sort by effect size descending and assign ranks
         above_threshold = above_threshold.sort_values(
-            "permutation_z", ascending=False
+            "effect_size_z", ascending=False
         ).reset_index(drop=True)
         above_threshold["metapath_rank"] = range(1, len(above_threshold) + 1)
         selected_rows.append(above_threshold)
@@ -200,7 +200,7 @@ def parse_args() -> argparse.Namespace:
 
 SHARING_COL_ORDER = [
     "lv_id", "target_id", "target_name", "node_type", "b",
-    "metapath", "metapath_rank", "permutation_z",
+    "metapath", "metapath_rank", "effect_size_z",
     "n_genes_total",
     "n_genes_with_paths", "n_genes_sharing", "pct_genes_sharing",
     "median_jaccard_to_group", "mean_jaccard_to_group",
@@ -248,9 +248,9 @@ def _process_lv(
     for _, mp_row in group.iterrows():
         metapath = mp_row["metapath"]
         mp_rank = mp_row["metapath_rank"]
-        z_score = mp_row.get("permutation_z", 0)
+        z_score = mp_row.get("effect_size_z", 0)
 
-        gene_ints = enumerate_gene_intermediates(
+        gene_ints, n_filtered = enumerate_gene_intermediates(
             lv_genes, int(target_position), metapath, edge_loader, maps,
             path_top_k=args.path_top_k, degree_d=args.degree_d,
             debug=(mp_rank == 1),
@@ -262,6 +262,7 @@ def _process_lv(
         )
 
         stats = _compute_sharing_stats(gene_ints)
+        stats["n_genes_filtered_by_dwpc"] = n_filtered
         coverage_stats, intermediate_stats = compute_intermediate_coverage(
             gene_ints, node_name_maps=node_name_maps
         )
@@ -273,7 +274,7 @@ def _process_lv(
             "node_type": node_type,
             "metapath": metapath,
             "metapath_rank": mp_rank,
-            "permutation_z": z_score,
+            "effect_size_z": z_score,
             "n_genes_total": len(lv_genes),
         })
         sharing_rows.append(stats)
@@ -393,8 +394,8 @@ def _process_b_value(
     summary = sharing_df.groupby(["lv_id", "target_id", "target_name", "node_type"]).agg(
         n_metapaths=("metapath", "count"),
         n_genes_total=("n_genes_total", "first"),
-        median_permutation_z=("permutation_z", "median"),
-        max_permutation_z=("permutation_z", "max"),
+        median_effect_size_z=("effect_size_z", "median"),
+        max_effect_size_z=("effect_size_z", "max"),
         median_pct_sharing=("pct_genes_sharing", "median"),
         mean_pct_sharing=("pct_genes_sharing", "mean"),
         max_pct_sharing=("pct_genes_sharing", "max"),

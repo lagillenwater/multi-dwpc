@@ -48,9 +48,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--rank-by",
-        default="median_permutation_z",
-        choices=["median_permutation_z", "max_permutation_z"],
-        help="Column used to rank GO terms (default: median_permutation_z).",
+        default="median_effect_size_z",
+        choices=["median_effect_size_z", "max_effect_size_z"],
+        help="Column used to rank GO terms (default: median_effect_size_z).",
     )
     parser.add_argument(
         "--min-added-genes",
@@ -78,16 +78,16 @@ def main() -> None:
         raise FileNotFoundError(f"Expected {csv_path} to exist")
 
     df = pd.read_csv(csv_path)
-    if "go_id" not in df.columns or "permutation_z" not in df.columns:
+    if "go_id" not in df.columns or "effect_size_z" not in df.columns:
         raise ValueError(
-            f"{csv_path} must have go_id and permutation_z columns; "
+            f"{csv_path} must have go_id and effect_size_z columns; "
             f"found: {sorted(df.columns.tolist())}"
         )
 
     agg = {
         "n_metapaths": ("metapath", "count"),
-        "median_permutation_z": ("permutation_z", "median"),
-        "max_permutation_z": ("permutation_z", "max"),
+        "median_effect_size_z": ("effect_size_z", "median"),
+        "max_effect_size_z": ("effect_size_z", "max"),
     }
     for optional in ("n_genes_2016", "n_genes_2024_added"):
         if optional in df.columns:

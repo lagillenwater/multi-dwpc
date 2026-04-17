@@ -40,21 +40,21 @@ def load_runs_at_b(
     if runs_df.empty:
         raise ValueError(f"No permuted rows found for b={b} in {runs_path}")
 
-    if "permutation_z" in runs_df.columns:
-        z_col = "permutation_z"
+    if "effect_size_z" in runs_df.columns:
+        z_col = "effect_size_z"
     elif "effect_size_d" in runs_df.columns:
         z_col = "effect_size_d"
     elif "d" in runs_df.columns:
         z_col = "d"
     else:
         raise ValueError(
-            f"{runs_path} has neither 'permutation_z', 'effect_size_d', nor 'd' column; "
+            f"{runs_path} has neither 'effect_size_z', 'effect_size_d', nor 'd' column; "
             f"columns present: {sorted(runs_df.columns.tolist())}"
         )
 
     present_cols = [c for c in group_cols if c in runs_df.columns]
     return runs_df.groupby(present_cols, as_index=False).agg(
-        permutation_z=(z_col, "mean"),
+        effect_size_z=(z_col, "mean"),
         diff_perm=("diff", "mean"),
     )
 
@@ -265,7 +265,7 @@ def enumerate_gene_intermediates(
             f"intermediates={len(gene_intermediates)}, filtered_by_dwpc={genes_filtered_by_dwpc}"
         )
 
-    return gene_intermediates
+    return gene_intermediates, genes_filtered_by_dwpc
 
 
 def compute_intermediate_coverage(

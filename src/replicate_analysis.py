@@ -33,6 +33,7 @@ def build_b_seed_runs(
 
     Computes both raw difference (diff) and permutation z-statistic (z = diff / null_std).
     The z-statistic uses the standard deviation of null scores across sampled replicates.
+    When null_std is zero, z is NaN -- tracked via z_is_nan column.
     """
     if summary_df.empty:
         return pd.DataFrame()
@@ -96,7 +97,8 @@ def build_b_seed_runs(
                 # Compute permutation z-statistic (z = diff / null_std)
                 # Use ddof=1 for sample std; handle cases where std=0 or NaN
                 merged["null_std_score"] = merged["null_std_score"].replace(0, np.nan)
-                merged["permutation_z"] = merged["diff"] / merged["null_std_score"]
+                merged["effect_size_z"] = merged["diff"] / merged["null_std_score"]
+                merged["z_is_nan"] = merged["effect_size_z"].isna()
                 rows.append(merged)
 
     if not rows:
@@ -105,7 +107,8 @@ def build_b_seed_runs(
     out = pd.concat(rows, ignore_index=True)
     ordered = [
         *replicate_pool_keys, "b", "seed", *join_keys,
-        "real_mean_score", "null_mean_score", "null_std_score", "diff", "permutation_z"
+        "real_mean_score", "null_mean_score", "null_std_score", "diff",
+        "effect_size_z", "z_is_nan"
     ]
     ordered = [col for idx, col in enumerate(ordered) if col in out.columns and col not in ordered[:idx]]
     return out[ordered]

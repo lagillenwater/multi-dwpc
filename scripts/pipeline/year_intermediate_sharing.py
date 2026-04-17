@@ -68,12 +68,12 @@ def _select_metapaths_by_effect_size(
     if "year" in results_df.columns:
         # Get metapaths meeting threshold in each year
         above_2016 = results_df[
-            (results_df["year"] == 2016) & (results_df["permutation_z"] > z_threshold)
+            (results_df["year"] == 2016) & (results_df["effect_size_z"] > z_threshold)
         ][["go_id", "metapath"]].drop_duplicates()
         above_2016["in_2016"] = True
 
         above_2024 = results_df[
-            (results_df["year"] == 2024) & (results_df["permutation_z"] > z_threshold)
+            (results_df["year"] == 2024) & (results_df["effect_size_z"] > z_threshold)
         ][["go_id", "metapath"]].drop_duplicates()
         above_2024["in_2024"] = True
 
@@ -83,25 +83,25 @@ def _select_metapaths_by_effect_size(
         # Add effect size from 2016 for ranking
         results_2016 = results_df[results_df["year"] == 2016].copy()
         consensus = consensus.merge(
-            results_2016[["go_id", "metapath", "permutation_z"]],
+            results_2016[["go_id", "metapath", "effect_size_z"]],
             on=["go_id", "metapath"],
             how="left",
         )
 
         # Rank within each GO term
         consensus = consensus.sort_values(
-            ["go_id", "permutation_z"], ascending=[True, False]
+            ["go_id", "effect_size_z"], ascending=[True, False]
         )
         consensus["metapath_rank"] = consensus.groupby("go_id").cumcount() + 1
 
-        return consensus[["go_id", "metapath", "metapath_rank", "permutation_z"]]
+        return consensus[["go_id", "metapath", "metapath_rank", "effect_size_z"]]
 
     else:
         # No year column - simple filtering
-        above = results_df[results_df["permutation_z"] > z_threshold].copy()
-        above = above.sort_values(["go_id", "permutation_z"], ascending=[True, False])
+        above = results_df[results_df["effect_size_z"] > z_threshold].copy()
+        above = above.sort_values(["go_id", "effect_size_z"], ascending=[True, False])
         above["metapath_rank"] = above.groupby("go_id").cumcount() + 1
-        return above[["go_id", "metapath", "metapath_rank", "permutation_z"]]
+        return above[["go_id", "metapath", "metapath_rank", "effect_size_z"]]
 
 
 def _within_group_jaccard(gene_intermediates: dict[int, set[str]]) -> tuple[int, list[float]]:
@@ -269,7 +269,7 @@ def _process_go_term(
     for _, mp_row in go_mps.iterrows():
         metapath = mp_row["metapath"]
         mp_rank = mp_row["metapath_rank"]
-        z_score = mp_row["permutation_z"]
+        z_score = mp_row["effect_size_z"]
 
         enum_kwargs = dict(
             target_pos=bp_pos, metapath=metapath,
@@ -281,16 +281,18 @@ def _process_go_term(
             record_paths=gene_path_records,
         )
 
-        ints_2016 = enumerate_gene_intermediates(
+        ints_2016, n_filtered_2016 = enumerate_gene_intermediates(
             genes_2016, **enum_kwargs,
             record_extra={"go_id": go_id, "year": "2016"},
         )
-        ints_2024 = enumerate_gene_intermediates(
+        ints_2024, n_filtered_2024 = enumerate_gene_intermediates(
             genes_2024, **enum_kwargs,
             record_extra={"go_id": go_id, "year": "2024"},
         )
 
         stats = _compute_sharing_stats(ints_2016, ints_2024, len(genes_2016), len(genes_2024))
+        stats["n_genes_filtered_by_dwpc_2016"] = n_filtered_2016
+        stats["n_genes_filtered_by_dwpc_2024"] = n_filtered_2024
         coverage_stats, int_stats = compute_intermediate_coverage(
             {**ints_2016, **ints_2024}, node_name_maps
         )
@@ -299,7 +301,7 @@ def _process_go_term(
             "go_id": go_id,
             "metapath": metapath,
             "metapath_rank": mp_rank,
-            "permutation_z": z_score,
+            "effect_size_z": z_score,
             "b": b_value,
         })
         sharing_rows.append(stats)
