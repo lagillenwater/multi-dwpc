@@ -38,8 +38,8 @@ class LvNullVarianceSmokeTests(unittest.TestCase):
                             "control": control,
                             "replicate": replicate,
                             "lv_id": "LV1",
-                            "target_set_id": "TS1",
-                            "target_set_label": "set1",
+                            "target_id": "TS1",
+                            "target_name": "set1",
                             "node_type": "Gene",
                             "metapath": "GpBP",
                             "mean_score": score,
@@ -62,7 +62,7 @@ class LvNullVarianceSmokeTests(unittest.TestCase):
 
             cmd = [
                 sys.executable,
-                "scripts/lv_null_variance_experiment.py",
+                "scripts/experiments/lv_null_variance_experiment.py",
                 "--output-dir",
                 str(output_dir),
                 "--analysis-output-dir",

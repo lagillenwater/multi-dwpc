@@ -54,7 +54,7 @@ class YearNullVarianceSmokeTests(unittest.TestCase):
 
             cmd = [
                 sys.executable,
-                "scripts/year_null_variance_experiment.py",
+                "scripts/experiments/year_null_variance_experiment.py",
                 "--summaries-dir",
                 str(summaries_dir),
                 "--output-dir",

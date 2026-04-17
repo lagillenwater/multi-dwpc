@@ -26,6 +26,8 @@ class LvReplicateAnalysisTests(unittest.TestCase):
                         "control": "real",
                         "replicate": 0,
                         "lv_id": "LV1",
+                        "target_id": "TS1",
+                        "target_name": "set1",
                         "target_set_id": "TS1",
                         "target_set_label": "set1",
                         "node_type": "Gene",
