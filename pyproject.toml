@@ -101,6 +101,10 @@ lv-pipeline-fast-smoke = { shell = "python3 scripts/experiments/lv_multidwpc_ana
 lv-pipeline-subgraphs = { shell = "python3 scripts/experiments/lv_multidwpc_analysis.py --stage pipeline-subgraphs --resume --output-dir ${LV_OUTPUT_DIR:-output/lv_multidwpc}" }
 lv-pipeline-smoke = "python3 scripts/experiments/lv_multidwpc_analysis.py --stage pipeline --smoke --output-dir output/lv_multidwpc_smoke"
 
+# Full analysis pipelines (local runners)
+run-year-pipeline = { shell = "python3 scripts/pipeline/run_year_pipeline.py --output-dir ${YEAR_PIPELINE_OUTPUT:-output/year_full_analysis} --year-output-dir ${YEAR_OUTPUT_DIR:-output/year_experiment}" }
+run-lv-pipeline = { shell = "python3 scripts/pipeline/run_lv_pipeline.py --output-dir ${LV_PIPELINE_OUTPUT:-output/lv_full_analysis} --lv-output-dirs ${LV_OUTPUT_DIRS:-output/lv_single_target_refactor}" }
+
 # Grouped tasks
 pipeline-null = ["gen-permutation", "gen-random"]
 direct-dwpc-analyses = ["compute-dwpc-direct", "year-null-variance-exp", "year-rank-stability-exp"]
