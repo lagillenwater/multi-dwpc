@@ -93,7 +93,7 @@ CHOSEN_B_PATH="$OUTPUT_DIR/b_selection/chosen_b.json"
 
 if [[ "$SKIP_B_SELECT" == "1" ]] && [[ -f "$CHOSEN_B_PATH" ]]; then
     echo "Skipping B selection - using existing $CHOSEN_B_PATH"
-    CHOSEN_B=$(python3 scripts/read_json_value.py "$CHOSEN_B_PATH" chosen_b)
+    CHOSEN_B=$(python3 scripts/pipeline/read_json_value.py "$CHOSEN_B_PATH" chosen_b)
     echo "Chosen B = $CHOSEN_B"
 else
     # Explicit overrides win; otherwise fall back to the legacy single-root layout.
@@ -109,7 +109,7 @@ else
         mkdir -p "$OUTPUT_DIR/b_selection"
         echo "{\"chosen_b\": 10, \"note\": \"default - experiments not found\"}" > "$CHOSEN_B_PATH"
     else
-        B_SELECT_CMD="python3 scripts/select_optimal_b.py \\
+        B_SELECT_CMD="python3 scripts/pipeline/select_optimal_b.py \\
             --analysis-type year \\
             --variance-dir \"$VARIANCE_DIR\" \\
             --rank-dir \"$RANK_DIR\" \\
@@ -148,7 +148,7 @@ echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
 INT_SHARE_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
 
 # Remove stale per-B subdirectories from prior runs so only the chosen B remains.
@@ -162,7 +162,7 @@ for stale_dir in \"$OUTPUT_DIR/intermediate_sharing\"/b*/; do
 done
 shopt -u nullglob
 
-python3 scripts/year_intermediate_sharing.py \\
+python3 scripts/pipeline/year_intermediate_sharing.py \\
     --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
     --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
     --b \$CHOSEN_B \\
@@ -200,10 +200,10 @@ echo "Stage 3: Select Top GO Terms"
 echo "-----------------------------"
 
 TOP_GO_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for top GO selection\"
 
-python3 scripts/select_top_go_terms.py \\
+python3 scripts/pipeline/select_top_go_terms.py \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
     --top-n $TOP_GO_TERMS \\
     --min-added-genes $MIN_ADDED_GENES \\
@@ -233,10 +233,10 @@ echo "Stage 4: Global Summary"
 echo "-----------------------"
 
 SUMMARY_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for global summary\"
 
-python3 scripts/generate_global_summary.py \\
+python3 scripts/pipeline/generate_global_summary.py \\
     --analysis-type year \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
     --b-values \$CHOSEN_B \\
@@ -268,10 +268,10 @@ echo "Stage 5: Gene Connectivity Table"
 echo "---------------------------------"
 
 GENE_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
-python3 scripts/generate_gene_table.py \\
+python3 scripts/pipeline/generate_gene_table.py \\
     --analysis-type year \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
     --lv-output-dirs \"$YEAR_OUTPUT_DIR\" \\
@@ -302,14 +302,14 @@ echo "Stage 6: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
-TOP_GO_IDS=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/top_go_ids.json\")
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+TOP_GO_IDS=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/top_go_ids.json\")
 echo \"Using chosen B = \$CHOSEN_B\"
 echo \"Top GO terms: \$TOP_GO_IDS\"
 
 for go_id in \$TOP_GO_IDS; do
     echo \"Generating subgraphs for \$go_id\"
-    python3 scripts/plot_metapath_subgraphs.py \\
+    python3 scripts/visualization/plot_metapath_subgraphs.py \\
         --analysis-type year \\
         --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
         --gene-table \"$OUTPUT_DIR/consumable/gene_connectivity_table.csv\" \\
@@ -343,10 +343,10 @@ echo "Stage 7: Intermediate Sharing Plots"
 echo "-----------------------------------"
 
 INT_PLOTS_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for year intermediate sharing plots\"
 
-python3 scripts/plot_year_intermediate_sharing.py \\
+python3 scripts/visualization/plot_year_intermediate_sharing.py \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B\" \\
     --output-dir \"$OUTPUT_DIR/intermediate_sharing/b\$CHOSEN_B/figures\" \\
     --top-go-json \"$OUTPUT_DIR/top_go_ids.json\" \\
@@ -379,25 +379,25 @@ YEAR_RUNS_PATH="${YEAR_RANK_RUNS_PATH:-$YEAR_OUTPUT_DIR/year_rank_stability_expe
 
 MP_COMPARE_CMD="
 set -e
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for metapath selection comparison\"
 
 # 1. Build GO-term support CSV at the chosen B (one row per year x metapath x GO).
-python3 scripts/year_go_term_support.py \\
+python3 scripts/visualization/year_go_term_support.py \\
     --runs-path \"$YEAR_RUNS_PATH\" \\
     --b \$CHOSEN_B \\
     --go-support-output \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
     --global-support-output \"$OUTPUT_DIR/metapath_analysis/year_direct_global_metapath_support.csv\"
 
 # 2. Grouped bar chart: metapath selection frequency per year.
-python3 scripts/plot_year_effective_metapath_selection.py \\
+python3 scripts/visualization/plot_year_effective_metapath_selection.py \\
     --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_go_term_support.csv\" \\
     --output-dir \"$OUTPUT_DIR/metapath_analysis/selection_frequency\"
 
 # 3. Rank-similarity scatter (2016 rank vs 2024 rank) with Spearman rho.
 #    Uses the GLOBAL (per-metapath, per-year) support file -- that's where
 #    selected_fraction_all is computed.
-python3 scripts/year_snapshot_rank_similarity.py \\
+python3 scripts/visualization/year_snapshot_rank_similarity.py \\
     --support-path \"$OUTPUT_DIR/metapath_analysis/year_direct_global_metapath_support.csv\" \\
     --rank-metric selected_fraction_all \\
     --b \$CHOSEN_B \\

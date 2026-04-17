@@ -46,6 +46,8 @@ else:
 
 sys.path.insert(0, str(REPO_ROOT))
 
+from src.path_enumeration import NODE_TYPE_NAMES as NODE_TYPE_FULL_NAMES  # noqa: E402
+
 # Node type colors (single- or multi-letter hetio abbrevs)
 NODE_COLORS = {
     "G": "#4CAF50",    # Gene - green
@@ -70,21 +72,6 @@ COHORT_COLORS = {
     "2016": "#4CAF50",  # green -- matches the default Gene node color
     "2024": "#E65100",  # deep orange -- visually distinct from 2016 baseline
 }
-
-NODE_TYPE_FULL_NAMES = {
-    "G": "Gene",
-    "A": "Anatomy",
-    "D": "Disease",
-    "C": "Compound",
-    "BP": "Biological Process",
-    "CC": "Cellular Component",
-    "MF": "Molecular Function",
-    "PW": "Pathway",
-    "PC": "Pharmacologic Class",
-    "SE": "Side Effect",
-    "S": "Symptom",
-}
-
 
 def parse_metapath_nodes(metapath: str) -> list[str]:
     """Split a metapath abbreviation into its sequence of node-type tokens.

@@ -85,7 +85,7 @@ else
         mkdir -p "$OUTPUT_DIR/b_selection"
         echo "{\"chosen_b\": 10, \"note\": \"default - experiments not found\"}" > "$CHOSEN_B_PATH"
     else
-        B_SELECT_CMD="python3 scripts/select_optimal_b.py \\
+        B_SELECT_CMD="python3 scripts/pipeline/select_optimal_b.py \\
             --analysis-type lv \\
             --variance-dir \"$VARIANCE_DIR\" \\
             --rank-dir \"$RANK_DIR\" \\
@@ -123,10 +123,10 @@ echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
 INT_SHARE_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
 
-python3 scripts/lv_intermediate_sharing.py \\
+python3 scripts/pipeline/lv_intermediate_sharing.py \\
     --lv-output-dirs $LV_OUTPUT_DIRS \\
     --b \$CHOSEN_B \\
     --effect-size-threshold $EFFECT_THRESHOLD \\
@@ -164,7 +164,7 @@ echo "-----------------------"
 
 SUMMARY_CMD="
 set -e
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for global summary\"
 
 ALL_RUNS_ARG=\"\"
@@ -176,7 +176,7 @@ for lv_dir in $LV_OUTPUT_DIRS; do
     fi
 done
 
-python3 scripts/generate_global_summary.py \\
+python3 scripts/pipeline/generate_global_summary.py \\
     --analysis-type lv \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
     --b-values \$CHOSEN_B \\
@@ -210,10 +210,10 @@ echo "---------------------------------"
 
 # Use chosen B for consumable outputs (read from JSON after B selection completes)
 GENE_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
-python3 scripts/generate_gene_table.py \\
+python3 scripts/pipeline/generate_gene_table.py \\
     --analysis-type lv \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
     --lv-output-dirs $LV_OUTPUT_DIRS \\
@@ -244,10 +244,10 @@ echo "Stage 5: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for visualization\"
 
-python3 scripts/plot_metapath_subgraphs.py \\
+python3 scripts/visualization/plot_metapath_subgraphs.py \\
     --analysis-type lv \\
     --input-dir \"$OUTPUT_DIR/intermediate_sharing\" \\
     --gene-table \"$OUTPUT_DIR/consumable/gene_connectivity_table.csv\" \\
@@ -279,7 +279,7 @@ echo "Stage 6: Intermediate Sharing Plots"
 echo "------------------------------------"
 
 PLOT_CMD="
-CHOSEN_B=\$(python3 scripts/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for plots\"
 
 # Check if subdirectory exists
@@ -289,7 +289,7 @@ else
     INPUT_DIR=\"$OUTPUT_DIR/intermediate_sharing\"
 fi
 
-python3 scripts/plot_lv_intermediate_sharing.py --input-dir \"\$INPUT_DIR\"
+python3 scripts/visualization/plot_lv_intermediate_sharing.py --input-dir \"\$INPUT_DIR\"
 "
 
 PLOT_JOB_ID=$(sbatch \

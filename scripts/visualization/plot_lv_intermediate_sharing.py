@@ -8,11 +8,22 @@ Usage:
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+if Path.cwd().name == "scripts":
+    _REPO_ROOT = Path("..").resolve()
+elif Path.cwd().name in ("visualization", "pipeline", "experiments", "data_prep", "api"):
+    _REPO_ROOT = Path("../..").resolve()
+else:
+    _REPO_ROOT = Path.cwd()
+sys.path.insert(0, str(_REPO_ROOT))
+
+from src.path_enumeration import NODE_TYPE_NAMES  # noqa: E402
 
 
 def save_figure(fig: plt.Figure, fig_dir: Path, name: str, dpi: int = 150) -> None:
@@ -527,21 +538,6 @@ NODE_TYPE_COLORS = {
     "SE": "#756bb1",  # Side Effect - purple
     "S": "#d9d9d9",   # Symptom - gray
 }
-
-NODE_TYPE_NAMES = {
-    "G": "Gene",
-    "A": "Anatomy",
-    "BP": "Biological Process",
-    "CC": "Cellular Component",
-    "C": "Compound",
-    "D": "Disease",
-    "MF": "Molecular Function",
-    "PC": "Pharmacologic Class",
-    "PW": "Pathway",
-    "SE": "Side Effect",
-    "S": "Symptom",
-}
-
 
 def plot_top_shared_intermediates_aggregated(
     top_int_df: pd.DataFrame,

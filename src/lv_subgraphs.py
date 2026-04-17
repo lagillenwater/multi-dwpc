@@ -6,32 +6,23 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy import sparse
 
-from src.dwpc_direct import reverse_metapath_abbrev
+from src.dwpc_direct import reverse_metapath_abbrev  # noqa: F401
 from src.lv_dwpc import compute_real_pair_dwpc
 from src.lv_pairs import build_lv_gene_target_pairs
-
-
-NODE_FILES = {
-    "G": "Gene.tsv",
-    "BP": "Biological Process.tsv",
-    "CC": "Cellular Component.tsv",
-    "MF": "Molecular Function.tsv",
-    "PW": "Pathway.tsv",
-    "A": "Anatomy.tsv",
-    "D": "Disease.tsv",
-    "C": "Compound.tsv",
-    "S": "Symptom.tsv",
-    "SE": "Side Effect.tsv",
-    "PC": "Pharmacologic Class.tsv",
-}
+from src.path_enumeration import (
+    NODE_FILES,
+    EdgeLoader,
+    NodeMaps,
+    enumerate_paths as _enumerate_paths,
+    load_node_maps as _load_node_maps_raw,
+    parse_metapath as _parse_metapath,
+)
 
 
 def _sanitize(value: str, max_len: int = 100) -> str:
@@ -39,149 +30,15 @@ def _sanitize(value: str, max_len: int = 100) -> str:
     return text[:max_len] if len(text) > max_len else text
 
 
-def _parse_metapath(metapath: str) -> Tuple[List[str], List[str]]:
-    node_abbrevs = ["BP", "CC", "MF", "PW", "SE", "PC", "G", "A", "D", "C", "S"]
-    node_abbrevs = sorted(node_abbrevs, key=len, reverse=True)
-    nodes: List[str] = []
-    edges: List[str] = []
-    i = 0
-    edge_token = ""
-    while i < len(metapath):
-        matched = False
-        for ab in node_abbrevs:
-            if metapath.startswith(ab, i):
-                if nodes:
-                    edges.append(edge_token)
-                    edge_token = ""
-                nodes.append(ab)
-                i += len(ab)
-                matched = True
-                break
-        if not matched:
-            edge_token += metapath[i]
-            i += 1
-    return nodes, edges
-
-
-@dataclass
-class NodeMaps:
-    id_to_pos: Dict[str, Dict[str, int]]
-    pos_to_id: Dict[str, Dict[int, str]]
-    id_to_name: Dict[str, Dict[str, str]]
-
-
-def _load_node_maps(repo_root: Path, node_types: List[str]) -> NodeMaps:
-    id_to_pos = {}
-    pos_to_id = {}
-    id_to_name = {}
-    for node_type in node_types:
-        filename = NODE_FILES[node_type]
-        df = pd.read_csv(repo_root / "data" / "nodes" / filename, sep="\t")
-        id_to_pos[node_type] = dict(zip(df["identifier"].astype(str), df["position"]))
-        pos_to_id[node_type] = dict(zip(df["position"], df["identifier"].astype(str)))
-        id_to_name[node_type] = dict(zip(df["identifier"].astype(str), df["name"].astype(str)))
-    return NodeMaps(id_to_pos, pos_to_id, id_to_name)
-
-
-class EdgeLoader:
-    def __init__(self, edges_dir: Path):
-        self.edges_dir = edges_dir
-        self.edge_files = {p.name for p in edges_dir.glob("*.sparse.npz")}
-        self.cache: Dict[Tuple[str, str, str], sparse.csr_matrix] = {}
-        self.deg_cache: Dict[Tuple[str, str, str], np.ndarray] = {}
-
-    def _canonical_edge_token(self, edge_token: str) -> Tuple[str, bool]:
-        reverse = "<" in edge_token and ">" not in edge_token
-        edge_base = edge_token.replace("<", "").replace(">", "")
-        if "<" in edge_token or ">" in edge_token:
-            file_edge = f"{edge_base}>"
-        else:
-            file_edge = edge_base
-        return file_edge, reverse
-
-    def load(self, src: str, edge_token: str, dst: str) -> sparse.csr_matrix:
-        key = (src, edge_token, dst)
-        if key in self.cache:
-            return self.cache[key]
-
-        file_edge, reverse = self._canonical_edge_token(edge_token)
-        name_direct = f"{src}{file_edge}{dst}.sparse.npz"
-        name_reverse = f"{dst}{file_edge}{src}.sparse.npz"
-
-        if name_direct in self.edge_files:
-            mat = sparse.load_npz(self.edges_dir / name_direct)
-            if reverse:
-                mat = mat.T
-        elif name_reverse in self.edge_files:
-            mat = sparse.load_npz(self.edges_dir / name_reverse).T
-            if reverse:
-                mat = mat.T
-        else:
-            raise FileNotFoundError(f"No edge matrix for {src}{edge_token}{dst}")
-
-        mat = mat.tocsr()
-        self.cache[key] = mat
-        return mat
-
-    def degree(self, src: str, edge_token: str, dst: str) -> np.ndarray:
-        key = (src, edge_token, dst)
-        if key in self.deg_cache:
-            return self.deg_cache[key]
-        mat = self.load(src, edge_token, dst)
-        deg = np.asarray(mat.getnnz(axis=1)).astype(float)
-        self.deg_cache[key] = deg
-        return deg
-
-
-def _enumerate_paths(
-    source_pos: int,
-    gene_pos: int,
-    nodes: List[str],
-    edges: List[str],
-    edge_loader: EdgeLoader,
-    top_k: int,
-    degree_d: float = 0.5,
-) -> List[Tuple[float, List[int]]]:
-    num_edges = len(edges)
-    if num_edges == 1:
-        mat = edge_loader.load(nodes[0], edges[0], nodes[1])
-        if mat[source_pos, gene_pos] == 0:
-            return []
-        return [(1.0, [source_pos, gene_pos])]
-
-    mat0 = edge_loader.load(nodes[0], edges[0], nodes[1])
-    nbr1 = mat0.getrow(source_pos).indices
-
-    if num_edges == 2:
-        mat1 = edge_loader.load(nodes[1], edges[1], nodes[2])
-        deg1 = edge_loader.degree(nodes[1], edges[1], nodes[2])
-        targets = set(mat1[:, gene_pos].nonzero()[0])
-        rows = []
-        for n1 in nbr1:
-            if n1 in targets:
-                score = 1.0 / (np.sqrt(max(float(deg1[n1]), 1.0)) ** degree_d)
-                rows.append((score, [source_pos, n1, gene_pos]))
-        return sorted(rows, key=lambda x: x[0], reverse=True)[:top_k]
-
-    if num_edges == 3:
-        mat1 = edge_loader.load(nodes[1], edges[1], nodes[2])
-        mat2 = edge_loader.load(nodes[2], edges[2], nodes[3])
-        deg1 = edge_loader.degree(nodes[1], edges[1], nodes[2])
-        deg2 = edge_loader.degree(nodes[2], edges[2], nodes[3])
-        targets = set(mat2[:, gene_pos].nonzero()[0])
-        heap: List[Tuple[float, List[int]]] = []
-        for n1 in nbr1:
-            n2s = mat1.getrow(n1).indices
-            for n2 in n2s:
-                if n2 in targets:
-                    score = 1.0 / (
-                        (np.sqrt(max(float(deg1[n1]), 1.0)) ** degree_d)
-                        * (np.sqrt(max(float(deg2[n2]), 1.0)) ** degree_d)
-                    )
-                    heap.append((score, [source_pos, n1, n2, gene_pos]))
-        return sorted(heap, key=lambda x: x[0], reverse=True)[:top_k]
-
-    return []
+def _load_node_maps(repo_root: Path, node_types: list[str]) -> NodeMaps:
+    """Wrapper that casts identifiers to str for subgraph plotting."""
+    raw = _load_node_maps_raw(repo_root, node_types)
+    for nt in node_types:
+        if nt in raw.id_to_pos:
+            raw.id_to_pos[nt] = {str(k): v for k, v in raw.id_to_pos[nt].items()}
+            raw.pos_to_id[nt] = {k: str(v) for k, v in raw.pos_to_id[nt].items()}
+            raw.id_to_name[nt] = {str(k): str(v) for k, v in raw.id_to_name[nt].items()}
+    return raw
 
 
 def extract_top_subgraphs(

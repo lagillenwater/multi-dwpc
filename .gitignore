@@ -23,8 +23,6 @@ env/
 venv/
 
 # Jupyter Notebook
- # Ignore notebooks since switching to poethepoet for pipeline management
-/notebooks/
 .ipynb_checkpoints/
 
 # Testing
@@ -54,7 +52,10 @@ output/
 
 # notes
 docs/
-src_2/
+
+# Archived code (untracked local copies)
+archive/src_2/
+archive/notebooks/
 
 # Planning docs
 planning/
