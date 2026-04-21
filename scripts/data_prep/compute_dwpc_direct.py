@@ -160,18 +160,18 @@ def summarize_dataset_results(config: dict, results_df: pd.DataFrame) -> pd.Data
     return summary_df
 
 
-def process_dataset(
+def _prepare_dataset_indices(
     config: dict,
-    hetmat: HetMat,
-    metapaths: list[str],
     gene_id_to_idx: dict,
     bp_id_to_idx: dict,
-) -> dict:
-    name = config["name"]
-    path = config["path"]
+) -> dict | None:
+    """Load a dataset's GO-gene pairs and map identifiers to matrix indices.
 
+    Returns None if the source file is missing.
+    """
+    path = config["path"]
     if not path.exists():
-        return {"name": name, "status": "skipped", "reason": "file not found"}
+        return None
 
     df = pd.read_csv(path)
     n_pairs = len(df)
@@ -181,45 +181,19 @@ def process_dataset(
     n_unmapped_genes = int(df["source_idx"].isna().sum())
     n_unmapped_bps = int(df["target_idx"].isna().sum())
     if n_unmapped_genes > 0 or n_unmapped_bps > 0:
-        print(f"  Warning: {n_unmapped_genes} unmapped genes, {n_unmapped_bps} unmapped BPs")
+        print(f"  Warning [{config['name']}]: {n_unmapped_genes} unmapped genes, {n_unmapped_bps} unmapped BPs")
 
     df_mapped = df.dropna(subset=["source_idx", "target_idx"]).copy()
     df_mapped["source_idx"] = df_mapped["source_idx"].astype(int)
     df_mapped["target_idx"] = df_mapped["target_idx"].astype(int)
 
-    source_indices = df_mapped["source_idx"].values
-    target_indices = df_mapped["target_idx"].values
-    gene_ids = df_mapped[config["gene_col"]].values
-    go_ids = df_mapped[config["go_col"]].values
-
-    results_list = []
-
-    for metapath in metapaths:
-        try:
-            dwpc_values = hetmat.get_dwpc_for_pairs(metapath, source_indices, target_indices)
-            results_list.append(
-                pd.DataFrame(
-                    {
-                        "entrez_gene_id": gene_ids,
-                        "go_id": go_ids,
-                        "source_idx": source_indices,
-                        "target_idx": target_indices,
-                        "metapath": metapath,
-                        "dwpc": dwpc_values,
-                    }
-                )
-            )
-        except Exception as exc:
-            print(f"  Error computing {metapath}: {exc}")
-    results_df = pd.concat(results_list, ignore_index=True) if results_list else pd.DataFrame()
-
     return {
-        "name": name,
-        "status": "completed",
         "n_input_pairs": n_pairs,
         "n_mapped_pairs": len(df_mapped),
-        "n_results": len(results_df),
-        "results_df": results_df,
+        "source_indices": df_mapped["source_idx"].values,
+        "target_indices": df_mapped["target_idx"].values,
+        "gene_ids": df_mapped[config["gene_col"]].values,
+        "go_ids": df_mapped[config["go_col"]].values,
     }
 
 
@@ -317,64 +291,132 @@ def main() -> None:
             )
         metapaths = [args.warmup_metapath]
 
-    print("Precomputing DWPC matrices...")
-    precompute_start = time.perf_counter()
-    hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
-    print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
-
     if args.warmup_cache or args.warmup_metapath:
+        print("Precomputing DWPC matrices...")
+        precompute_start = time.perf_counter()
+        hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
+        print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
         if args.warmup_metapath:
             print(f"Cache warmup complete for metapath {args.warmup_metapath}; exiting without dataset processing.")
         else:
             print("Cache warmup complete; exiting without dataset processing.")
         return
 
+    partials_dir = results_dir / "_partials"
+    partials_dir.mkdir(parents=True, exist_ok=True)
+
     all_summaries = []
     manifest_rows = []
-    batch_start = time.perf_counter()
-    for idx, config in enumerate(datasets, start=1):
-        print(f"\n[{idx}/{len(datasets)}] Processing {config['name']}...")
+    active_configs = []
+
+    for config in datasets:
         output_path = results_dir / f"dwpc_{config['name']}.csv"
         summary_path = summaries_dir / f"summary_{config['name']}.csv"
-        manifest_row = {
-            "domain": "year",
-            "name": config["name"],
-            "control": config["control"],
-            "replicate": int(config["replicate"]),
-            "year": int(config["year"]),
-            "source_path": str(config["path"]),
-            "result_path": str(output_path),
-            "summary_path": str(summary_path),
-        }
+        manifest_rows.append(
+            {
+                "domain": "year",
+                "name": config["name"],
+                "control": config["control"],
+                "replicate": int(config["replicate"]),
+                "year": int(config["year"]),
+                "source_path": str(config["path"]),
+                "result_path": str(output_path),
+                "summary_path": str(summary_path),
+            }
+        )
         if output_path.exists() and summary_path.exists():
             existing_df = pd.read_csv(output_path)
-            print(f"  Already processed: {len(existing_df)} rows")
+            print(f"  Already processed: {config['name']} ({len(existing_df)} rows)")
             all_summaries.append(
                 {"name": config["name"], "status": "skipped (exists)", "n_results": len(existing_df)}
             )
-            manifest_rows.append(manifest_row)
             continue
 
-        start = time.perf_counter()
-        summary = process_dataset(
-            config=config,
-            hetmat=hetmat,
-            metapaths=metapaths,
-            gene_id_to_idx=gene_id_to_idx,
-            bp_id_to_idx=bp_id_to_idx,
+        prep = _prepare_dataset_indices(config, gene_id_to_idx, bp_id_to_idx)
+        if prep is None:
+            print(f"  Skipping {config['name']}: file not found")
+            all_summaries.append({"name": config["name"], "status": "skipped", "reason": "file not found"})
+            continue
+
+        active_configs.append(
+            {
+                **config,
+                **prep,
+                "output_path": output_path,
+                "summary_path": summary_path,
+                "partial_dir": partials_dir / config["name"],
+            }
         )
-        if summary["status"] == "completed":
-            summary["results_df"].to_csv(output_path, index=False)
-            summarize_dataset_results(config, summary["results_df"]).to_csv(summary_path, index=False)
-            elapsed = time.perf_counter() - start
-            print(f"  Saved: {output_path}")
-            print(f"  Saved: {summary_path}")
-            print(f"  Rows: {summary['n_results']}")
-            print(f"  Time: {elapsed:.1f}s")
-            summary["time_seconds"] = elapsed
-            del summary["results_df"]
-        all_summaries.append(summary)
-        manifest_rows.append(manifest_row)
+
+    print(f"\nActive datasets to compute: {len(active_configs)}")
+    print(f"Already complete: {len(datasets) - len(active_configs)}")
+
+    batch_start = time.perf_counter()
+
+    if active_configs:
+        print(
+            f"\nIterating {len(metapaths)} metapaths over {len(active_configs)} datasets "
+            f"(one matrix in memory at a time)..."
+        )
+        for mp_idx, metapath in enumerate(metapaths, start=1):
+            mp_start = time.perf_counter()
+            print(f"\n[metapath {mp_idx}/{len(metapaths)}] {metapath}")
+            for config in active_configs:
+                partial_path = config["partial_dir"] / f"{metapath}.csv"
+                if partial_path.exists():
+                    continue
+                partial_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    dwpc_values = hetmat.get_dwpc_for_pairs(
+                        metapath, config["source_indices"], config["target_indices"]
+                    )
+                    pd.DataFrame(
+                        {
+                            "entrez_gene_id": config["gene_ids"],
+                            "go_id": config["go_ids"],
+                            "source_idx": config["source_indices"],
+                            "target_idx": config["target_indices"],
+                            "metapath": metapath,
+                            "dwpc": dwpc_values,
+                        }
+                    ).to_csv(partial_path, index=False)
+                except Exception as exc:
+                    print(f"  Error {config['name']} x {metapath}: {exc}")
+            hetmat.clear_metapath_from_memory(metapath)
+            print(f"  done in {time.perf_counter() - mp_start:.1f}s; matrix cleared from RAM")
+
+        print("\nConcatenating partials into per-dataset result files...")
+        for config in active_configs:
+            partial_dir = config["partial_dir"]
+            partial_files = sorted(partial_dir.glob("*.csv")) if partial_dir.exists() else []
+            if not partial_files:
+                all_summaries.append(
+                    {"name": config["name"], "status": "no partials written"}
+                )
+                continue
+            results_df = pd.concat(
+                [pd.read_csv(p) for p in partial_files], ignore_index=True
+            )
+            results_df.to_csv(config["output_path"], index=False)
+            summarize_dataset_results(config, results_df).to_csv(config["summary_path"], index=False)
+            for p in partial_files:
+                p.unlink()
+            partial_dir.rmdir()
+            print(f"  {config['name']}: {len(results_df)} rows -> {config['output_path']}")
+            all_summaries.append(
+                {
+                    "name": config["name"],
+                    "status": "completed",
+                    "n_input_pairs": config["n_input_pairs"],
+                    "n_mapped_pairs": config["n_mapped_pairs"],
+                    "n_results": len(results_df),
+                }
+            )
+
+    try:
+        partials_dir.rmdir()
+    except OSError:
+        pass
 
     summary_df = pd.DataFrame(all_summaries)
     manifest_df = pd.DataFrame(manifest_rows).sort_values(["year", "control", "replicate", "name"])

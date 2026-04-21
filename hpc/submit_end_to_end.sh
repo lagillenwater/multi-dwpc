@@ -70,7 +70,7 @@ if [[ "$MODE" == "smoke" ]]; then
     YEAR_DWPC_WORKERS=2
     EXP_MEM="8G"
     EXP_TIME="01:00:00"
-    DWPC_MEM="64G"
+    DWPC_MEM=32G"
     DWPC_TIME="04:00:00"
     PIPELINE_MEM="32G"
     PIPELINE_TIME="04:00:00"
@@ -85,7 +85,7 @@ else
     YEAR_DWPC_WORKERS=4
     EXP_MEM="16G"
     EXP_TIME="04:00:00"
-    DWPC_MEM="128G"
+    DWPC_MEM="64G"
     DWPC_TIME="08:00:00"
     PIPELINE_MEM="64G"
     PIPELINE_TIME="24:00:00"
@@ -171,7 +171,8 @@ echo ""
 echo "Phase 1: Data Filtering + Null Generation"
 echo "=========================================="
 
-FILTER_CMD="python3 scripts/data_prep/percent_change_and_filtering.py && \
+FILTER_CMD="export N_PERMUTATIONS=$N_REPLICATES N_RANDOM_SAMPLES=$N_REPLICATES && \
+python3 scripts/data_prep/percent_change_and_filtering.py && \
 python3 scripts/data_prep/jaccard_similarity_and_filtering.py && \
 python3 scripts/data_prep/permutation_null_datasets.py && \
 python3 scripts/data_prep/random_null_datasets.py"
