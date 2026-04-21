@@ -292,8 +292,6 @@ def main() -> None:
     for col in entity_df.columns:
         if col.startswith("mean_topk_jaccard_"):
             elbow_frames.append(_compute_elbow(entity_df, col, increasing=True))
-    if "mean_rbo" in entity_df.columns:
-        elbow_frames.append(_compute_elbow(entity_df, "mean_rbo", increasing=True))
     elbow_df = pd.concat(elbow_frames, ignore_index=True)
     if not elbow_df.empty:
         elbow_df.to_csv(analysis_dir / "elbow_summary.csv", index=False)

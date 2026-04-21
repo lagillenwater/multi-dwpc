@@ -44,9 +44,10 @@ done
 # ============================================
 # Configuration
 # ============================================
-OUTPUT_ROOT="output/e2e_${MODE}"
-LOG_DIR="hpc/logs/e2e_${MODE}"
-mkdir -p "$OUTPUT_ROOT" "$LOG_DIR"
+RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
+OUTPUT_ROOT="output/e2e_${MODE}_${RUN_ID}"
+LOG_DIR="hpc/logs/e2e_${MODE}_${RUN_ID}"
+mkdir -p "$OUTPUT_ROOT" "$LOG_DIR/year" "$LOG_DIR/lv" "$LOG_DIR/shared"
 
 # LV config
 LV_LOADINGS_PATH="${LV_LOADINGS_PATH:-data/lv_loadings/multiplier_model_z.tsv.gz}"
@@ -56,11 +57,11 @@ LV_PIPELINE_OUTPUT="$OUTPUT_ROOT/lv_full_analysis"
 # Year config
 YEAR_OUTPUT_DIR="$OUTPUT_ROOT/year_experiment"
 YEAR_PIPELINE_OUTPUT="$OUTPUT_ROOT/year_full_analysis"
-ADDED_PAIRS_PATH="$OUTPUT_ROOT/intermediate/upd_go_bp_2024_added.csv"
+ADDED_PAIRS_PATH="output/intermediate/upd_go_bp_2024_added.csv"
 
 # Smoke vs full
 if [[ "$MODE" == "smoke" ]]; then
-    B_VALUES="2,5,10"
+    B_VALUES="2,3,5,8"
     SEEDS="11,22"
     N_REPLICATES=10
     LV_METAPATH_LIMIT=2
@@ -70,7 +71,7 @@ if [[ "$MODE" == "smoke" ]]; then
     YEAR_DWPC_WORKERS=2
     EXP_MEM="8G"
     EXP_TIME="01:00:00"
-    DWPC_MEM=32G"
+    DWPC_MEM="32G"
     DWPC_TIME="04:00:00"
     PIPELINE_MEM="32G"
     PIPELINE_TIME="04:00:00"
@@ -105,13 +106,18 @@ echo
 
 submit() {
     local name="$1" mem="$2" time="$3" cmd="$4" dep="${5:-}" cpus="${6:-4}"
+    local subdir="shared"
+    case "$name" in
+        year-*) subdir="year" ;;
+        lv-*)   subdir="lv" ;;
+    esac
     local dep_flag=""
     [[ -n "$dep" ]] && dep_flag="--dependency=afterok:$dep"
     local activate="module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
     sbatch --parsable $dep_flag --export=ALL \
         --job-name="e2e-$name" --partition=amilan --qos=normal \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
-        --output="$LOG_DIR/${name}_%j.out" \
+        --output="$LOG_DIR/${subdir}/${name}_%j.out" \
         --wrap="bash -c 'cd \"$REPO_ROOT\" && $activate && set -e && $cmd'"
 }
 
@@ -175,7 +181,8 @@ FILTER_CMD="export N_PERMUTATIONS=$N_REPLICATES N_RANDOM_SAMPLES=$N_REPLICATES &
 python3 scripts/data_prep/percent_change_and_filtering.py && \
 python3 scripts/data_prep/jaccard_similarity_and_filtering.py && \
 python3 scripts/data_prep/permutation_null_datasets.py && \
-python3 scripts/data_prep/random_null_datasets.py"
+python3 scripts/data_prep/random_null_datasets.py && \
+python3 scripts/data_prep/build_year_top_genes.py --output-dir $YEAR_OUTPUT_DIR"
 
 DATA_JOB=$(submit "data-filter" "8G" "01:00:00" "$FILTER_CMD" "" 2)
 echo "  Data filtering + nulls: $DATA_JOB"

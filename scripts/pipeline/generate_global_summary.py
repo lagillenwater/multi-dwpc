@@ -89,46 +89,9 @@ def plot_lv_selection_diagnostics(
     if all_lvs.empty:
         return
     all_lvs = all_lvs.sort_values("max_effect_size_z", ascending=False).reset_index(drop=True)
-
-    # Cap the number of entities drawn so year-scale datasets (hundreds of
-    # GO terms) don't produce 170-inch-tall figures. Keep the top entities by
-    # max effect size and surface the total count in the title.
     MAX_BARS = 50
-    full_count = len(all_lvs)
-    bars_df = all_lvs.head(MAX_BARS).copy()
 
-    # Plain horizontal bar chart (one color for all entities). Threshold line
-    # is the only status indicator; bars can be negative when an entity's best
-    # metapath has a negative effect size.
-    max_d = bars_df["max_effect_size_z"].astype(float)
-    fig, ax = plt.subplots(figsize=(9, max(3.5, 0.28 * len(bars_df))))
-    y = np.arange(len(bars_df))
-    ax.barh(y, max_d, color="#1f77b4", edgecolor="black", linewidth=0.3)
-    ax.set_yticks(y)
-    ax.set_yticklabels(bars_df[id_col].astype(str).tolist(), fontsize=8)
-    ax.invert_yaxis()
-    ax.axvline(0, color="black", linewidth=0.6, alpha=0.5)
-    ax.axvline(
-        float(effect_size_threshold),
-        color="red", linestyle="--", linewidth=1.3,
-        label=f"z threshold = {effect_size_threshold}",
-    )
-    lo, hi = float(min(0.0, max_d.min())), float(max(effect_size_threshold, max_d.max()))
-    span = max(hi - lo, 1e-6)
-    ax.set_xlim(lo - 0.05 * span, hi + 0.05 * span)
-    ax.set_xlabel("Max z across metapaths")
-    ax.set_ylabel(id_col)
-    title = f"{id_col} selection: max effect size per {id_col}"
-    if full_count > MAX_BARS:
-        title += f"  (top {len(bars_df)} of {full_count})"
-    ax.set_title(title)
-    ax.legend(loc="lower right", fontsize=9)
-    ax.grid(axis="x", alpha=0.25)
-    fig.tight_layout()
-    _save_figure(fig, out_dir / "lv_selection_max_effect_size")
-    plt.close(fig)
-
-    # Plot 2: strip of effect sizes for selected LVs (one row per LV)
+    # Strip of effect sizes for selected LVs (one row per LV)
     if by_metapath_df.empty or id_col not in by_metapath_df.columns:
         return
     selected_ids_all = all_lvs[all_lvs["status"] == "selected"][id_col].astype(str).tolist()

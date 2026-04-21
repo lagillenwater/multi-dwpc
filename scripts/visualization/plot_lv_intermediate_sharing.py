@@ -33,75 +33,6 @@ def save_figure(fig: plt.Figure, fig_dir: Path, name: str, dpi: int = 150) -> No
     plt.close(fig)
 
 
-def plot_summary_comparison(
-    summary_df: pd.DataFrame, fig_dir: Path, colors: list[str]
-) -> None:
-    """Figure 1: Summary comparison across LV-target pairs."""
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    axes = axes.flatten()
-
-    labels = [
-        f"{row['lv_id']}\n{row['target_name']}" for _, row in summary_df.iterrows()
-    ]
-    n_bars = len(summary_df)
-    bar_colors = colors[:n_bars]
-
-    # Top-1 intermediate coverage (most important: does the best intermediate cover most genes?)
-    ax = axes[0]
-    values = summary_df.get("median_top1_coverage", pd.Series([0] * n_bars))
-    ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
-    ax.set_xticks(range(n_bars))
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Median % Genes Covered")
-    ax.set_title("Top-1 Intermediate Coverage")
-    ax.set_ylim(0, 105)
-    for i, v in enumerate(values):
-        if pd.notna(v):
-            ax.text(i, v + 2, f"{v:.0f}%", ha="center", fontsize=10)
-
-    # % of intermediates used by >25% of genes
-    ax = axes[1]
-    values = summary_df.get("median_pct_intermediates_shared_quarter", pd.Series([0] * n_bars))
-    ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
-    ax.set_xticks(range(n_bars))
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Median % Intermediates")
-    ax.set_title("% Intermediates Used by >25% of Genes")
-    ax.set_ylim(0, 105)
-    for i, v in enumerate(values):
-        if pd.notna(v):
-            ax.text(i, v + 2, f"{v:.1f}%", ha="center", fontsize=10)
-
-    # % of intermediates used by majority (>50%) of genes
-    ax = axes[2]
-    values = summary_df.get("median_pct_intermediates_shared_majority", pd.Series([0] * n_bars))
-    ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
-    ax.set_xticks(range(n_bars))
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Median % Intermediates")
-    ax.set_title("% Intermediates Used by >50% of Genes")
-    ax.set_ylim(0, 105)
-    for i, v in enumerate(values):
-        if pd.notna(v):
-            ax.text(i, v + 2, f"{v:.1f}%", ha="center", fontsize=10)
-
-    # % of intermediates used by ALL genes
-    ax = axes[3]
-    values = summary_df.get("median_pct_intermediates_shared_all", pd.Series([0] * n_bars))
-    ax.bar(range(n_bars), values.fillna(0), color=bar_colors)
-    ax.set_xticks(range(n_bars))
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Median % Intermediates")
-    ax.set_title("% Intermediates Used by ALL Genes")
-    ax.set_ylim(0, 105)
-    for i, v in enumerate(values):
-        if pd.notna(v):
-            ax.text(i, v + 2, f"{v:.1f}%", ha="center", fontsize=10)
-
-    plt.tight_layout()
-    save_figure(fig, fig_dir, "summary_comparison")
-
-
 def plot_sharing_by_rank(
     metapath_df: pd.DataFrame,
     summary_df: pd.DataFrame,
@@ -290,48 +221,6 @@ def plot_top_metapaths(
     save_figure(fig, fig_dir, "top_metapaths")
 
 
-def plot_sharing_distribution(
-    metapath_df: pd.DataFrame,
-    summary_df: pd.DataFrame,
-    fig_dir: Path,
-    colors: list[str],
-) -> None:
-    """Figure 6: Distribution of sharing across metapaths."""
-    lv_targets = list(
-        summary_df[["lv_id", "target_name"]].itertuples(index=False, name=None)
-    )
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    for idx, (lv_id, target_name) in enumerate(lv_targets):
-        subset = metapath_df[
-            (metapath_df["lv_id"] == lv_id)
-            & (metapath_df["target_name"] == target_name)
-        ].copy()
-
-        valid = subset["n_genes_with_paths"] > 0
-        values = subset.loc[valid, "pct_genes_sharing"].dropna()
-
-        if len(values) > 0:
-            ax.hist(
-                values,
-                bins=np.arange(0, 105, 10),
-                alpha=0.5,
-                label=f"{lv_id}: {target_name}",
-                color=colors[idx % len(colors)],
-                edgecolor="black",
-            )
-
-    ax.set_xlabel("% Genes Sharing Intermediates")
-    ax.set_ylabel("Number of Metapaths")
-    ax.set_title("Distribution of Intermediate Sharing Across Metapaths")
-    ax.legend()
-    ax.set_xlim(0, 100)
-
-    plt.tight_layout()
-    save_figure(fig, fig_dir, "sharing_distribution")
-
-
 def plot_coverage_metrics(
     metapath_df: pd.DataFrame,
     summary_df: pd.DataFrame,
@@ -396,51 +285,6 @@ def plot_coverage_metrics(
 
     plt.tight_layout()
     save_figure(fig, fig_dir, "coverage_by_rank")
-
-
-def plot_intermediates_shared_distribution(
-    metapath_df: pd.DataFrame,
-    summary_df: pd.DataFrame,
-    fig_dir: Path,
-    colors: list[str],
-) -> None:
-    """Figure 8: Distribution of top-1 intermediate coverage across metapaths."""
-    lv_targets = list(
-        summary_df[["lv_id", "target_name"]].itertuples(index=False, name=None)
-    )
-
-    if "top1_intermediate_coverage" not in metapath_df.columns:
-        return
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    for idx, (lv_id, target_name) in enumerate(lv_targets):
-        subset = metapath_df[
-            (metapath_df["lv_id"] == lv_id)
-            & (metapath_df["target_name"] == target_name)
-        ].copy()
-
-        valid = subset["n_genes_with_paths"] > 0
-        values = subset.loc[valid, "top1_intermediate_coverage"].dropna()
-
-        if len(values) > 0:
-            ax.hist(
-                values,
-                bins=np.arange(0, 105, 5),
-                alpha=0.5,
-                label=f"{lv_id}: {target_name}",
-                color=colors[idx % len(colors)],
-                edgecolor="black",
-            )
-
-    ax.set_xlabel("Top-1 Intermediate Coverage (% of genes)")
-    ax.set_ylabel("Number of Metapaths")
-    ax.set_title("Distribution of Top-1 Intermediate Coverage Across Metapaths")
-    ax.legend()
-    ax.set_xlim(0, 100)
-
-    plt.tight_layout()
-    save_figure(fig, fig_dir, "top1_coverage_distribution")
 
 
 def _get_display_label(row: pd.Series, max_len: int = 30) -> str:
@@ -839,9 +683,6 @@ def main() -> None:
     # Generate all figures
     print("Generating figures...")
 
-    plot_summary_comparison(summary_df, fig_dir, colors)
-    print("  - summary_comparison")
-
     plot_sharing_by_rank(metapath_df, summary_df, fig_dir, colors)
     print("  - sharing_by_rank")
 
@@ -854,14 +695,8 @@ def main() -> None:
     plot_top_metapaths(metapath_df, summary_df, fig_dir)
     print("  - top_metapaths")
 
-    plot_sharing_distribution(metapath_df, summary_df, fig_dir, colors)
-    print("  - sharing_distribution")
-
     plot_coverage_metrics(metapath_df, summary_df, fig_dir, colors)
     print("  - coverage_by_rank")
-
-    plot_intermediates_shared_distribution(metapath_df, summary_df, fig_dir, colors)
-    print("  - intermediates_shared_distribution")
 
     plot_top_intermediates(top_int_df, summary_df, fig_dir, colors)
     print("  - top_intermediates_*")

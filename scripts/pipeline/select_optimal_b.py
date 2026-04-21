@@ -8,7 +8,7 @@ stabilization points across metrics and entities via median (default) or max.
 
 Metrics used:
 - Null variance (decreasing): diff_std, diff_var
-- Rank stability (increasing): mean_spearman_rho, mean_topk_jaccard_5, mean_rbo
+- Rank stability (increasing): mean_spearman_rho, mean_topk_jaccard_5
 
 Outputs chosen_b.json with selected B and rationale.
 
@@ -248,7 +248,7 @@ def _plot_stabilization_curves(
 
 
 VARIANCE_METRICS = ("diff_std", "diff_var")
-RANK_METRICS = ("mean_spearman_rho", "mean_topk_jaccard_5", "mean_rbo")
+RANK_METRICS = ("mean_spearman_rho", "mean_topk_jaccard_5")
 
 
 def _load_stabilization_data(

@@ -141,8 +141,6 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
         metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
     if "10" in top_k_labels:
         metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
-    if "mean_rbo" in entity_df.columns:
-        metric_specs.append(("rbo", "mean_rbo", "Mean RBO across seeds"))
     metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
 
     plot_rows = []
@@ -174,7 +172,8 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
         else:
             axes = axes[:, np.newaxis]
 
-    rng = np.random.default_rng(42)
+    width = 0.32 if len(years) > 1 else 0.55
+    offsets = {int(y): ((idx - (len(years) - 1) / 2.0) * width) for idx, y in enumerate(years)}
     for row_idx, (metric_key, _, metric_label) in enumerate(metric_specs):
         for col_idx, control in enumerate(controls):
             ax = axes[row_idx, col_idx]
@@ -191,23 +190,29 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
                 points = control_points[control_points["year"].astype(int) == int(year)].copy()
                 if points.empty:
                     continue
-                b_values = points["b"].astype(float).to_numpy()
-                jitter = rng.uniform(-0.14, 0.14, size=len(points))
-                ax.scatter(
-                    b_values + jitter,
-                    points["metric_value"].astype(float),
-                    s=28,
-                    alpha=0.30,
-                    color=color,
-                    edgecolors="none",
+                b_vals_sorted = sorted(points["b"].astype(int).unique().tolist())
+                dists = [
+                    points[points["b"].astype(int) == int(b)]["metric_value"].astype(float).to_numpy()
+                    for b in b_vals_sorted
+                ]
+                positions = [float(b) + float(offsets[int(year)]) for b in b_vals_sorted]
+                parts = ax.violinplot(
+                    dists,
+                    positions=positions,
+                    widths=width * 0.9,
+                    showmeans=False,
+                    showmedians=False,
+                    showextrema=False,
                 )
+                for body in parts["bodies"]:
+                    body.set_facecolor(color)
+                    body.set_edgecolor(color)
+                    body.set_alpha(0.25)
                 line = control_mean[control_mean["year"].astype(int) == int(year)].copy().sort_values("b")
                 ax.plot(
-                    line["b"].astype(float),
+                    line["b"].astype(float) + float(offsets[int(year)]),
                     line["mean_metric_value"].astype(float),
-                    marker="o",
                     linewidth=2.2,
-                    markersize=6.5,
                     color=color,
                     label=str(year),
                 )
@@ -315,14 +320,6 @@ def main() -> None:
         title="Year metapath rank stability by B",
         out_path=exp_dir / "spearman_overall_by_group.pdf",
     )
-    if "mean_rbo" in overall_df.columns:
-        _plot_overall(
-            overall_df,
-            y_col="mean_rbo",
-            y_label="Mean RBO across seeds",
-            title="Year metapath RBO stability by B",
-            out_path=exp_dir / "rbo_overall_by_group.pdf",
-        )
     _plot_overlap_and_rank_points(go_summary_df, exp_dir / "topk_jaccard_overall_by_group.pdf")
 
     print(f"Saved rank table: {exp_dir / 'metapath_rank_table.csv'}")

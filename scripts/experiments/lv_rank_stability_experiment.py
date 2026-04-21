@@ -108,8 +108,6 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
         metric_specs.append(("top5", "mean_topk_jaccard_5", "Mean top-5 Jaccard across seeds"))
     if "10" in top_k_labels:
         metric_specs.append(("top10", "mean_topk_jaccard_10", "Mean top-10 Jaccard across seeds"))
-    if "mean_rbo" in entity_df.columns:
-        metric_specs.append(("rbo", "mean_rbo", "Mean RBO across seeds"))
     metric_specs.append(("all", "mean_spearman_rho", "Mean Spearman rho across seeds"))
 
     plot_rows = []
@@ -258,14 +256,6 @@ def main() -> None:
         title="LV metapath rank stability by B",
         out_path=exp_root / "spearman_overall_by_group.png",
     )
-    if "mean_rbo" in overall_df.columns:
-        _plot_overall(
-            overall_df,
-            y_col="mean_rbo",
-            y_label="Mean RBO across seeds",
-            title="LV metapath RBO stability by B",
-            out_path=exp_root / "rbo_overall_by_group.png",
-        )
     _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.png")
 
     print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
