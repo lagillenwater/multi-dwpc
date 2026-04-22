@@ -105,7 +105,7 @@ echo "Log dir:         $LOG_DIR"
 echo
 
 submit() {
-    local name="$1" mem="$2" time="$3" cmd="$4" dep="${5:-}" cpus="${6:-4}"
+    local name="$1" mem="$2" time="$3" cmd="$4" dep="${5:-}" cpus="${6:-4}" array_spec="${7:-}"
     local subdir="shared"
     case "$name" in
         year-*) subdir="year" ;;
@@ -113,11 +113,17 @@ submit() {
     esac
     local dep_flag=""
     [[ -n "$dep" ]] && dep_flag="--dependency=afterok:$dep"
+    local array_flag=""
+    local out_pattern="%j"
+    if [[ -n "$array_spec" ]]; then
+        array_flag="--array=$array_spec"
+        out_pattern="%A_%a"
+    fi
     local activate="module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
-    sbatch --parsable $dep_flag --export=ALL \
+    sbatch --parsable $dep_flag $array_flag --export=ALL \
         --job-name="e2e-$name" --partition=amilan --qos=normal \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
-        --output="$LOG_DIR/${subdir}/${name}_%j.out" \
+        --output="$LOG_DIR/${subdir}/${name}_${out_pattern}.out" \
         --wrap="bash -c 'cd \"$REPO_ROOT\" && $activate && set -e && $cmd'"
 }
 
@@ -177,16 +183,26 @@ echo ""
 echo "Phase 1: Data Filtering + Null Generation"
 echo "=========================================="
 
-FILTER_CMD="export N_PERMUTATIONS=$N_REPLICATES N_RANDOM_SAMPLES=$N_REPLICATES && \
-python3 scripts/data_prep/percent_change_and_filtering.py && \
+# 1a: Filter (single job, fast)
+FILTER_CMD="python3 scripts/data_prep/percent_change_and_filtering.py && \
 python3 scripts/data_prep/jaccard_similarity_and_filtering.py && \
-python3 scripts/data_prep/permutation_null_datasets.py && \
-python3 scripts/data_prep/random_null_datasets.py && \
 python3 scripts/data_prep/build_year_top_genes.py --output-dir $YEAR_OUTPUT_DIR"
+DATA_JOB=$(submit "data-filter" "8G" "00:30:00" "$FILTER_CMD" "" 2)
+echo "  Data filtering: $DATA_JOB"
 
-DATA_JOB=$(submit "data-filter" "8G" "01:00:00" "$FILTER_CMD" "" 2)
-echo "  Data filtering + nulls: $DATA_JOB"
-NULL_JOB="$DATA_JOB"
+# 1b: Year permutation nulls (array: 1 task per replicate)
+YEAR_PERM_CMD="export PERMUTATION_IDS=\$SLURM_ARRAY_TASK_ID && \
+python3 scripts/data_prep/permutation_null_datasets.py"
+YEAR_PERM_JOB=$(submit "year-perm" "4G" "00:20:00" "$YEAR_PERM_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
+echo "  Year permutations: $YEAR_PERM_JOB (array 1-${N_REPLICATES}%10)"
+
+# 1c: Year random nulls (array: 1 task per replicate)
+YEAR_RAND_CMD="export RANDOM_SAMPLE_IDS=\$SLURM_ARRAY_TASK_ID && \
+python3 scripts/data_prep/random_null_datasets.py"
+YEAR_RAND_JOB=$(submit "year-rand" "4G" "00:20:00" "$YEAR_RAND_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
+echo "  Year random nulls: $YEAR_RAND_JOB (array 1-${N_REPLICATES}%10)"
+
+NULL_JOB="${YEAR_PERM_JOB}:${YEAR_RAND_JOB}"
 
 # ============================================
 # Year-specific chain
@@ -197,11 +213,28 @@ if [[ "$ANALYSIS_TYPE" == "year" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     echo ""
     echo "=== Year Analysis Chain ==="
 
-    # Phase 2b: DWPC computation (depends on nulls)
-    DWPC_CMD="python3 scripts/data_prep/compute_dwpc_direct.py \
-        --output-dir $YEAR_OUTPUT_DIR"
-    YEAR_DWPC_JOB=$(submit "year-dwpc" "$DWPC_MEM" "$DWPC_TIME" "$DWPC_CMD" "$NULL_JOB")
-    echo "  Year DWPC: $YEAR_DWPC_JOB"
+    # Phase 2b-i: Warm the per-metapath DWPC disk cache (single job, parallel
+    # within the job but with bounded memory — matrices are streamed to disk
+    # and dropped from RAM by cache_in_memory=False).
+    YEAR_DWPC_WARMUP_CMD="python3 scripts/data_prep/compute_dwpc_direct.py \
+        --output-dir $YEAR_OUTPUT_DIR --warmup-cache --n-workers $YEAR_DWPC_WORKERS"
+    YEAR_DWPC_WARMUP_JOB=$(submit "year-dwpc-warmup" "$DWPC_MEM" "$DWPC_TIME" \
+        "$YEAR_DWPC_WARMUP_CMD" "$NULL_JOB")
+    echo "  Year DWPC warmup: $YEAR_DWPC_WARMUP_JOB"
+
+    # Phase 2b-ii: Per-dataset DWPC (array: 1 task per dataset).
+    # Datasets = 2 real + N permuted * 2 years + N random * 2 years = 2 + 4*N.
+    # Each task reads from the warmed disk cache, holds at most one metapath
+    # matrix in RAM at a time.
+    YEAR_N_DATASETS=$(( 2 + 4 * N_REPLICATES ))
+    YEAR_DWPC_CMD="DATASET_NAME=\$(python3 scripts/data_prep/compute_dwpc_direct.py \
+        --output-dir $YEAR_OUTPUT_DIR --list-datasets | sed -n \"\${SLURM_ARRAY_TASK_ID}p\") && \
+    echo \"[task \$SLURM_ARRAY_TASK_ID] dataset=\$DATASET_NAME\" && \
+    python3 scripts/data_prep/compute_dwpc_direct.py \
+        --output-dir $YEAR_OUTPUT_DIR --dataset-name \"\$DATASET_NAME\" --read-only-cache"
+    YEAR_DWPC_JOB=$(submit "year-dwpc" "16G" "02:00:00" "$YEAR_DWPC_CMD" \
+        "$YEAR_DWPC_WARMUP_JOB" 2 "1-${YEAR_N_DATASETS}%20")
+    echo "  Year DWPC: $YEAR_DWPC_JOB (array 1-${YEAR_N_DATASETS}%20)"
 
     # Phase 3: Experiments (depend on DWPC)
     YEAR_VAR_CMD="python3 scripts/experiments/year_null_variance_experiment.py \
@@ -255,15 +288,15 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     LV_DWPC_JOB=$(submit "lv-dwpc" "$DWPC_MEM" "$DWPC_TIME" "$LV_DWPC_CMD" "$LV_PREP_JOB")
     echo "  LV multi-DWPC: $LV_DWPC_JOB"
 
-    # Phase 2d: Generate control replicates (depends on prep)
+    # Phase 2d: Generate control replicates (arrays, 1 task per replicate).
     LV_PERM_CMD="python3 scripts/experiments/lv_generate_control_replicates.py \
-        --output-dir $LV_OUTPUT_DIR --control permuted --n-replicates $N_REPLICATES"
+        --output-dir $LV_OUTPUT_DIR --control permuted --replicate-id \$SLURM_ARRAY_TASK_ID"
     LV_RAND_CMD="python3 scripts/experiments/lv_generate_control_replicates.py \
-        --output-dir $LV_OUTPUT_DIR --control random --n-replicates $N_REPLICATES"
-    LV_PERM_JOB=$(submit "lv-perm" "8G" "01:00:00" "$LV_PERM_CMD" "$LV_PREP_JOB")
-    LV_RAND_JOB=$(submit "lv-rand" "8G" "01:00:00" "$LV_RAND_CMD" "$LV_PREP_JOB")
-    echo "  LV permutations: $LV_PERM_JOB"
-    echo "  LV random nulls: $LV_RAND_JOB"
+        --output-dir $LV_OUTPUT_DIR --control random --replicate-id \$SLURM_ARRAY_TASK_ID"
+    LV_PERM_JOB=$(submit "lv-perm" "4G" "00:20:00" "$LV_PERM_CMD" "$LV_PREP_JOB" 2 "1-${N_REPLICATES}%10")
+    LV_RAND_JOB=$(submit "lv-rand" "4G" "00:20:00" "$LV_RAND_CMD" "$LV_PREP_JOB" 2 "1-${N_REPLICATES}%10")
+    echo "  LV permutations: $LV_PERM_JOB (array 1-${N_REPLICATES}%10)"
+    echo "  LV random nulls: $LV_RAND_JOB (array 1-${N_REPLICATES}%10)"
 
     # Phase 2e: Compute replicate summaries (depends on replicates + DWPC)
     LV_SUM_CMD="python3 scripts/experiments/lv_compute_replicate_summaries.py \
@@ -303,12 +336,12 @@ echo "End-to-End Jobs Submitted ($MODE)"
 echo "=============================================="
 echo ""
 echo "Dependency chain:"
-echo "  Data prep -> Null generation"
+echo "  Data filter -> [year-perm array, year-rand array]"
 if [[ -n "${YEAR_FINAL_JOB:-}" ]]; then
-    echo "  Year: Nulls -> DWPC -> Experiments (var + rank) -> Pipeline"
+    echo "  Year: Nulls -> DWPC warmup -> DWPC array (1 task/dataset) -> Experiments (var + rank) -> Pipeline"
 fi
 if [[ -n "${LV_FINAL_JOB:-}" ]]; then
-    echo "  LV: Data -> Prep -> [DWPC, Perm, Rand] -> Summaries -> Experiments -> Pipeline"
+    echo "  LV: Data -> Prep -> [DWPC, Perm array, Rand array] -> Summaries -> Experiments -> Pipeline"
 fi
 echo ""
 echo "Monitor: squeue -u \$USER"

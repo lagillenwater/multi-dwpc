@@ -294,7 +294,12 @@ def main() -> None:
     if args.warmup_cache or args.warmup_metapath:
         print("Precomputing DWPC matrices...")
         precompute_start = time.perf_counter()
-        hetmat.precompute_matrices(metapaths, n_workers=int(args.n_workers), show_progress=True)
+        hetmat.precompute_matrices(
+            metapaths,
+            n_workers=int(args.n_workers),
+            show_progress=True,
+            cache_in_memory=False,
+        )
         print(f"Precomputation complete: {time.perf_counter() - precompute_start:.1f}s")
         if args.warmup_metapath:
             print(f"Cache warmup complete for metapath {args.warmup_metapath}; exiting without dataset processing.")

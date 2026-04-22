@@ -583,7 +583,8 @@ class HetMat:
         metapaths: List[str],
         damping: Optional[float] = None,
         n_workers: int = 4,
-        show_progress: bool = True
+        show_progress: bool = True,
+        cache_in_memory: bool = True,
     ):
         """
         Precompute and cache DWPC matrices for multiple metapaths in parallel.
@@ -598,6 +599,10 @@ class HetMat:
             Number of parallel workers
         show_progress : bool
             Show progress bar
+        cache_in_memory : bool
+            If False, completed matrices are written to disk and released instead
+            of being retained in the in-memory cache. Use for disk-cache warmup
+            jobs that have no follow-on computation and need bounded RAM.
         """
         damping = damping if damping is not None else self.damping
 
@@ -605,12 +610,14 @@ class HetMat:
         to_compute = []
         for mp in metapaths:
             cache_key = (mp, damping)
-            if cache_key not in self._dwpc_cache:
-                disk_matrix = self._load_from_disk(mp, damping)
-                if disk_matrix is not None:
+            if cache_key in self._dwpc_cache:
+                continue
+            disk_matrix = self._load_from_disk(mp, damping)
+            if disk_matrix is not None:
+                if cache_in_memory:
                     self._dwpc_cache[cache_key] = disk_matrix
-                else:
-                    to_compute.append(mp)
+                continue
+            to_compute.append(mp)
 
         if not to_compute:
             return
@@ -632,8 +639,9 @@ class HetMat:
             for future in iterator:
                 mp, matrix = future.result()
                 cache_key = (mp, damping)
-                self._dwpc_cache[cache_key] = matrix
                 self._save_to_disk(mp, damping, matrix)
+                if cache_in_memory:
+                    self._dwpc_cache[cache_key] = matrix
 
     def get_dwpc_for_pairs(
         self,
