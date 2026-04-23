@@ -42,6 +42,7 @@ from src.intermediate_sharing import (  # noqa: E402
     load_dwpc_from_numpy,
     load_runs_at_b,
 )
+from src.lv_dwpc import NODE_TYPE_TO_ABBREV  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -134,7 +135,8 @@ def main() -> None:
         if args.analysis_type == "lv" and "target_id" in gs_row.columns:
             tid = gs_row["target_id"].iloc[0]
             nt = gs_row["node_type"].iloc[0] if "node_type" in gs_row.columns else "BP"
-            target_pos = maps.id_to_pos.get(nt, {}).get(tid)
+            nt_key = NODE_TYPE_TO_ABBREV.get(nt, nt)
+            target_pos = maps.id_to_pos.get(nt_key, {}).get(tid)
         else:
             target_pos = maps.id_to_pos.get("BP", {}).get(gs_id)
 
