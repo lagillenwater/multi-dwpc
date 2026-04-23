@@ -1,5 +1,11 @@
 # Multi-DWPC Project Notes
 
+## Working style (always)
+
+- Respond in as few words as possible.
+- Code in as few lines as possible.
+- Touch as little as possible when making edits. 
+
 ## Environment
 
 - **Local environment**: Does not have scipy installed
