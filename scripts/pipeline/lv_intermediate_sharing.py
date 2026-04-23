@@ -47,6 +47,7 @@ from src.path_enumeration import (  # noqa: E402
 )
 from src.intermediate_sharing import (  # noqa: E402
     compute_dwpc_thresholds,
+    compute_dwpc_z_stats,
     compute_intermediate_coverage,
     enumerate_gene_intermediates,
     load_dwpc_from_numpy,
@@ -184,7 +185,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Comma-separated B values to run (e.g., '2,5,10,20,30'). Creates subdirectories per B.",
     )
-    parser.add_argument("--path-top-k", type=int, default=100)
+    parser.add_argument("--path-top-k", type=int, default=100,
+        help="Cap on paths per gene (legacy). Ignored when --path-z-threshold is set.")
     parser.add_argument("--degree-d", type=float, default=0.5)
     parser.add_argument(
         "--effect-size-threshold", type=float, default=0.5,
@@ -192,7 +194,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dwpc-percentile", type=float, default=75.0,
-        help="DWPC percentile threshold within (gene_set, metapath). Default 75 (top 25%%).",
+        help="DWPC percentile threshold within (gene_set, metapath). Ignored when --dwpc-z-threshold is set. Default 75 (top 25%%).",
+    )
+    parser.add_argument(
+        "--dwpc-z-threshold", type=float, default=None,
+        help="Keep genes whose (DWPC - mean)/std >= threshold, computed over the gene universe per (gene_set, metapath). Overrides --dwpc-percentile when set.",
+    )
+    parser.add_argument(
+        "--path-z-threshold", type=float, default=None,
+        help="Keep paths whose (score - pool_mean)/pool_std >= threshold, computed over all paths for each (gene_set, metapath). Overrides --path-top-k when set.",
+    )
+    parser.add_argument(
+        "--path-enumeration-cap", type=int, default=None,
+        help="Max paths to enumerate per gene (used with --path-z-threshold). Default: no cap.",
     )
     parser.add_argument("--output-dir", default="output/lv_intermediate_sharing")
     return parser.parse_args()
@@ -224,6 +238,7 @@ def _process_lv(
     node_name_maps: dict,
     dwpc_lookup: dict,
     dwpc_thresholds: dict,
+    dwpc_z_stats: dict,
     args: argparse.Namespace,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     target_name = group["target_name"].iloc[0]
@@ -257,6 +272,10 @@ def _process_lv(
             gene_set_id=lv_id,
             dwpc_lookup=dwpc_lookup or None,
             dwpc_thresholds=dwpc_thresholds or None,
+            dwpc_z_stats=dwpc_z_stats or None,
+            dwpc_z_min=args.dwpc_z_threshold if args.dwpc_z_threshold is not None else 1.65,
+            path_z_min=args.path_z_threshold,
+            path_enumeration_cap=args.path_enumeration_cap,
             record_paths=gene_path_records,
             record_extra={"lv_id": lv_id},
         )
@@ -316,6 +335,7 @@ def _process_b_value(
     node_name_maps: dict,
     dwpc_lookup: dict,
     dwpc_thresholds: dict,
+    dwpc_z_stats: dict,
     args: argparse.Namespace,
 ):
     print(f"\n{'='*60}\nProcessing B = {b_value}\n{'='*60}")
@@ -370,7 +390,7 @@ def _process_b_value(
         s, t, g = _process_lv(
             lv_id, group, top_genes, lv_targets,
             edge_loader, maps, node_name_maps,
-            dwpc_lookup, dwpc_thresholds, args,
+            dwpc_lookup, dwpc_thresholds, dwpc_z_stats, args,
         )
         sharing_rows.extend(s)
         top_intermediates_rows.extend(t)
@@ -446,9 +466,14 @@ def main() -> None:
     top_genes = pd.concat(top_genes_frames, ignore_index=True).drop_duplicates()
     lv_targets = pd.concat(lv_targets_frames, ignore_index=True).drop_duplicates()
 
-    dwpc_thresholds = {}
-    if dwpc_lookup and args.dwpc_percentile > 0:
-        dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
+    dwpc_thresholds: dict = {}
+    dwpc_z_stats: dict = {}
+    if dwpc_lookup:
+        if args.dwpc_z_threshold is not None:
+            dwpc_z_stats = compute_dwpc_z_stats(dwpc_lookup)
+            print(f"DWPC z-filter active: keep genes with z >= {args.dwpc_z_threshold}")
+        elif args.dwpc_percentile > 0:
+            dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
 
     if args.b_values:
         b_values = [int(b.strip()) for b in args.b_values.split(",")]
@@ -466,7 +491,7 @@ def main() -> None:
             b_value, runs_paths, out_dir,
             top_genes, lv_targets,
             edge_loader, maps, node_name_maps,
-            dwpc_lookup, dwpc_thresholds, args,
+            dwpc_lookup, dwpc_thresholds, dwpc_z_stats, args,
         )
 
     print("\nAll B values processed.")

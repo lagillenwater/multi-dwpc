@@ -80,6 +80,32 @@ def compute_dwpc_thresholds(
     }
 
 
+def compute_dwpc_z_stats(
+    dwpc_lookup: dict[tuple, float],
+) -> dict[tuple[str, str], tuple[float, float]]:
+    """Compute (mean, std) of DWPC per (gene_set_id, metapath) over gene universe.
+
+    Used for gene filtering via z-score: keep gene if
+    ``(gene_dwpc - mean) / std >= z_min``. Groups may have n>=2; smaller
+    groups are omitted (std undefined).
+    """
+    grouped: dict[tuple[str, str], list[float]] = {}
+    for key, dwpc in dwpc_lookup.items():
+        group_key = (key[0], key[1])
+        grouped.setdefault(group_key, []).append(dwpc)
+
+    stats: dict[tuple[str, str], tuple[float, float]] = {}
+    for k, v in grouped.items():
+        if len(v) < 2:
+            continue
+        arr = np.asarray(v, dtype=float)
+        std = float(arr.std(ddof=1))
+        if std <= 0:
+            continue
+        stats[k] = (float(arr.mean()), std)
+    return stats
+
+
 def load_dwpc_from_numpy(
     output_dirs: list[Path] | Path,
     analysis_type: str = "lv",
@@ -152,6 +178,10 @@ def enumerate_gene_intermediates(
     gene_set_id: str | None = None,
     dwpc_lookup: dict[tuple, float] | None = None,
     dwpc_thresholds: dict[tuple[str, str], float] | None = None,
+    dwpc_z_stats: dict[tuple[str, str], tuple[float, float]] | None = None,
+    dwpc_z_min: float = 1.65,
+    path_z_min: float | None = None,
+    path_enumeration_cap: int | None = None,
     record_paths: list[dict] | None = None,
     record_extra: dict | None = None,
     debug: bool = False,
@@ -185,16 +215,37 @@ def enumerate_gene_intermediates(
 
     gene_id_map = maps.id_to_pos.get("G", {})
 
+    # Gene filter: z-based (mean+std of universe DWPC) overrides percentile path.
     dwpc_threshold = 0.0
-    if dwpc_thresholds is not None and gene_set_id is not None:
+    dwpc_mean: float | None = None
+    dwpc_std: float | None = None
+    if dwpc_z_stats is not None and gene_set_id is not None:
+        stats = dwpc_z_stats.get((gene_set_id, metapath))
+        if stats is not None:
+            dwpc_mean, dwpc_std = stats
+            if debug:
+                print(
+                    f"      DWPC z-filter for {gene_set_id}/{metapath}: "
+                    f"mean={dwpc_mean:.4f}, std={dwpc_std:.4f}, z_min={dwpc_z_min}"
+                )
+    elif dwpc_thresholds is not None and gene_set_id is not None:
         dwpc_threshold = dwpc_thresholds.get((gene_set_id, metapath), 0.0)
         if debug and dwpc_threshold > 0:
             print(f"      DWPC threshold for {gene_set_id}/{metapath}: {dwpc_threshold:.4f}")
 
+    # First pass: enumerate paths per surviving gene. Scores pooled for optional
+    # path-z threshold computed across all genes for this (gene_set, metapath).
+    enumeration_cap = path_enumeration_cap if path_enumeration_cap is not None else path_top_k
+    per_gene_paths: list[tuple[int, int, list[tuple[float, list[int]]]]] = []
     for gene_id in genes:
-        if dwpc_lookup is not None and gene_set_id is not None and dwpc_threshold > 0:
-            dwpc = dwpc_lookup.get((gene_set_id, metapath, gene_id), 0.0)
-            if dwpc < dwpc_threshold:
+        if dwpc_lookup is not None and gene_set_id is not None:
+            gene_dwpc = dwpc_lookup.get((gene_set_id, metapath, gene_id), 0.0)
+            if dwpc_mean is not None and dwpc_std is not None and dwpc_std > 0:
+                z = (gene_dwpc - dwpc_mean) / dwpc_std
+                if z < dwpc_z_min:
+                    genes_filtered_by_dwpc += 1
+                    continue
+            elif dwpc_threshold > 0 and gene_dwpc < dwpc_threshold:
                 genes_filtered_by_dwpc += 1
                 continue
 
@@ -210,7 +261,7 @@ def enumerate_gene_intermediates(
         try:
             paths = enumerate_paths(
                 target_pos, gene_pos, nodes, edges, edge_loader,
-                top_k=path_top_k, degree_d=degree_d,
+                top_k=enumeration_cap, degree_d=degree_d,
             )
         except Exception as exc:
             if debug:
@@ -220,15 +271,42 @@ def enumerate_gene_intermediates(
         if not paths:
             continue
         genes_with_paths += 1
+        per_gene_paths.append((gene_id, gene_pos, paths))
 
-        selected = select_paths(
-            paths,
-            selection_method="effective_number",
-            top_paths=path_top_k,
-            path_cumulative_frac=None,
-            path_min_count=1,
-            path_max_count=None,
+    # Optional path-z threshold: pool scores across all genes for this metapath.
+    path_score_cutoff: float | None = None
+    if path_z_min is not None and per_gene_paths:
+        all_scores = np.asarray(
+            [score for _, _, paths in per_gene_paths for score, _ in paths],
+            dtype=float,
         )
+        if all_scores.size >= 2:
+            pool_std = float(all_scores.std(ddof=1))
+            if pool_std > 0:
+                pool_mean = float(all_scores.mean())
+                path_score_cutoff = pool_mean + path_z_min * pool_std
+                if debug:
+                    print(
+                        f"      Path-z filter for {gene_set_id}/{metapath}: "
+                        f"pool_mean={pool_mean:.4g}, pool_std={pool_std:.4g}, "
+                        f"z_min={path_z_min}, cutoff={path_score_cutoff:.4g}, "
+                        f"n_paths={all_scores.size}"
+                    )
+
+    for gene_id, gene_pos, paths in per_gene_paths:
+        if path_score_cutoff is not None:
+            selected = [p for p in paths if p[0] >= path_score_cutoff]
+        else:
+            selected = select_paths(
+                paths,
+                selection_method="effective_number",
+                top_paths=path_top_k,
+                path_cumulative_frac=None,
+                path_min_count=1,
+                path_max_count=None,
+            )
+        if not selected:
+            continue
 
         intermediates: set[str] = set()
         for path_rank, (score, pos_path) in enumerate(selected, start=1):

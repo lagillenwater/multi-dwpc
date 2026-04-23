@@ -70,6 +70,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--added-pairs-path", default="output/intermediate/upd_go_bp_2024_added.csv")
     p.add_argument("--effect-size-threshold", type=float, default=1.65)
     p.add_argument("--dwpc-percentile", type=float, default=75)
+    p.add_argument("--dwpc-z-threshold", type=float, default=None,
+        help="Gene DWPC z cutoff (overrides --dwpc-percentile when set).")
+    p.add_argument("--path-z-threshold", type=float, default=None,
+        help="Path-score z cutoff pooled per (GO, metapath) (overrides --path-top-k when set).")
+    p.add_argument("--path-top-k", type=int, default=None,
+        help="Legacy per-gene path cap (used only when --path-z-threshold is unset).")
+    p.add_argument("--path-enumeration-cap", type=int, default=None,
+        help="Max paths to enumerate per gene when --path-z-threshold is set.")
     p.add_argument("--top-go-terms", type=int, default=10)
     p.add_argument("--min-added-genes", type=int, default=5)
     p.add_argument("--skip-b-select", action="store_true")
@@ -126,7 +134,7 @@ def main() -> None:
 
     # Stage 2: Intermediate Sharing
     if should_run(2):
-        _run("Intermediate Sharing", [
+        is_cmd = [
             py, "scripts/pipeline/year_intermediate_sharing.py",
             "--year-output-dir", year_dir,
             "--added-pairs-path", args.added_pairs_path,
@@ -134,7 +142,16 @@ def main() -> None:
             "--effect-size-threshold", str(args.effect_size_threshold),
             "--dwpc-percentile", str(args.dwpc_percentile),
             "--output-dir", str(out / "intermediate_sharing"),
-        ], dry_run=args.dry_run)
+        ]
+        if args.dwpc_z_threshold is not None:
+            is_cmd += ["--dwpc-z-threshold", str(args.dwpc_z_threshold)]
+        if args.path_z_threshold is not None:
+            is_cmd += ["--path-z-threshold", str(args.path_z_threshold)]
+        if args.path_top_k is not None:
+            is_cmd += ["--path-top-k", str(args.path_top_k)]
+        if args.path_enumeration_cap is not None:
+            is_cmd += ["--path-enumeration-cap", str(args.path_enumeration_cap)]
+        _run("Intermediate Sharing", is_cmd, dry_run=args.dry_run)
 
     # Stage 3: Select Top GO Terms
     if should_run(3):

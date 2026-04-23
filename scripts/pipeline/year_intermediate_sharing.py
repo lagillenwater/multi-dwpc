@@ -45,6 +45,7 @@ from src.path_enumeration import (  # noqa: E402
 )
 from src.intermediate_sharing import (  # noqa: E402
     compute_dwpc_thresholds,
+    compute_dwpc_z_stats,
     compute_intermediate_coverage,
     enumerate_gene_intermediates,
     load_runs_at_b,
@@ -221,12 +222,31 @@ def parse_args() -> argparse.Namespace:
         "--dwpc-percentile",
         type=float,
         default=75.0,
-        help="DWPC percentile threshold (default 75 = top 25%%)",
+        help="DWPC percentile threshold (default 75 = top 25%%). Ignored when --dwpc-z-threshold is set.",
     )
     parser.add_argument(
         "--path-top-k",
         type=int,
         default=100,
+        help="Cap on paths per gene (legacy). Ignored when --path-z-threshold is set.",
+    )
+    parser.add_argument(
+        "--dwpc-z-threshold",
+        type=float,
+        default=None,
+        help="Keep genes whose (DWPC - mean)/std >= threshold per (GO, metapath). Overrides --dwpc-percentile when set.",
+    )
+    parser.add_argument(
+        "--path-z-threshold",
+        type=float,
+        default=None,
+        help="Keep paths whose (score - pool_mean)/pool_std >= threshold per (GO, metapath). Overrides --path-top-k when set.",
+    )
+    parser.add_argument(
+        "--path-enumeration-cap",
+        type=int,
+        default=None,
+        help="Max paths to enumerate per gene (used with --path-z-threshold). Default: no cap.",
     )
     parser.add_argument(
         "--go-id",
@@ -252,6 +272,7 @@ def _process_go_term(
     node_name_maps: dict,
     dwpc_lookup: dict,
     dwpc_thresholds: dict,
+    dwpc_z_stats: dict,
     args: argparse.Namespace,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     all_genes = go_genes_df.loc[
@@ -278,6 +299,10 @@ def _process_go_term(
             gene_set_id=go_id,
             dwpc_lookup=dwpc_lookup or None,
             dwpc_thresholds=dwpc_thresholds or None,
+            dwpc_z_stats=dwpc_z_stats or None,
+            dwpc_z_min=args.dwpc_z_threshold if args.dwpc_z_threshold is not None else 1.65,
+            path_z_min=args.path_z_threshold,
+            path_enumeration_cap=args.path_enumeration_cap,
             record_paths=gene_path_records,
         )
 
@@ -335,6 +360,7 @@ def _process_b_value(
     node_name_maps: dict,
     dwpc_lookup: dict,
     dwpc_thresholds: dict,
+    dwpc_z_stats: dict,
     args: argparse.Namespace,
 ):
     print(f"\n{'='*60}\nProcessing B = {b_value}\n{'='*60}")
@@ -389,7 +415,7 @@ def _process_b_value(
             go_id, selected_mp[selected_mp["go_id"] == go_id],
             go_genes_df, added_pairs, bp_pos, b_value,
             edge_loader, maps, node_name_maps,
-            dwpc_lookup, dwpc_thresholds, args,
+            dwpc_lookup, dwpc_thresholds, dwpc_z_stats, args,
         )
         sharing_rows.extend(s)
         top_intermediates_rows.extend(t)
@@ -458,8 +484,13 @@ def main() -> None:
 
     dwpc_lookup: dict[tuple, float] = {}
     dwpc_thresholds: dict[tuple, float] = {}
-    if args.dwpc_percentile > 0 and dwpc_lookup:
-        dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
+    dwpc_z_stats: dict[tuple, tuple[float, float]] = {}
+    if dwpc_lookup:
+        if args.dwpc_z_threshold is not None:
+            dwpc_z_stats = compute_dwpc_z_stats(dwpc_lookup)
+            print(f"DWPC z-filter active: keep genes with z >= {args.dwpc_z_threshold}")
+        elif args.dwpc_percentile > 0:
+            dwpc_thresholds = compute_dwpc_thresholds(dwpc_lookup, args.dwpc_percentile)
 
     runs_path = year_output_dir / "year_rank_stability_experiment" / "all_runs_long.csv"
     maps = None
@@ -469,7 +500,7 @@ def main() -> None:
             b_value, runs_path, out_dir,
             go_genes_df, added_pairs,
             edge_loader, maps, node_name_maps,
-            dwpc_lookup, dwpc_thresholds, args,
+            dwpc_lookup, dwpc_thresholds, dwpc_z_stats, args,
         )
 
     print("\nAll B values processed.")
