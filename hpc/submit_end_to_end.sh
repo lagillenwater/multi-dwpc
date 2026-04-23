@@ -59,6 +59,12 @@ YEAR_OUTPUT_DIR="$OUTPUT_ROOT/year_experiment"
 YEAR_PIPELINE_OUTPUT="$OUTPUT_ROOT/year_full_analysis"
 ADDED_PAIRS_PATH="output/intermediate/upd_go_bp_2024_added.csv"
 
+# Intermediate-sharing z-filter defaults (override via env vars at submit time).
+# DWPC_Z_THRESHOLD: gene-level DWPC z cutoff (replaces --dwpc-percentile).
+# PATH_Z_THRESHOLD: pooled path-score z cutoff per (gene_set, metapath) (replaces --path-top-k).
+DWPC_Z_THRESHOLD="${DWPC_Z_THRESHOLD:-1.65}"
+PATH_Z_THRESHOLD="${PATH_Z_THRESHOLD:-1.65}"
+
 # Smoke vs full
 if [[ "$MODE" == "smoke" ]]; then
     B_VALUES="2,3,5,8"
@@ -278,7 +284,9 @@ if [[ "$ANALYSIS_TYPE" == "year" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     YEAR_PIPE_CMD="python3 scripts/pipeline/run_year_pipeline.py \
         --output-dir $YEAR_PIPELINE_OUTPUT \
         --year-output-dir $YEAR_OUTPUT_DIR \
-        --added-pairs-path $ADDED_PAIRS_PATH"
+        --added-pairs-path $ADDED_PAIRS_PATH \
+        --dwpc-z-threshold $DWPC_Z_THRESHOLD \
+        --path-z-threshold $PATH_Z_THRESHOLD"
     YEAR_FINAL_JOB=$(submit "year-pipe" "$PIPELINE_MEM" "$PIPELINE_TIME" \
         "$YEAR_PIPE_CMD" "${YEAR_VAR_JOB}:${YEAR_RANK_JOB}")
     echo "  Year pipeline: $YEAR_FINAL_JOB (depends on experiments)"
@@ -379,7 +387,9 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     # Phase 4: Full pipeline (depends on both experiments)
     LV_PIPE_CMD="python3 scripts/pipeline/run_lv_pipeline.py \
         --output-dir $LV_PIPELINE_OUTPUT \
-        --lv-output-dirs $LV_OUTPUT_DIR"
+        --lv-output-dirs $LV_OUTPUT_DIR \
+        --dwpc-z-threshold $DWPC_Z_THRESHOLD \
+        --path-z-threshold $PATH_Z_THRESHOLD"
     LV_FINAL_JOB=$(submit "lv-pipe" "$PIPELINE_MEM" "$PIPELINE_TIME" \
         "$LV_PIPE_CMD" "${LV_VAR_JOB}:${LV_RANK_JOB}")
     echo "  LV pipeline: $LV_FINAL_JOB (depends on experiments)"
