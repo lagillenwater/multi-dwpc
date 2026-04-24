@@ -19,10 +19,11 @@ from src.dwpc_direct import HetMat
 from src.multi_dwpc_query import (
     DEFAULT_B,
     DEFAULT_PATH_Z_MIN,
+    discover_source_target_metapaths,
     query_intermediates_and_paths,
     query_metapath_z,
 )
-from src.path_enumeration import load_node_names
+from src.path_enumeration import NODE_TYPE_NAMES, load_node_names
 
 TYPE_COLORS = {
     "G": "#74c476",
@@ -50,9 +51,13 @@ EXAMPLE_BP_ID = "GO:0006244"
 EXAMPLE_BP_NAME = "pyrimidine nucleotide catabolic process"
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner="Preloading DWPC matrices (first launch only)...")
 def get_hetmat() -> HetMat:
-    return HetMat(data_dir=DATA_DIR)
+    hetmat = HetMat(data_dir=DATA_DIR)
+    # Preload all G -> BP matrices so first query skips disk I/O.
+    for mp in discover_source_target_metapaths(hetmat, "G", "BP"):
+        hetmat.compute_dwpc_matrix(mp)
+    return hetmat
 
 
 @st.cache_data
@@ -71,10 +76,16 @@ def load_name_maps() -> dict[str, dict[str, str]]:
     return load_node_names(REPO_ROOT)
 
 
-def sample_gene_text() -> str:
-    rng = np.random.default_rng(SAMPLE_SEED)
-    symbols = rng.choice(load_gene_nodes()["name"].values, size=SAMPLE_SIZE, replace=False)
+def random_gene_text(size: int = SAMPLE_SIZE) -> str:
+    rng = np.random.default_rng()
+    symbols = rng.choice(load_gene_nodes()["name"].values, size=size, replace=False)
     return "\n".join(sorted(symbols))
+
+
+def random_bp_name() -> str:
+    rng = np.random.default_rng()
+    names = load_bp_nodes()["name"].values
+    return str(rng.choice(names))
 
 
 def parse_gene_input(raw: str) -> list[int]:
@@ -105,12 +116,17 @@ def build_subpath_figure(
     name_maps: dict[str, dict[str, str]],
     title: str,
     total_genes: int | None = None,
+    weight_by: str = "coverage",
 ) -> plt.Figure:
     """Layered diagram of surviving subpaths. Columns = hop positions; nodes stacked within column.
 
     Handles mixed-length paths: each row contributes only its non-null hops. Source
-    column is left-aligned; target column is right-aligned at max_hops-1. Labels
-    include gene-coverage percentage for each intermediate node.
+    column is left-aligned; target column is right-aligned at max_hops-1.
+
+    ``weight_by``: either ``"coverage"`` (node size reflects gene coverage) or
+    ``"score"`` (node size reflects summed path_score through that node). Keeps
+    Top-Shared vs Top-Paths plots visually distinct even when they share a node
+    set.
     """
     hop_id_cols = sorted(c for c in paths_df.columns if c.startswith("hop_") and c.endswith("_id"))
     hop_type_cols = [c[: -len("_id")] + "_type" for c in hop_id_cols]
@@ -120,11 +136,13 @@ def build_subpath_figure(
 
     column_nodes: list[dict[str, str]] = [{} for _ in range(n_hops)]
     column_genes: list[dict[str, set]] = [dict() for _ in range(n_hops)]
+    column_scores: list[dict[str, float]] = [dict() for _ in range(n_hops)]
     edges: set[tuple[int, str, int, str]] = set()
     for _, row in paths_df.iterrows():
         ids = [row[c] if c in row else None for c in hop_id_cols]
         types = [row[c] if c in row else None for c in hop_type_cols]
         gene_id = row.get("gene_id") if "gene_id" in row else None
+        score = float(row.get("path_score", 0.0) or 0.0)
         last_col = next(
             (i for i in range(n_hops - 1, -1, -1) if isinstance(ids[i], str)), -1,
         )
@@ -143,29 +161,56 @@ def build_subpath_figure(
             column_nodes[dst_col][qid] = types[local_i] if isinstance(types[local_i], str) else "?"
             if gene_id is not None and not pd.isna(gene_id):
                 column_genes[dst_col].setdefault(qid, set()).add(int(gene_id))
+            column_scores[dst_col][qid] = column_scores[dst_col].get(qid, 0.0) + score
             if prev is not None:
                 edges.add((prev[0], prev[1], dst_col, qid))
             prev = (dst_col, qid)
 
     pos: dict[tuple[int, str], tuple[float, float]] = {}
+    half_widths: dict[tuple[int, str], float] = {}
     max_col = max((len(c) for c in column_nodes), default=1)
     fig, ax = plt.subplots(figsize=(2.6 * n_hops, 0.55 * max_col + 2))
+
+    # Global denominator for score-based sizing: max summed score across all intermediate nodes.
+    max_score_any_node = 0.0
+    for ci in range(1, n_hops - 1):
+        for qid in column_nodes[ci]:
+            max_score_any_node = max(max_score_any_node, column_scores[ci].get(qid, 0.0))
+
     for ci, col in enumerate(column_nodes):
         def _coverage(q):
             return len(column_genes[ci].get(q, set()))
-        sorted_ids = sorted(col, key=lambda q: (-_coverage(q), _qualified_to_name(q, name_maps)))
+        def _score_weight(q):
+            return column_scores[ci].get(q, 0.0)
+        sort_key = _score_weight if weight_by == "score" else _coverage
+        sorted_ids = sorted(col, key=lambda q: (-sort_key(q), _qualified_to_name(q, name_maps)))
+        n_in_col = len(sorted_ids)
         for ri, qid in enumerate(sorted_ids):
-            y = (len(sorted_ids) - 1) / 2 - ri
+            y = (n_in_col - 1) / 2 - ri
             pos[(ci, qid)] = (ci, y)
             color = TYPE_COLORS.get(col[qid], "#d9d9d9")
             name = _qualified_to_name(qid, name_maps)
-            if 0 < ci < n_hops - 1 and total_genes:
-                pct = 100 * _coverage(qid) / total_genes
-                label = f"{name} ({pct:.0f}% genes)"
+            # Sizing and label: both driven by ``weight_by`` so the visual matches
+            # the number shown. Floor at 0.2 so tiny values remain visible.
+            if 0 < ci < n_hops - 1:
+                if weight_by == "score" and max_score_any_node > 0:
+                    frac = _score_weight(qid) / max_score_any_node
+                    label = f"{name} ({100 * frac:.0f}% score)"
+                elif weight_by == "coverage" and total_genes:
+                    frac = _coverage(qid) / total_genes
+                    label = f"{name} ({100 * frac:.0f}% genes)"
+                else:
+                    frac = 1.0
+                    label = name
+                scale = max(0.2, min(1.0, frac))
             else:
+                scale = 1.0
                 label = name
+            box_w = 0.9 * scale
+            box_h = 0.44 * scale
+            half_widths[(ci, qid)] = box_w / 2
             ax.add_patch(mpatches.FancyBboxPatch(
-                (ci - 0.45, y - 0.22), 0.9, 0.44,
+                (ci - box_w / 2, y - box_h / 2), box_w, box_h,
                 boxstyle="round,pad=0.02", linewidth=0.5,
                 edgecolor="black", facecolor=color,
             ))
@@ -174,9 +219,11 @@ def build_subpath_figure(
     for (ci, cid, cj, jid) in edges:
         x0, y0 = pos[(ci, cid)]
         x1, y1 = pos[(cj, jid)]
+        hw_src = half_widths.get((ci, cid), 0.45)
+        hw_dst = half_widths.get((cj, jid), 0.45)
         ax.annotate(
-            "", xy=(x1 - 0.45, y1), xytext=(x0 + 0.45, y0),
-            arrowprops=dict(arrowstyle="->", color="gray", lw=0.4, alpha=0.4),
+            "", xy=(x1 - hw_dst, y1), xytext=(x0 + hw_src, y0),
+            arrowprops=dict(arrowstyle="->", color="gray", lw=0.5, alpha=0.5),
         )
 
     ax.set_xlim(-0.8, n_hops - 0.2)
@@ -189,6 +236,16 @@ def build_subpath_figure(
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
     ax.set_title(title)
+
+    types_present = {t for col in column_nodes for t in col.values() if t}
+    if types_present:
+        handles = [
+            mpatches.Patch(facecolor=TYPE_COLORS.get(t, "#d9d9d9"), edgecolor="black",
+                           label=NODE_TYPE_NAMES.get(t, t))
+            for t in sorted(types_present)
+        ]
+        ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
+                  fontsize=8, frameon=False, title="Node type")
     fig.tight_layout()
     return fig
 
@@ -309,12 +366,16 @@ def build_intermediate_heatmap(
     col_labels = [gene_names.get(str(g), str(g)) for g in pivot.columns]
     row_labels = [_qualified_to_name(q, name_maps) for q in pivot.index]
     fig, ax = plt.subplots(figsize=(max(4, 0.35 * len(col_labels) + 2), max(3, 0.28 * len(row_labels) + 1)))
-    ax.imshow(pivot.to_numpy(), aspect="auto", cmap="Blues", vmin=0, vmax=1)
+    im = ax.imshow(pivot.to_numpy(), aspect="auto", cmap="Blues", vmin=0, vmax=1)
     ax.set_xticks(range(len(col_labels)))
     ax.set_xticklabels(col_labels, rotation=90, fontsize=8)
     ax.set_yticks(range(len(row_labels)))
     ax.set_yticklabels(row_labels, fontsize=8)
+    ax.set_xlabel("Gene")
+    ax.set_ylabel("Intermediate")
     ax.set_title(f"Intermediate sharing: {metapath}")
+    cbar = fig.colorbar(im, ax=ax, shrink=0.6, ticks=[0, 1])
+    cbar.ax.set_yticklabels(["absent", "uses\nintermediate"], fontsize=7)
     fig.tight_layout()
     return fig
 
@@ -364,22 +425,29 @@ bp_options = bp_df["name"].tolist()
 
 with st.sidebar:
     st.header("Query")
-    default_idx = bp_options.index(st.session_state["target_name_choice"]) \
-        if st.session_state["target_name_choice"] in bp_options else None
     target_name = st.selectbox(
         "Target Biological Process", bp_options,
-        index=default_idx, placeholder="Search...", key="target_name_choice",
+        placeholder="Search...", key="target_name_choice",
     )
     target_id = bp_name_to_id.get(target_name, "") if target_name else ""
-    col_a, col_b = st.columns(2)
+    def _fill_example_query():
+        st.session_state["target_name_choice"] = EXAMPLE_BP_NAME
+        st.session_state["genes_raw"] = EXAMPLE_GENES
+
+    def _fill_random_bp():
+        st.session_state["target_name_choice"] = random_bp_name()
+
+    def _fill_random_genes():
+        st.session_state["genes_raw"] = random_gene_text()
+
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
-        if st.button("Sample BP"):
-            st.session_state["target_name_choice"] = EXAMPLE_BP_NAME
-            st.rerun()
+        st.button("Example query", on_click=_fill_example_query,
+                  help="Pyrimidine nucleotide catabolism worked example")
     with col_b:
-        if st.button("Sample genes"):
-            st.session_state["genes_raw"] = EXAMPLE_GENES
-            st.rerun()
+        st.button("Random BP", on_click=_fill_random_bp)
+    with col_c:
+        st.button("Random genes", on_click=_fill_random_genes)
     genes_raw = st.text_area(
         "Gene symbols (one per line or comma-separated; Entrez IDs also accepted)",
         height=200,
@@ -487,6 +555,7 @@ with tab_overall:
             + ", ".join(pooled_mps)
         )
         st.subheader("Top shared intermediates")
+        st.caption("Node size = number of genes using that intermediate.")
         shared_pool = filter_top_shared_pooled(pooled_df)
         if shared_pool.empty:
             st.info("No paths survived the top-shared filter.")
@@ -494,10 +563,11 @@ with tab_overall:
             st.pyplot(build_subpath_figure(
                 shared_pool, name_maps,
                 f"Top shared intermediates; {len(pooled_mps)} metapaths",
-                total_genes=n_genes,
+                total_genes=n_genes, weight_by="coverage",
             ))
 
         st.subheader("Top paths by score")
+        st.caption("Node size = summed path score through that intermediate.")
         top_pool = filter_top_paths_stratified(pooled_df)
         if top_pool.empty:
             st.info("No paths have path_score populated.")
@@ -505,7 +575,7 @@ with tab_overall:
             st.pyplot(build_subpath_figure(
                 top_pool, name_maps,
                 f"Top {len(top_pool)} paths by score; {len(pooled_mps)} metapaths",
-                total_genes=n_genes,
+                total_genes=n_genes, weight_by="score",
             ))
 
 with tab_metapath:
@@ -515,18 +585,12 @@ with tab_metapath:
             st.json(diagnostics)
     else:
         n_genes = len(st.session_state["gene_ids"])
-        st.subheader(f"Top shared intermediates: {metapath_choice}")
-        shared_df = filter_top_shared(paths_df)
-        if shared_df.empty:
-            st.info("No intermediates (1-hop metapath or no paths survived).")
-        else:
-            st.pyplot(build_subpath_figure(
-                shared_df, name_maps,
-                f"{metapath_choice}: top shared intermediates",
-                total_genes=n_genes,
-            ))
-
         st.subheader(f"Top paths by score: {metapath_choice}")
+        st.caption(
+            "Node size = summed path score through that intermediate. "
+            "Shared-intermediate information for this metapath is shown as a heatmap "
+            "in the *Intermediate sharing* tab."
+        )
         top_df = filter_top_paths(paths_df)
         if top_df.empty:
             st.info("No paths have path_score populated.")
@@ -534,7 +598,7 @@ with tab_metapath:
             st.pyplot(build_subpath_figure(
                 top_df, name_maps,
                 f"{metapath_choice}: top {len(top_df)} paths by score",
-                total_genes=n_genes,
+                total_genes=n_genes, weight_by="score",
             ))
 
         with st.expander("Table of surviving subpaths"):
