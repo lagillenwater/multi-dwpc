@@ -12,7 +12,6 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
@@ -40,50 +39,26 @@ def _parse_int_list(arg: str) -> list[int]:
     return values
 
 
-def _plot_distribution(feature_df: pd.DataFrame, metric_col: str, y_label: str, title: str, out_path: Path) -> None:
-    work = feature_df[["control", "b", metric_col]].dropna().copy()
-    if work.empty:
+def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, out_path: Path) -> None:
+    if overall_df.empty:
         return
-    controls = sorted(work["control"].astype(str).unique().tolist())
+    controls = sorted(overall_df["control"].astype(str).unique().tolist())
     colors = {"permuted": "#1f77b4", "random": "#d62728"}
-
-    fig, axes = plt.subplots(1, len(controls), figsize=(6.5 * len(controls), 5), sharey=True)
+    fig, axes = plt.subplots(1, len(controls), figsize=(6.5 * len(controls), 4.8), sharey=True)
     if len(controls) == 1:
         axes = [axes]
-
     for ax, control in zip(axes, controls):
-        subset = work[work["control"].astype(str) == control].copy()
-        b_values = sorted(subset["b"].astype(int).unique().tolist())
-        data = [subset[subset["b"].astype(int) == b][metric_col].to_numpy(dtype=float) for b in b_values]
-        positions = np.arange(1, len(b_values) + 1)
-        ax.boxplot(
-            data,
-            positions=positions,
-            widths=0.6,
-            patch_artist=True,
-            boxprops={"facecolor": colors.get(control, "#cccccc"), "alpha": 0.35},
-            medianprops={"color": "#111111", "linewidth": 1.4},
-            whiskerprops={"color": "#444444"},
-            capprops={"color": "#444444"},
+        subset = overall_df[overall_df["control"].astype(str) == control].copy().sort_values("b")
+        ax.plot(
+            subset["b"].astype(int),
+            subset[y_col].astype(float),
+            marker="o",
+            linewidth=2.2,
+            color=colors.get(control, "#333333"),
         )
-        rng = np.random.default_rng(42)
-        for pos, vals in zip(positions, data):
-            if len(vals) == 0:
-                continue
-            jitter = rng.uniform(-0.16, 0.16, size=len(vals))
-            ax.scatter(
-                np.full(len(vals), pos, dtype=float) + jitter,
-                vals,
-                s=16,
-                alpha=0.35,
-                color=colors.get(control, "#333333"),
-                edgecolors="none",
-            )
-        ax.set_xticks(positions)
-        ax.set_xticklabels([str(b) for b in b_values])
         ax.set_xlabel("B")
         ax.set_title(control)
-        ax.grid(axis="y", alpha=0.25)
+        ax.grid(alpha=0.25)
     axes[0].set_ylabel(y_label)
     fig.suptitle(title)
     fig.tight_layout()
@@ -123,18 +98,18 @@ def main() -> None:
     feature_df.to_csv(exp_root / "feature_variance_summary.csv", index=False)
     overall_df.to_csv(exp_root / "overall_variance_summary.csv", index=False)
 
-    _plot_distribution(
-        feature_df,
-        metric_col="diff_var",
-        y_label="Variance(diff) across seeds",
-        title="LV per-feature variance by B",
+    _plot_overall(
+        overall_df,
+        y_col="mean_diff_var",
+        y_label="Mean feature variance of diff across LVs/metapaths",
+        title="LV null variance by B",
         out_path=exp_root / "variance_overall_by_group.pdf",
     )
-    _plot_distribution(
-        feature_df,
-        metric_col="diff_std",
-        y_label="SD(diff) across seeds",
-        title="LV per-feature SD by B",
+    _plot_overall(
+        overall_df,
+        y_col="mean_diff_std",
+        y_label="Mean feature SD of diff across LVs/metapaths",
+        title="LV null SD by B",
         out_path=exp_root / "sd_overall_by_group.pdf",
     )
 
