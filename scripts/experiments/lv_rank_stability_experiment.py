@@ -34,6 +34,12 @@ from src.lv_replicate_analysis import FEATURE_KEYS, build_b_seed_runs, load_summ
 from src.replicate_analysis import rank_features, summarize_rank_stability  # noqa: E402
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _parse_int_list(arg: str) -> list[int]:
     values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
     if not values:
@@ -92,7 +98,7 @@ def _plot_overall(overall_df: pd.DataFrame, y_col: str, y_label: str, title: str
     axes[0].set_ylabel(y_label)
     fig.suptitle(title)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, out_path)
     plt.close(fig)
 
 
@@ -186,7 +192,7 @@ def _plot_overlap_and_rank_points(entity_df: pd.DataFrame, output_path: Path) ->
     axes[0, -1].legend(title="LV", loc="best")
     fig.suptitle("LV overlap and rank stability by B")
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
@@ -254,9 +260,9 @@ def main() -> None:
         y_col="mean_spearman_rho",
         y_label="Mean Spearman rho across seeds",
         title="LV metapath rank stability by B",
-        out_path=exp_root / "spearman_overall_by_group.png",
+        out_path=exp_root / "spearman_overall_by_group.pdf",
     )
-    _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.png")
+    _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.pdf")
 
     print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
     print(f"Saved pairwise metrics: {exp_root / 'pairwise_metrics.csv'}")

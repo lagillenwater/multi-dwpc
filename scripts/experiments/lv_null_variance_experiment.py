@@ -27,6 +27,12 @@ from src.lv_replicate_analysis import FEATURE_KEYS, build_b_seed_runs, load_summ
 from src.replicate_analysis import summarize_feature_variance, summarize_overall_variance  # noqa: E402
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _parse_int_list(arg: str) -> list[int]:
     values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
     if not values:
@@ -81,7 +87,7 @@ def _plot_distribution(feature_df: pd.DataFrame, metric_col: str, y_label: str, 
     axes[0].set_ylabel(y_label)
     fig.suptitle(title)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, out_path)
     plt.close(fig)
 
 
@@ -122,14 +128,14 @@ def main() -> None:
         metric_col="diff_var",
         y_label="Variance(diff) across seeds",
         title="LV per-feature variance by B",
-        out_path=exp_root / "variance_overall_by_group.png",
+        out_path=exp_root / "variance_overall_by_group.pdf",
     )
     _plot_distribution(
         feature_df,
         metric_col="diff_std",
         y_label="SD(diff) across seeds",
         title="LV per-feature SD by B",
-        out_path=exp_root / "sd_overall_by_group.png",
+        out_path=exp_root / "sd_overall_by_group.pdf",
     )
 
     print(f"Saved runs: {exp_root / 'all_runs_wide.csv'}")
