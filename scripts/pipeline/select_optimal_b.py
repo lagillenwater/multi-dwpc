@@ -412,6 +412,11 @@ def parse_args() -> argparse.Namespace:
             "(default: 0.05 = last segment < 5%% of total range)"
         ),
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip stabilization compute / chosen_b.json write; only regenerate the diagnostic plots from raw variance + rank CSVs.",
+    )
     return parser.parse_args()
 
 
@@ -430,65 +435,74 @@ def main() -> None:
         )
 
     output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    chosen_b, summary = select_optimal_b(
-        variance_dir, rank_dir, args.analysis_type, args.aggregation, args.threshold,
-        convergence_threshold=args.convergence_threshold,
-    )
+    if args.plot_only:
+        if not output_dir.exists():
+            raise FileNotFoundError(
+                f"--plot-only expects {output_dir} to already contain prior outputs."
+            )
+        print("--plot-only: skipping stabilization compute and chosen_b.json write")
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_path = output_dir / "stabilization_summary.csv"
-    summary.to_csv(summary_path, index=False)
-    print(f"Saved stabilization summary: {summary_path}")
-
-    # Stats reported to chosen_b.json are based on the AGGREGATION_METRIC only,
-    # so they match the chosen_b calculation. Other metrics still live in the
-    # stabilization_summary.csv and the diagnostic plots.
-    agg_summary = summary[summary["metric"] == AGGREGATION_METRIC]
-    if agg_summary.empty:
-        raise ValueError(
-            f"No rows found for aggregation metric '{AGGREGATION_METRIC}' in the summary."
+        chosen_b, summary = select_optimal_b(
+            variance_dir, rank_dir, args.analysis_type, args.aggregation, args.threshold,
+            convergence_threshold=args.convergence_threshold,
         )
-    agg_b = agg_summary["stabilization_b"]
-    stab_b_counts = agg_b.value_counts().sort_index().astype(int).to_dict()
-    stab_b_counts = {str(int(k)): int(v) for k, v in stab_b_counts.items()}
 
-    n_curves = len(agg_summary)
-    curves_at_max_sampled_b = int((agg_b == agg_b.max()).sum())
+        summary_path = output_dir / "stabilization_summary.csv"
+        summary.to_csv(summary_path, index=False)
+        print(f"Saved stabilization summary: {summary_path}")
 
-    result = {
-        "chosen_b": chosen_b,
-        "aggregation": args.aggregation,
-        "aggregation_metric": AGGREGATION_METRIC,
-        "threshold": args.threshold,
-        "analysis_type": args.analysis_type,
-        "min_stabilization_b": int(agg_b.min()),
-        "median_stabilization_b": int(agg_b.quantile(0.5, interpolation="higher")),
-        "max_stabilization_b": int(agg_b.max()),
-        "stabilization_b_counts": stab_b_counts,
-        "n_curves": n_curves,
-        "n_curves_at_max_sampled_b": curves_at_max_sampled_b,
-        "metrics_in_summary": sorted(summary["metric"].unique().tolist()),
-    }
+    if not args.plot_only:
+        # Stats reported to chosen_b.json are based on the AGGREGATION_METRIC only,
+        # so they match the chosen_b calculation. Other metrics still live in the
+        # stabilization_summary.csv and the diagnostic plots.
+        agg_summary = summary[summary["metric"] == AGGREGATION_METRIC]
+        if agg_summary.empty:
+            raise ValueError(
+                f"No rows found for aggregation metric '{AGGREGATION_METRIC}' in the summary."
+            )
+        agg_b = agg_summary["stabilization_b"]
+        stab_b_counts = agg_b.value_counts().sort_index().astype(int).to_dict()
+        stab_b_counts = {str(int(k)): int(v) for k, v in stab_b_counts.items()}
 
-    if "converged" in summary.columns:
-        n_converged = int(summary["converged"].sum())
-        n_total_curves = len(summary)
-        result["convergence_summary"] = {
-            "convergence_threshold": args.convergence_threshold,
-            "n_curves_total": n_total_curves,
-            "n_converged": n_converged,
-            "pct_converged": round(100 * n_converged / n_total_curves, 1) if n_total_curves > 0 else 0,
-            "unconverged_metrics": sorted(
-                summary[~summary["converged"]]["metric"].unique().tolist()
-            ),
+        n_curves = len(agg_summary)
+        curves_at_max_sampled_b = int((agg_b == agg_b.max()).sum())
+
+        result = {
+            "chosen_b": chosen_b,
+            "aggregation": args.aggregation,
+            "aggregation_metric": AGGREGATION_METRIC,
+            "threshold": args.threshold,
+            "analysis_type": args.analysis_type,
+            "min_stabilization_b": int(agg_b.min()),
+            "median_stabilization_b": int(agg_b.quantile(0.5, interpolation="higher")),
+            "max_stabilization_b": int(agg_b.max()),
+            "stabilization_b_counts": stab_b_counts,
+            "n_curves": n_curves,
+            "n_curves_at_max_sampled_b": curves_at_max_sampled_b,
+            "metrics_in_summary": sorted(summary["metric"].unique().tolist()),
         }
 
-    chosen_path = output_dir / "chosen_b.json"
-    with open(chosen_path, "w") as f:
-        json.dump(result, f, indent=2)
-    print(f"Saved chosen B: {chosen_path}")
-    print(f"\nChosen B = {chosen_b}")
+        if "converged" in summary.columns:
+            n_converged = int(summary["converged"].sum())
+            n_total_curves = len(summary)
+            result["convergence_summary"] = {
+                "convergence_threshold": args.convergence_threshold,
+                "n_curves_total": n_total_curves,
+                "n_converged": n_converged,
+                "pct_converged": round(100 * n_converged / n_total_curves, 1) if n_total_curves > 0 else 0,
+                "unconverged_metrics": sorted(
+                    summary[~summary["converged"]]["metric"].unique().tolist()
+                ),
+            }
+
+        chosen_path = output_dir / "chosen_b.json"
+        with open(chosen_path, "w") as f:
+            json.dump(result, f, indent=2)
+        print(f"Saved chosen B: {chosen_path}")
+        print(f"\nChosen B = {chosen_b}")
 
     plots_dir = output_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)

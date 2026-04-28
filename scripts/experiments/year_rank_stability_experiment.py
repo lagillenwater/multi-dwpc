@@ -249,69 +249,86 @@ def parse_args() -> argparse.Namespace:
         choices=["diff", "effect_size_z"],
         help="Metric to use for ranking metapaths (default: effect_size_z)"
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip rank/stability compute; read overall_stability_summary.csv + go_term_stability_summary.csv from --output-dir and re-render plots only.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
-    workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
-    summary_dir_candidate = workspace_dir / "replicate_summaries"
-    if args.summaries_dir:
-        summary_source = Path(args.summaries_dir)
-        summary_df = load_summary_bank(summary_source)
-    elif summary_dir_candidate.exists():
-        summary_source = summary_dir_candidate
-        summary_df = load_summary_bank(summary_source)
+    exp_dir = Path(args.output_dir) / "year_rank_stability_experiment"
+
+    if args.plot_only:
+        overall_path = exp_dir / "overall_stability_summary.csv"
+        go_path = exp_dir / "go_term_stability_summary.csv"
+        for p in (overall_path, go_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"--plot-only requires {p} to exist. Run without --plot-only first."
+                )
+        overall_df = pd.read_csv(overall_path)
+        go_summary_df = pd.read_csv(go_path)
+        print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows) and {go_path} ({len(go_summary_df)} rows)")
     else:
-        summary_source = workspace_dir
-        if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+        results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
+        workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
+        summary_dir_candidate = workspace_dir / "replicate_summaries"
+        if args.summaries_dir:
+            summary_source = Path(args.summaries_dir)
+            summary_df = load_summary_bank(summary_source)
+        elif summary_dir_candidate.exists():
+            summary_source = summary_dir_candidate
             summary_df = load_summary_bank(summary_source)
         else:
-            normalized_df = load_normalized_year_results(
-                results_dir,
-                score_source=str(args.score_source),
-                data_dir=Path(args.data_dir),
-            )
-            summary_df = summarize_normalized_year_results(normalized_df)
-            if summary_df.empty:
-                raise ValueError(
-                    f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+            summary_source = workspace_dir
+            if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+                summary_df = load_summary_bank(summary_source)
+            else:
+                normalized_df = load_normalized_year_results(
+                    results_dir,
+                    score_source=str(args.score_source),
+                    data_dir=Path(args.data_dir),
                 )
-    exp_dir = Path(args.output_dir) / "year_rank_stability_experiment"
-    exp_dir.mkdir(parents=True, exist_ok=True)
-    runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+                summary_df = summarize_normalized_year_results(normalized_df)
+                if summary_df.empty:
+                    raise ValueError(
+                        f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+                    )
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
 
-    # Select ranking metric (effect_size_z or diff)
-    rank_metric = str(args.rank_metric)
-    if rank_metric not in runs_df.columns:
-        print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
-        rank_metric = "diff"
+        rank_metric = str(args.rank_metric)
+        if rank_metric not in runs_df.columns:
+            print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
+            rank_metric = "diff"
 
-    rank_df = rank_features(
-        runs_df,
-        rank_group_keys=["year", "control", "b", "seed", "go_id"],
-        feature_col="metapath",
-        score_col=rank_metric,
-        rank_col="metapath_rank",
-    )
-    pairwise_df, go_summary_df, overall_df = summarize_rank_stability(
-        rank_df,
-        outer_keys=["year", "control", "b", "go_id"],
-        replicate_col="seed",
-        feature_col="metapath",
-        rank_col="metapath_rank",
-        top_k=_parse_top_k_values(args.top_k_metapaths),
-        rbo_p=_parse_optional_rbo_p(args.rbo_p),
-    )
-    if not overall_df.empty:
-        overall_df = overall_df.rename(columns={"n_entities": "n_go_terms"})
+        rank_df = rank_features(
+            runs_df,
+            rank_group_keys=["year", "control", "b", "seed", "go_id"],
+            feature_col="metapath",
+            score_col=rank_metric,
+            rank_col="metapath_rank",
+        )
+        pairwise_df, go_summary_df, overall_df = summarize_rank_stability(
+            rank_df,
+            outer_keys=["year", "control", "b", "go_id"],
+            replicate_col="seed",
+            feature_col="metapath",
+            rank_col="metapath_rank",
+            top_k=_parse_top_k_values(args.top_k_metapaths),
+            rbo_p=_parse_optional_rbo_p(args.rbo_p),
+        )
+        if not overall_df.empty:
+            overall_df = overall_df.rename(columns={"n_entities": "n_go_terms"})
 
-    runs_df.to_csv(exp_dir / "all_runs_long.csv", index=False)
-    rank_df.to_csv(exp_dir / "metapath_rank_table.csv", index=False)
-    pairwise_df.to_csv(exp_dir / "pairwise_metrics.csv", index=False)
-    go_summary_df.to_csv(exp_dir / "go_term_stability_summary.csv", index=False)
-    overall_df.to_csv(exp_dir / "overall_stability_summary.csv", index=False)
+        runs_df.to_csv(exp_dir / "all_runs_long.csv", index=False)
+        rank_df.to_csv(exp_dir / "metapath_rank_table.csv", index=False)
+        pairwise_df.to_csv(exp_dir / "pairwise_metrics.csv", index=False)
+        go_summary_df.to_csv(exp_dir / "go_term_stability_summary.csv", index=False)
+        overall_df.to_csv(exp_dir / "overall_stability_summary.csv", index=False)
 
     _plot_overall(
         overall_df,
@@ -322,9 +339,10 @@ def main() -> None:
     )
     _plot_overlap_and_rank_points(go_summary_df, exp_dir / "topk_jaccard_overall_by_group.pdf")
 
-    print(f"Saved rank table: {exp_dir / 'metapath_rank_table.csv'}")
-    print(f"Saved pairwise metrics: {exp_dir / 'pairwise_metrics.csv'}")
-    print(f"Saved overall summary: {exp_dir / 'overall_stability_summary.csv'}")
+    if not args.plot_only:
+        print(f"Saved rank table: {exp_dir / 'metapath_rank_table.csv'}")
+        print(f"Saved pairwise metrics: {exp_dir / 'pairwise_metrics.csv'}")
+        print(f"Saved overall summary: {exp_dir / 'overall_stability_summary.csv'}")
 
 
 if __name__ == "__main__":

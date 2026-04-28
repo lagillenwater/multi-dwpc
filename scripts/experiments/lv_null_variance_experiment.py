@@ -72,6 +72,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--analysis-output-dir", default=None)
     parser.add_argument("--b-values", default="1,2,5,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip aggregation; read overall_variance_summary.csv from the experiment dir and re-render plots only.",
+    )
     return parser.parse_args()
 
 
@@ -79,24 +84,33 @@ def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir)
     exp_root = Path(args.analysis_output_dir) if args.analysis_output_dir else output_dir / "lv_null_variance_experiment"
-    exp_root.mkdir(parents=True, exist_ok=True)
 
-    summary_df = load_summary_bank(output_dir)
-    runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
-    feature_df = summarize_feature_variance(
-        runs_df,
-        feature_keys=["control", "b", *FEATURE_KEYS],
-    )
-    overall_df = summarize_overall_variance(
-        feature_df,
-        overall_keys=["control", "b"],
-        runs_df=runs_df,
-        replicate_col="seed",
-    )
+    if args.plot_only:
+        overall_path = exp_root / "overall_variance_summary.csv"
+        if not overall_path.exists():
+            raise FileNotFoundError(
+                f"--plot-only requires {overall_path} to exist. Run without --plot-only first."
+            )
+        overall_df = pd.read_csv(overall_path)
+        print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows)")
+    else:
+        exp_root.mkdir(parents=True, exist_ok=True)
+        summary_df = load_summary_bank(output_dir)
+        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+        feature_df = summarize_feature_variance(
+            runs_df,
+            feature_keys=["control", "b", *FEATURE_KEYS],
+        )
+        overall_df = summarize_overall_variance(
+            feature_df,
+            overall_keys=["control", "b"],
+            runs_df=runs_df,
+            replicate_col="seed",
+        )
 
-    runs_df.to_csv(exp_root / "all_runs_wide.csv", index=False)
-    feature_df.to_csv(exp_root / "feature_variance_summary.csv", index=False)
-    overall_df.to_csv(exp_root / "overall_variance_summary.csv", index=False)
+        runs_df.to_csv(exp_root / "all_runs_wide.csv", index=False)
+        feature_df.to_csv(exp_root / "feature_variance_summary.csv", index=False)
+        overall_df.to_csv(exp_root / "overall_variance_summary.csv", index=False)
 
     _plot_overall(
         overall_df,
@@ -113,9 +127,10 @@ def main() -> None:
         out_path=exp_root / "sd_overall_by_group.pdf",
     )
 
-    print(f"Saved runs: {exp_root / 'all_runs_wide.csv'}")
-    print(f"Saved feature summary: {exp_root / 'feature_variance_summary.csv'}")
-    print(f"Saved overall summary: {exp_root / 'overall_variance_summary.csv'}")
+    if not args.plot_only:
+        print(f"Saved runs: {exp_root / 'all_runs_wide.csv'}")
+        print(f"Saved feature summary: {exp_root / 'feature_variance_summary.csv'}")
+        print(f"Saved overall summary: {exp_root / 'overall_variance_summary.csv'}")
 
 
 if __name__ == "__main__":

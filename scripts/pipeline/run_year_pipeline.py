@@ -84,6 +84,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--stop-after-stage", type=int, default=None)
     p.add_argument("--start-from-stage", type=int, default=1)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Forward --plot-only to subprocess calls (select_optimal_b, year_go_term_support, year_snapshot_rank_similarity). Use with --skip-b-select --start-from-stage 3 to regenerate every PDF without recomputing intermediates.",
+    )
     return p.parse_args()
 
 
@@ -117,14 +122,17 @@ def main() -> None:
                 (out / "b_selection").mkdir(parents=True, exist_ok=True)
                 chosen_b_path.write_text(json.dumps({"chosen_b": 10, "note": "default"}))
             else:
-                _run("B Selection", [
+                b_select_cmd = [
                     py, "scripts/pipeline/select_optimal_b.py",
                     "--analysis-type", "year",
                     "--variance-dir", str(variance_dir),
                     "--rank-dir", str(rank_dir),
                     "--output-dir", str(out / "b_selection"),
                     "--aggregation", "median",
-                ], dry_run=args.dry_run)
+                ]
+                if args.plot_only:
+                    b_select_cmd.append("--plot-only")
+                _run("B Selection", b_select_cmd, dry_run=args.dry_run)
 
     if stop is not None and stop <= 1:
         return
@@ -234,13 +242,16 @@ def main() -> None:
         runs_path = Path(year_dir) / "year_rank_stability_experiment" / "all_runs_long.csv"
         mp_dir = out / "metapath_analysis"
 
-        _run("GO Term Support", [
+        go_support_cmd = [
             py, "scripts/visualization/year_go_term_support.py",
             "--runs-path", str(runs_path),
             "--b", str(chosen_b),
             "--go-support-output", str(mp_dir / "year_direct_go_term_support.csv"),
             "--global-support-output", str(mp_dir / "year_direct_global_metapath_support.csv"),
-        ], dry_run=args.dry_run)
+        ]
+        if args.plot_only:
+            go_support_cmd.append("--plot-only")
+        _run("GO Term Support", go_support_cmd, dry_run=args.dry_run)
 
         _run("Metapath Selection Frequency", [
             py, "scripts/visualization/plot_year_effective_metapath_selection.py",
@@ -248,14 +259,17 @@ def main() -> None:
             "--output-dir", str(mp_dir / "selection_frequency"),
         ], dry_run=args.dry_run)
 
-        _run("Rank Similarity Scatter", [
+        rank_sim_cmd = [
             py, "scripts/visualization/year_snapshot_rank_similarity.py",
             "--support-path", str(mp_dir / "year_direct_global_metapath_support.csv"),
             "--rank-metric", "selected_fraction_all",
             "--b", str(chosen_b),
             "--output-dir", str(mp_dir / "rank_similarity"),
             "--label-metapaths",
-        ], dry_run=args.dry_run)
+        ]
+        if args.plot_only:
+            rank_sim_cmd.append("--plot-only")
+        _run("Rank Similarity Scatter", rank_sim_cmd, dry_run=args.dry_run)
 
     print("\nYear pipeline complete.")
 

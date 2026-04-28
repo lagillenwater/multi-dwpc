@@ -363,49 +363,71 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rbo-p", type=float, default=0.9)
     parser.add_argument("--label-metapaths", action="store_true", help="Annotate the rank scatter with metapath labels.")
     parser.add_argument("--label-top-n", type=int, default=10, help="When labeling, annotate the union of top-N metapaths in either year and the top-N most shifted metapaths.")
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip both load_normalized_year_results and rank-comparison compute; read existing snapshot_metapath_rankings.csv + snapshot_rank_similarity_summary.csv + _topk.csv and re-render plots only.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir) if args.output_dir else _default_output_dir(args.score_source)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if args.support_path:
-        support_df = pd.read_csv(Path(args.support_path))
-        if args.b is not None and "b" in support_df.columns:
-            support_df = support_df[support_df["b"].astype(int) == int(args.b)].copy()
-        ranking_df = _build_support_rankings(support_df, rank_metric=str(args.rank_metric))
+
+    if args.plot_only:
+        ranking_path = output_dir / "snapshot_metapath_rankings.csv"
+        summary_path = output_dir / "snapshot_rank_similarity_summary.csv"
+        topk_path = output_dir / "snapshot_rank_similarity_topk.csv"
+        for p in (ranking_path, summary_path, topk_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"--plot-only requires {p} to exist. Run without --plot-only first."
+                )
+        ranking_df = pd.read_csv(ranking_path)
+        summary_df = pd.read_csv(summary_path)
+        topk_df = pd.read_csv(topk_path)
         statistics = [str(args.rank_metric)]
+        top_k_values = _parse_int_list(args.top_k_values)
+        print(f"--plot-only: loaded {ranking_path}, {summary_path}, {topk_path}")
     else:
-        results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
-        normalized_df = load_normalized_year_results(
-            results_dir,
-            score_source=str(args.score_source),
-            data_dir=Path(args.data_dir),
+        output_dir.mkdir(parents=True, exist_ok=True)
+        if args.support_path:
+            support_df = pd.read_csv(Path(args.support_path))
+            if args.b is not None and "b" in support_df.columns:
+                support_df = support_df[support_df["b"].astype(int) == int(args.b)].copy()
+            ranking_df = _build_support_rankings(support_df, rank_metric=str(args.rank_metric))
+            statistics = [str(args.rank_metric)]
+        else:
+            results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
+            normalized_df = load_normalized_year_results(
+                results_dir,
+                score_source=str(args.score_source),
+                data_dir=Path(args.data_dir),
+            )
+            agg_df = build_aggregated_year_statistics_panel(normalized_df)
+            if agg_df.empty:
+                raise ValueError("Aggregated year statistics are empty.")
+            available_statistics = detect_supported_statistics(agg_df)
+            statistics = _parse_stat_list(args.statistics, available_statistics)
+            summary_long_df = build_year_statistic_summary_long(agg_df, statistics=statistics)
+            ranking_df = _build_real_rankings(summary_long_df)
+        ranking_df.to_csv(output_dir / "snapshot_metapath_rankings.csv", index=False)
+
+        top_k_values = _parse_int_list(args.top_k_values)
+        summary_df, topk_df = _compare_rankings(
+            ranking_df,
+            year_a=int(args.year_a),
+            year_b=int(args.year_b),
+            statistics=statistics,
+            top_k_values=top_k_values,
+            rbo_p=float(args.rbo_p),
         )
-        agg_df = build_aggregated_year_statistics_panel(normalized_df)
-        if agg_df.empty:
-            raise ValueError("Aggregated year statistics are empty.")
-        available_statistics = detect_supported_statistics(agg_df)
-        statistics = _parse_stat_list(args.statistics, available_statistics)
-        summary_long_df = build_year_statistic_summary_long(agg_df, statistics=statistics)
-        ranking_df = _build_real_rankings(summary_long_df)
-    ranking_df.to_csv(output_dir / "snapshot_metapath_rankings.csv", index=False)
+        if summary_df.empty:
+            raise ValueError("No snapshot ranking comparisons were generated.")
 
-    top_k_values = _parse_int_list(args.top_k_values)
-    summary_df, topk_df = _compare_rankings(
-        ranking_df,
-        year_a=int(args.year_a),
-        year_b=int(args.year_b),
-        statistics=statistics,
-        top_k_values=top_k_values,
-        rbo_p=float(args.rbo_p),
-    )
-    if summary_df.empty:
-        raise ValueError("No snapshot ranking comparisons were generated.")
-
-    summary_df.to_csv(output_dir / "snapshot_rank_similarity_summary.csv", index=False)
-    topk_df.to_csv(output_dir / "snapshot_rank_similarity_topk.csv", index=False)
+        summary_df.to_csv(output_dir / "snapshot_rank_similarity_summary.csv", index=False)
+        topk_df.to_csv(output_dir / "snapshot_rank_similarity_topk.csv", index=False)
 
     plot_top_k = 10 if 10 in top_k_values else top_k_values[0]
     _plot_metric_summary(
@@ -429,9 +451,10 @@ def main() -> None:
         ),
     )
 
-    print(f"Saved rankings: {output_dir / 'snapshot_metapath_rankings.csv'}")
-    print(f"Saved summary: {output_dir / 'snapshot_rank_similarity_summary.csv'}")
-    print(f"Saved top-k summary: {output_dir / 'snapshot_rank_similarity_topk.csv'}")
+    if not args.plot_only:
+        print(f"Saved rankings: {output_dir / 'snapshot_metapath_rankings.csv'}")
+        print(f"Saved summary: {output_dir / 'snapshot_rank_similarity_summary.csv'}")
+        print(f"Saved top-k summary: {output_dir / 'snapshot_rank_similarity_topk.csv'}")
     print(f"Saved plots under: {output_dir}")
 
 

@@ -74,6 +74,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--stop-after-stage", type=int, default=None)
     p.add_argument("--start-from-stage", type=int, default=1)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Forward --plot-only to subprocess calls that support it (currently select_optimal_b). Use with --skip-b-select --start-from-stage 3 to regenerate every PDF without recomputing intermediates.",
+    )
     return p.parse_args()
 
 
@@ -113,14 +118,17 @@ def main() -> None:
                 (out / "b_selection").mkdir(parents=True, exist_ok=True)
                 chosen_b_path.write_text(json.dumps({"chosen_b": 10, "note": "default"}))
             else:
-                _run("B Selection", [
+                b_select_cmd = [
                     py, "scripts/pipeline/select_optimal_b.py",
                     "--analysis-type", "lv",
                     "--variance-dir", variance_dir,
                     "--rank-dir", rank_dir,
                     "--output-dir", str(out / "b_selection"),
                     "--aggregation", "median",
-                ], dry_run=args.dry_run)
+                ]
+                if args.plot_only:
+                    b_select_cmd.append("--plot-only")
+                _run("B Selection", b_select_cmd, dry_run=args.dry_run)
 
     if stop is not None and stop <= 1:
         return

@@ -1,0 +1,18 @@
+# Matplotlib defaults for this project.
+#
+# Matplotlib auto-loads `matplotlibrc` from the current working directory before
+# the user/system config. Every entry point in this repo (Make, hpc/submit_*.sh,
+# the run_*_pipeline orchestrators) runs from the repo root, so these defaults
+# apply to all generated figures.
+#
+# Why fonttype 42:
+#   - Default `pdf.fonttype = 3` (Type 3) embeds glyphs as outlined paths in PDF
+#     output. Illustrator (and many other vector tools) cannot edit Type 3 text
+#     as text -- it shows up as un-editable filled paths.
+#   - `pdf.fonttype = 42` (TrueType) embeds the underlying TTF font, so labels
+#     remain editable text in Illustrator while staying fully vector.
+#   - `ps.fonttype = 42` does the same for any .eps/.ps output.
+#   - `svg.fonttype = none` keeps SVG text as text (no path conversion).
+pdf.fonttype: 42
+ps.fonttype: 42
+svg.fonttype: none

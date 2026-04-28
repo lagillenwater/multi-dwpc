@@ -526,11 +526,28 @@ def parse_args() -> argparse.Namespace:
         "--global-support-output",
         default=str(REPO_ROOT / "output" / "year_direct_global_metapath_support.csv"),
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip dual-null aggregation / FDR / Fisher pooling. Verifies the GO + global support CSVs already exist and exits; downstream plotting scripts read those CSVs directly.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    go_path = Path(args.go_support_output)
+    global_path = Path(args.global_support_output)
+
+    if args.plot_only:
+        for p in (go_path, global_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"--plot-only requires {p} to exist. Run without --plot-only first."
+                )
+        print(f"--plot-only: leaving {go_path} and {global_path} unchanged (downstream plot scripts will read them).")
+        return
+
     if args.runs_path:
         runs_df = pd.read_csv(Path(args.runs_path))
         if args.b is not None:
@@ -542,8 +559,6 @@ def main() -> None:
         go_df = build_go_term_support(summary_df)
     global_df = build_global_metapath_support(go_df)
 
-    go_path = Path(args.go_support_output)
-    global_path = Path(args.global_support_output)
     go_path.parent.mkdir(parents=True, exist_ok=True)
     global_path.parent.mkdir(parents=True, exist_ok=True)
     go_df.to_csv(go_path, index=False)

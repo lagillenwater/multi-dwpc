@@ -210,6 +210,11 @@ def parse_args() -> argparse.Namespace:
         choices=["diff", "effect_size_z"],
         help="Metric to use for ranking metapaths (default: effect_size_z)"
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip rank/stability compute; read lv_stability_summary.csv + overall_stability_summary.csv from the experiment dir and re-render plots only.",
+    )
     return parser.parse_args()
 
 
@@ -217,43 +222,54 @@ def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir)
     exp_root = Path(args.analysis_output_dir) if args.analysis_output_dir else output_dir / "lv_rank_stability_experiment"
-    exp_root.mkdir(parents=True, exist_ok=True)
 
-    summary_df = load_summary_bank(output_dir)
-    runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+    if args.plot_only:
+        overall_path = exp_root / "overall_stability_summary.csv"
+        entity_path = exp_root / "lv_stability_summary.csv"
+        for p in (overall_path, entity_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"--plot-only requires {p} to exist. Run without --plot-only first."
+                )
+        overall_df = pd.read_csv(overall_path)
+        entity_df = pd.read_csv(entity_path)
+        print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows) and {entity_path} ({len(entity_df)} rows)")
+    else:
+        exp_root.mkdir(parents=True, exist_ok=True)
+        summary_df = load_summary_bank(output_dir)
+        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
 
-    # Select ranking metric (effect_size_z or diff)
-    rank_metric = str(args.rank_metric)
-    if rank_metric not in runs_df.columns:
-        print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
-        rank_metric = "diff"
+        rank_metric = str(args.rank_metric)
+        if rank_metric not in runs_df.columns:
+            print(f"Warning: {rank_metric} not in runs_df, falling back to 'diff'")
+            rank_metric = "diff"
 
-    rank_df = rank_features(
-        runs_df,
-        rank_group_keys=["control", "b", "seed", "lv_id"],
-        feature_col="metapath",
-        score_col=rank_metric,
-        rank_col="metapath_rank",
-    )
-    pairwise_df, entity_df, overall_df = summarize_rank_stability(
-        rank_df,
-        outer_keys=["control", "b", "lv_id"],
-        replicate_col="seed",
-        feature_col="metapath",
-        rank_col="metapath_rank",
-        top_k=_parse_top_k_values(args.top_k_metapaths),
-        rbo_p=_parse_optional_rbo_p(args.rbo_p),
-    )
-    if not entity_df.empty:
-        entity_df = entity_df.rename(columns={"n_entities": "n_lvs"})
-    if not overall_df.empty:
-        overall_df = overall_df.rename(columns={"n_entities": "n_lvs"})
+        rank_df = rank_features(
+            runs_df,
+            rank_group_keys=["control", "b", "seed", "lv_id"],
+            feature_col="metapath",
+            score_col=rank_metric,
+            rank_col="metapath_rank",
+        )
+        pairwise_df, entity_df, overall_df = summarize_rank_stability(
+            rank_df,
+            outer_keys=["control", "b", "lv_id"],
+            replicate_col="seed",
+            feature_col="metapath",
+            rank_col="metapath_rank",
+            top_k=_parse_top_k_values(args.top_k_metapaths),
+            rbo_p=_parse_optional_rbo_p(args.rbo_p),
+        )
+        if not entity_df.empty:
+            entity_df = entity_df.rename(columns={"n_entities": "n_lvs"})
+        if not overall_df.empty:
+            overall_df = overall_df.rename(columns={"n_entities": "n_lvs"})
 
-    runs_df.to_csv(exp_root / "all_runs_long.csv", index=False)
-    rank_df.to_csv(exp_root / "metapath_rank_table.csv", index=False)
-    pairwise_df.to_csv(exp_root / "pairwise_metrics.csv", index=False)
-    entity_df.to_csv(exp_root / "lv_stability_summary.csv", index=False)
-    overall_df.to_csv(exp_root / "overall_stability_summary.csv", index=False)
+        runs_df.to_csv(exp_root / "all_runs_long.csv", index=False)
+        rank_df.to_csv(exp_root / "metapath_rank_table.csv", index=False)
+        pairwise_df.to_csv(exp_root / "pairwise_metrics.csv", index=False)
+        entity_df.to_csv(exp_root / "lv_stability_summary.csv", index=False)
+        overall_df.to_csv(exp_root / "overall_stability_summary.csv", index=False)
 
     _plot_overall(
         overall_df,
@@ -264,9 +280,10 @@ def main() -> None:
     )
     _plot_overlap_and_rank_points(entity_df, exp_root / "topk_jaccard_overall_by_group.pdf")
 
-    print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
-    print(f"Saved pairwise metrics: {exp_root / 'pairwise_metrics.csv'}")
-    print(f"Saved overall summary: {exp_root / 'overall_stability_summary.csv'}")
+    if not args.plot_only:
+        print(f"Saved rank table: {exp_root / 'metapath_rank_table.csv'}")
+        print(f"Saved pairwise metrics: {exp_root / 'pairwise_metrics.csv'}")
+        print(f"Saved overall summary: {exp_root / 'overall_stability_summary.csv'}")
 
 
 if __name__ == "__main__":

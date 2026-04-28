@@ -100,49 +100,64 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="output/year_null_variance_exp")
     parser.add_argument("--b-values", default="1,2,5,10,20")
     parser.add_argument("--seeds", default="11,22,33,44,55")
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip aggregation; read overall_variance_summary.csv from --output-dir and re-render plots only.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
-    workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
-    summary_dir_candidate = workspace_dir / "replicate_summaries"
-    if args.summaries_dir:
-        summary_source = Path(args.summaries_dir)
-        summary_df = load_summary_bank(summary_source)
-    elif summary_dir_candidate.exists():
-        summary_source = summary_dir_candidate
-        summary_df = load_summary_bank(summary_source)
+    exp_dir = Path(args.output_dir) / "year_null_variance_experiment"
+
+    if args.plot_only:
+        overall_path = exp_dir / "overall_variance_summary.csv"
+        if not overall_path.exists():
+            raise FileNotFoundError(
+                f"--plot-only requires {overall_path} to exist. Run without --plot-only first."
+            )
+        overall_df = pd.read_csv(overall_path)
+        print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows)")
     else:
-        summary_source = workspace_dir
-        if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+        results_dir = Path(args.results_dir) if args.results_dir else Path(_default_results_dir(args.score_source))
+        workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
+        summary_dir_candidate = workspace_dir / "replicate_summaries"
+        if args.summaries_dir:
+            summary_source = Path(args.summaries_dir)
+            summary_df = load_summary_bank(summary_source)
+        elif summary_dir_candidate.exists():
+            summary_source = summary_dir_candidate
             summary_df = load_summary_bank(summary_source)
         else:
-            normalized_df = load_normalized_year_results(
-                results_dir,
-                score_source=str(args.score_source),
-                data_dir=Path(args.data_dir),
-            )
-            summary_df = summarize_normalized_year_results(normalized_df)
-            if summary_df.empty:
-                raise ValueError(
-                    f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+            summary_source = workspace_dir
+            if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+                summary_df = load_summary_bank(summary_source)
+            else:
+                normalized_df = load_normalized_year_results(
+                    results_dir,
+                    score_source=str(args.score_source),
+                    data_dir=Path(args.data_dir),
                 )
-    exp_dir = Path(args.output_dir) / "year_null_variance_experiment"
-    exp_dir.mkdir(parents=True, exist_ok=True)
-    runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
-    feature_df = summarize_feature_variance(runs_df, FEATURE_KEYS)
-    overall_df = summarize_overall_variance(
-        feature_df,
-        ["year", "control", "b"],
-        runs_df=runs_df,
-        replicate_col="seed",
-    )
+                summary_df = summarize_normalized_year_results(normalized_df)
+                if summary_df.empty:
+                    raise ValueError(
+                        f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+                    )
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+        feature_df = summarize_feature_variance(runs_df, FEATURE_KEYS)
+        overall_df = summarize_overall_variance(
+            feature_df,
+            ["year", "control", "b"],
+            runs_df=runs_df,
+            replicate_col="seed",
+        )
 
-    runs_df.to_csv(exp_dir / "all_runs_long.csv", index=False)
-    feature_df.to_csv(exp_dir / "feature_variance_summary.csv", index=False)
-    overall_df.to_csv(exp_dir / "overall_variance_summary.csv", index=False)
+        runs_df.to_csv(exp_dir / "all_runs_long.csv", index=False)
+        feature_df.to_csv(exp_dir / "feature_variance_summary.csv", index=False)
+        overall_df.to_csv(exp_dir / "overall_variance_summary.csv", index=False)
 
     _plot_overall(
         overall_df,
@@ -159,9 +174,10 @@ def main() -> None:
         output_path=exp_dir / "sd_overall_by_group.pdf",
     )
 
-    print(f"Saved runs: {exp_dir / 'all_runs_long.csv'}")
-    print(f"Saved feature summary: {exp_dir / 'feature_variance_summary.csv'}")
-    print(f"Saved overall summary: {exp_dir / 'overall_variance_summary.csv'}")
+    if not args.plot_only:
+        print(f"Saved runs: {exp_dir / 'all_runs_long.csv'}")
+        print(f"Saved feature summary: {exp_dir / 'feature_variance_summary.csv'}")
+        print(f"Saved overall summary: {exp_dir / 'overall_variance_summary.csv'}")
 
 
 if __name__ == "__main__":
