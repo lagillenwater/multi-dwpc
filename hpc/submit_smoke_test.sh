@@ -18,6 +18,9 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
+# Force matplotlib to load the repo-root matplotlibrc (TrueType / Type 42).
+export MATPLOTLIBRC="$REPO_ROOT/matplotlibrc"
+
 # Configuration
 SMOKE_OUTPUT_DIR="${SMOKE_OUTPUT_DIR:-output/smoke_test}"
 B_VALUE="${SMOKE_B:-10}"  # Single B value for smoke test

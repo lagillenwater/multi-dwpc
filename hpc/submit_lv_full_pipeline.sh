@@ -24,6 +24,9 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
+# Force matplotlib to load the repo-root matplotlibrc (TrueType / Type 42).
+export MATPLOTLIBRC="$REPO_ROOT/matplotlibrc"
+
 # Configuration
 OUTPUT_DIR="${LV_PIPELINE_OUTPUT:-output/lv_full_analysis}"
 LV_OUTPUT_DIRS="${LV_OUTPUT_DIRS:-output/lv_single_target_refactor}"

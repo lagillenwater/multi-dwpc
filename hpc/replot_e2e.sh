@@ -29,6 +29,11 @@ S="${3:-11,22,33,44,55}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Force matplotlib to use the repo-root matplotlibrc (TrueType / Type 42 fonts)
+# regardless of CWD or any user-level matplotlibrc on the HPC node.
+# Matplotlib accepts either a file path or a directory containing matplotlibrc.
+export MATPLOTLIBRC="$REPO_ROOT/matplotlibrc"
+
 if [[ ! -d "$RUN" ]]; then
     echo "ERROR: run directory $RUN not found" >&2
     exit 1

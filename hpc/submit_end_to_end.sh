@@ -26,6 +26,11 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
+# Force matplotlib to load the repo-root matplotlibrc (TrueType / Type 42 fonts)
+# regardless of CWD shifts across the sbatch -> conda activate -> subprocess
+# chain. Exported so every child process inherits it.
+export MATPLOTLIBRC="$REPO_ROOT/matplotlibrc"
+
 # ============================================
 # Parse arguments
 # ============================================

@@ -28,8 +28,12 @@ REQUIRED_COLUMNS = {
 
 
 def _save(fig: plt.Figure, path: Path) -> None:
+    """Save the figure as the named extension and, if it is a raster format,
+    also emit a vector PDF sibling with TrueType text."""
     fig.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight")
+    if path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
+        fig.savefig(path.with_suffix(".pdf"), bbox_inches="tight")
     plt.close(fig)
 
 

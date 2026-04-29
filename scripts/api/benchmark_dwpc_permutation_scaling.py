@@ -244,7 +244,64 @@ def parse_args() -> argparse.Namespace:
             "(default: 20)"
         ),
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip the direct + API benchmark loops; read benchmark_permutation_scaling.csv from --output-dir and re-render the plot only.",
+    )
     return parser.parse_args()
+
+
+def _render_scaling_plot(results_df: pd.DataFrame, out_dir: Path,
+                          n_pairs: int, n_metapaths: int) -> None:
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    method_colors = {"api": "#d62728", "direct": "#1f77b4"}
+
+    ax = axes[0]
+    for method, color in method_colors.items():
+        sub = results_df[results_df["method"] == method].sort_values("b")
+        if sub.empty:
+            continue
+        ax.plot(
+            sub["b"].astype(int),
+            sub["time_seconds"].astype(float),
+            marker="o", linewidth=2.0, color=color, label=method.upper(),
+        )
+    ax.set_xlabel("B (permutation count)")
+    ax.set_ylabel("Total wall time (s)")
+    ax.set_yscale("log")
+    ax.grid(alpha=0.25, which="both")
+    ax.legend(title="Method", loc="best")
+    ax.set_title("Total time vs B (log y)")
+
+    ax = axes[1]
+    for method, color in method_colors.items():
+        sub = results_df[results_df["method"] == method].sort_values("b")
+        if sub.empty:
+            continue
+        ax.plot(
+            sub["b"].astype(int),
+            sub["time_per_replicate_ms"].astype(float),
+            marker="o", linewidth=2.0, color=color, label=method.upper(),
+        )
+    ax.set_xlabel("B (permutation count)")
+    ax.set_ylabel("Time per replicate (ms)")
+    ax.set_yscale("log")
+    ax.grid(alpha=0.25, which="both")
+    ax.legend(title="Method", loc="best")
+    ax.set_title("Per-replicate cost vs B (log y)")
+
+    fig.suptitle(
+        f"DWPC permutation scaling | {n_pairs} pairs x {n_metapaths} metapaths"
+    )
+    fig.tight_layout()
+    out_pdf = out_dir / "benchmark_permutation_scaling.pdf"
+    out_png = out_dir / "benchmark_permutation_scaling.png"
+    fig.savefig(out_pdf, bbox_inches="tight")
+    fig.savefig(out_png, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out_pdf}")
+    print(f"Saved: {out_png}")
 
 
 def main() -> None:
@@ -254,6 +311,24 @@ def main() -> None:
     metapaths = [s.strip() for s in str(args.metapaths).split(",") if s.strip()]
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.plot_only:
+        results_path = out_dir / "benchmark_permutation_scaling.csv"
+        if not results_path.exists():
+            raise FileNotFoundError(
+                f"--plot-only requires {results_path} to exist. Run without --plot-only first."
+            )
+        results_df = pd.read_csv(results_path)
+        n_pairs_recorded = (
+            int(results_df["n_pairs"].iloc[0]) if "n_pairs" in results_df.columns and not results_df.empty else int(args.n_pairs)
+        )
+        n_mp_recorded = (
+            int(results_df["n_metapaths"].iloc[0]) if "n_metapaths" in results_df.columns and not results_df.empty else len(metapaths)
+        )
+        print(f"--plot-only: loaded {results_path} ({len(results_df)} rows)")
+        _render_scaling_plot(results_df, out_dir, n_pairs_recorded, n_mp_recorded)
+        return
+
     parquet_dir = out_dir / "parquet"
     parquet_dir.mkdir(exist_ok=True)
 
@@ -322,50 +397,7 @@ def main() -> None:
     results_df.to_csv(results_path, index=False)
     print(f"\nSaved: {results_path}")
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-    method_colors = {"api": "#d62728", "direct": "#1f77b4"}
-
-    ax = axes[0]
-    for method, color in method_colors.items():
-        sub = results_df[results_df["method"] == method].sort_values("b")
-        if sub.empty:
-            continue
-        ax.plot(
-            sub["b"].astype(int),
-            sub["time_seconds"].astype(float),
-            marker="o", linewidth=2.0, color=color, label=method.upper(),
-        )
-    ax.set_xlabel("B (permutation count)")
-    ax.set_ylabel("Total wall time (s)")
-    ax.set_yscale("log")
-    ax.grid(alpha=0.25, which="both")
-    ax.legend(title="Method", loc="best")
-    ax.set_title("Total time vs B (log y)")
-
-    ax = axes[1]
-    for method, color in method_colors.items():
-        sub = results_df[results_df["method"] == method].sort_values("b")
-        if sub.empty:
-            continue
-        ax.plot(
-            sub["b"].astype(int),
-            sub["time_per_replicate_ms"].astype(float),
-            marker="o", linewidth=2.0, color=color, label=method.upper(),
-        )
-    ax.set_xlabel("B (permutation count)")
-    ax.set_ylabel("Time per replicate (ms)")
-    ax.set_yscale("log")
-    ax.grid(alpha=0.25, which="both")
-    ax.legend(title="Method", loc="best")
-    ax.set_title("Per-replicate cost vs B (log y)")
-
-    fig.suptitle(
-        f"DWPC permutation scaling | {len(pairs)} pairs x {len(metapaths)} metapaths"
-    )
-    fig.tight_layout()
-    fig.savefig(out_dir / "benchmark_permutation_scaling.pdf", bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {out_dir / 'benchmark_permutation_scaling.pdf'}")
+    _render_scaling_plot(results_df, out_dir, n_pairs=len(pairs), n_metapaths=len(metapaths))
 
     if {"api", "direct"}.issubset(set(results_df["method"].unique())):
         speedup_df = (

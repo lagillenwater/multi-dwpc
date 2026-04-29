@@ -478,54 +478,75 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--rbo-p", type=float, default=0.9)
     parser.add_argument("--top-n-paths", type=int, default=25)
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Skip load_normalized_year_results + rank/variance compute; read rank_consistency_vs_mean_dwpc.csv + variance_consistency_vs_mean_dwpc.csv + real_minus_control_profiles.csv from --output-dir and re-render plots only.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
-    data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir) if args.output_dir else _default_output_dir(args.score_source)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    normalized_df = load_normalized_year_results(
-        results_dir,
-        score_source=str(args.score_source),
-        data_dir=data_dir,
-    )
-    agg_df = build_aggregated_year_statistics_panel(normalized_df)
-    if agg_df.empty:
-        raise ValueError("Aggregated year statistics are empty.")
+    if args.plot_only:
+        rank_path = output_dir / "rank_consistency_vs_mean_dwpc.csv"
+        var_path = output_dir / "variance_consistency_vs_mean_dwpc.csv"
+        diff_path = output_dir / "real_minus_control_profiles.csv"
+        for p in (rank_path, var_path, diff_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"--plot-only requires {p} to exist. Run without --plot-only first."
+                )
+        rank_df = pd.read_csv(rank_path)
+        var_df = pd.read_csv(var_path)
+        diff_df = pd.read_csv(diff_path)
+        statistics = sorted(diff_df["statistic"].astype(str).unique().tolist()) if "statistic" in diff_df.columns else []
+        print(f"--plot-only: loaded {rank_path}, {var_path}, {diff_path}")
+    else:
+        results_dir = Path(args.results_dir) if args.results_dir else _default_results_dir(args.score_source)
+        data_dir = Path(args.data_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    statistics = detect_supported_statistics(agg_df)
-    if ANCHOR_STAT not in statistics:
-        raise ValueError(f"Anchor statistic {ANCHOR_STAT!r} not available.")
-    if int(args.top_n_paths) < 1:
-        raise ValueError("--top-n-paths must be >= 1")
+        normalized_df = load_normalized_year_results(
+            results_dir,
+            score_source=str(args.score_source),
+            data_dir=data_dir,
+        )
+        agg_df = build_aggregated_year_statistics_panel(normalized_df)
+        if agg_df.empty:
+            raise ValueError("Aggregated year statistics are empty.")
 
-    diff_df = _build_real_minus_control_profiles(agg_df, statistics)
-    if diff_df.empty:
-        raise ValueError("No real-minus-control profiles could be built from current API datasets.")
+        statistics = detect_supported_statistics(agg_df)
+        if ANCHOR_STAT not in statistics:
+            raise ValueError(f"Anchor statistic {ANCHOR_STAT!r} not available.")
+        if int(args.top_n_paths) < 1:
+            raise ValueError("--top-n-paths must be >= 1")
 
-    rank_df = _compute_rank_consistency(
-        diff_df,
-        statistics,
-        rbo_p=float(args.rbo_p),
-        top_n=int(args.top_n_paths),
-    )
-    var_df = _compute_variance_consistency(
-        diff_df,
-        statistics,
-        top_n=int(args.top_n_paths),
-    )
+        diff_df = _build_real_minus_control_profiles(agg_df, statistics)
+        if diff_df.empty:
+            raise ValueError("No real-minus-control profiles could be built from current API datasets.")
+
+        rank_df = _compute_rank_consistency(
+            diff_df,
+            statistics,
+            rbo_p=float(args.rbo_p),
+            top_n=int(args.top_n_paths),
+        )
+        var_df = _compute_variance_consistency(
+            diff_df,
+            statistics,
+            top_n=int(args.top_n_paths),
+        )
+
+        agg_df.to_csv(output_dir / "aggregated_statistics_all_datasets.csv", index=False)
+        diff_df.to_csv(output_dir / "real_minus_control_profiles.csv", index=False)
+        rank_df.to_csv(output_dir / "rank_consistency_vs_mean_dwpc.csv", index=False)
+        var_df.to_csv(output_dir / "variance_consistency_vs_mean_dwpc.csv", index=False)
 
     rank_plot_df = rank_df[~rank_df["statistic"].astype(str).str.contains("std", case=False, regex=False)].copy()
     var_plot_df = var_df[~var_df["statistic"].astype(str).str.contains("std", case=False, regex=False)].copy()
-
-    agg_df.to_csv(output_dir / "aggregated_statistics_all_datasets.csv", index=False)
-    diff_df.to_csv(output_dir / "real_minus_control_profiles.csv", index=False)
-    rank_df.to_csv(output_dir / "rank_consistency_vs_mean_dwpc.csv", index=False)
-    var_df.to_csv(output_dir / "variance_consistency_vs_mean_dwpc.csv", index=False)
 
     _plot_metric_lines(
         rank_plot_df,

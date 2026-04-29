@@ -36,6 +36,9 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
+# Force matplotlib to load the repo-root matplotlibrc (TrueType / Type 42).
+export MATPLOTLIBRC="$REPO_ROOT/matplotlibrc"
+
 # Configuration
 OUTPUT_DIR="${YEAR_PIPELINE_OUTPUT:-output/year_full_analysis}"
 YEAR_OUTPUT_DIR="${YEAR_OUTPUT_DIR:-output/year_experiment}"

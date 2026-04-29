@@ -71,6 +71,12 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Where to write hierarchy_vs_percent_change.{pdf,jpeg}.",
     )
+    p.add_argument(
+        "--strict",
+        action="store_true",
+        help="Error if the cached hierarchy metrics CSV is missing. Default behavior is to skip with a warning, "
+        "since go_hierarchy_analysis.py is a manual exploration step and is not part of submit_end_to_end.sh.",
+    )
     return p.parse_args()
 
 
@@ -81,9 +87,14 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not input_path.exists():
-        raise FileNotFoundError(
-            f"Required input {input_path} is missing. Run scripts/data_prep/go_hierarchy_analysis.py first."
+        msg = (
+            f"{input_path} not found. go_hierarchy_analysis.py is a manual step "
+            "outside the e2e pipeline; run it once to populate this cache."
         )
+        if args.strict:
+            raise FileNotFoundError(msg)
+        print(f"WARNING: {msg} Skipping hierarchy_vs_percent_change figure.")
+        return
 
     df = pd.read_csv(input_path)
     needed = ["normalized_depth_2016", "normalized_depth_2024", "norm_depth_change", "pct_change_genes"]
