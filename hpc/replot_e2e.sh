@@ -78,11 +78,29 @@ run_step "lv rank stability (plot-only)" \
         --output-dir "$RUN/lv_experiment" \
         --b-values "$B" --seeds "$S"
 
-# 2. Pipeline downstream plots (year + LV) ----------------------------------
-# Stages 1 (B select) and 2 (intermediate sharing) are skipped via
-# --skip-b-select and --start-from-stage 3.  --plot-only is forwarded to the
-# remaining subprocess calls that support it (select_optimal_b,
-# year_go_term_support, year_snapshot_rank_similarity).
+# 2. B-selection diagnostic plots (Stage 1 of the pipeline)
+# The orchestrators below skip Stage 1 via --skip-b-select, so we have to
+# refresh stabilization_curves_*.{pdf,png} explicitly. --plot-only reads
+# stabilization_summary.csv, leaves chosen_b.json untouched.
+run_step "year B-selection plots (plot-only)" \
+    python3 scripts/pipeline/select_optimal_b.py --plot-only \
+        --analysis-type year \
+        --variance-dir "$RUN/year_experiment/year_null_variance_experiment" \
+        --rank-dir     "$RUN/year_experiment/year_rank_stability_experiment" \
+        --output-dir   "$RUN/year_full_analysis/b_selection"
+
+run_step "lv B-selection plots (plot-only)" \
+    python3 scripts/pipeline/select_optimal_b.py --plot-only \
+        --analysis-type lv \
+        --variance-dir "$RUN/lv_experiment/lv_null_variance_experiment" \
+        --rank-dir     "$RUN/lv_experiment/lv_rank_stability_experiment" \
+        --output-dir   "$RUN/lv_full_analysis/b_selection"
+
+# 3. Pipeline downstream plots (year + LV) ----------------------------------
+# Stages 1 (B select, refreshed above) and 2 (intermediate sharing) are
+# skipped via --skip-b-select and --start-from-stage 3.  --plot-only is
+# forwarded to subprocess calls that support it (year_go_term_support,
+# year_snapshot_rank_similarity).
 
 run_step "year pipeline stages 3-8 (plot-only forwarded)" \
     python3 scripts/pipeline/run_year_pipeline.py \
@@ -99,7 +117,7 @@ run_step "lv pipeline stages 3-6 (plot-only forwarded)" \
         --skip-b-select --start-from-stage 3 \
         --plot-only
 
-# 3. Data-prep figures into the run dir -------------------------------------
+# 4. Data-prep figures into the run dir -------------------------------------
 run_step "data-prep: gene classification" \
     python3 scripts/visualization/plot_gene_classification.py \
         --output-dir "$DATA_PREP_FIG_DIR"
