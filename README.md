@@ -91,8 +91,7 @@ Located in `scripts/`:
 2. **percent_change_and_filtering.py** - Percent-change + IQR filtering for all_GO_positive_growth
 3. **go_hierarchy_analysis.py** - GO hierarchy metrics and parents_GO_postive_growth generation
 4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
-5. **permutation_null_datasets.py** - Generates permutation-based null datasets
-6. **random_null_datasets.py** - Generates random null datasets
+5. **build_null_datasets.py --method {permutation,random}** - Generates permutation- or promiscuity-matched random null datasets
 7. **compute_dwpc_direct.py** - Direct DWPC computation
 8. **lookup_dwpc_api.py** - API-based DWPC lookup
 9. **pipeline_publication.py** - Full publication pipeline runner

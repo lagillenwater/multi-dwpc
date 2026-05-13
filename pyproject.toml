@@ -40,8 +40,8 @@ load-data = "python scripts/data_prep/load_data.py"
 filter-change = "python scripts/data_prep/percent_change_and_filtering.py"
 go-hierarchy-analysis = "python scripts/data_prep/go_hierarchy_analysis.py"
 filter-jaccard = "python scripts/data_prep/jaccard_similarity_and_filtering.py"
-gen-permutation = "python scripts/data_prep/permutation_null_datasets.py"
-gen-random = "python scripts/data_prep/random_null_datasets.py"
+gen-permutation = "python scripts/data_prep/build_null_datasets.py --method permutation"
+gen-random = "python scripts/data_prep/build_null_datasets.py --method random"
 
 # DWPC computation (direct)
 compute-dwpc-direct = "python scripts/data_prep/compute_dwpc_direct.py"

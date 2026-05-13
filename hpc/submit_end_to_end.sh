@@ -225,13 +225,13 @@ python3 scripts/data_prep/build_year_top_genes.py --output-dir $YEAR_OUTPUT_DIR"
 
     # 1b: Year permutation nulls (array: 1 task per replicate)
     YEAR_PERM_CMD="export PERMUTATION_IDS=\$SLURM_ARRAY_TASK_ID && \
-python3 scripts/data_prep/permutation_null_datasets.py"
+python3 scripts/data_prep/build_null_datasets.py --method permutation"
     YEAR_PERM_JOB=$(submit "year-perm" "4G" "00:20:00" "$YEAR_PERM_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
     echo "  Year permutations: $YEAR_PERM_JOB (array 1-${N_REPLICATES}%10)"
 
     # 1c: Year random nulls (array: 1 task per replicate)
     YEAR_RAND_CMD="export RANDOM_SAMPLE_IDS=\$SLURM_ARRAY_TASK_ID && \
-python3 scripts/data_prep/random_null_datasets.py"
+python3 scripts/data_prep/build_null_datasets.py --method random"
     YEAR_RAND_JOB=$(submit "year-rand" "4G" "00:20:00" "$YEAR_RAND_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
     echo "  Year random nulls: $YEAR_RAND_JOB (array 1-${N_REPLICATES}%10)"
 
