@@ -21,13 +21,15 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.lv_inputs import extract_top_lv_genes  # noqa: E402
+from src.lv_data_prep import (  # noqa: E402
+    build_lv_gene_target_pairs,
+    build_lv_targets,
+    extract_top_lv_genes,
+)
 from src.lv_nulls import run_vectorized_nulls  # noqa: E402
-from src.lv_pairs import build_lv_gene_target_pairs  # noqa: E402
 from src.lv_precompute import precompute_gene_feature_scores  # noqa: E402
 from src.lv_stats import build_final_stats  # noqa: E402
 from src.lv_subgraphs import extract_top_subgraphs, plot_top_subgraphs  # noqa: E402
-from src.lv_targets import build_lv_targets  # noqa: E402
 from src.lv_dwpc import compute_real_pair_dwpc  # noqa: E402
 
 

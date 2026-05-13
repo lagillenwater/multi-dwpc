@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from src.dwpc_direct import reverse_metapath_abbrev  # noqa: F401
 from src.lv_dwpc import compute_real_pair_dwpc
-from src.lv_pairs import build_lv_gene_target_pairs
+from src.lv_data_prep import build_lv_gene_target_pairs
 from src.path_enumeration import (
     NODE_FILES,
     EdgeLoader,
