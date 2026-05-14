@@ -143,7 +143,8 @@ def main() -> None:
     # Stage 2: Intermediate Sharing
     if should_run(2):
         is_cmd = [
-            py, "scripts/pipeline/year_intermediate_sharing.py",
+            py, "scripts/pipeline/intermediate_sharing.py",
+            "--analysis-type", "year",
             "--year-output-dir", year_dir,
             "--added-pairs-path", args.added_pairs_path,
             "--b", str(chosen_b),

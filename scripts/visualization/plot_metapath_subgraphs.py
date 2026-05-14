@@ -149,7 +149,7 @@ def load_all_node_names(repo_root: Path) -> dict[str, str]:
 
     Reads every `data/nodes/*.tsv` file (hetio convention: `identifier`, `name`
     columns) and aggregates into a single qualified-id lookup, matching the
-    key format written by `lv_intermediate_sharing.py` / `gene_paths.csv`.
+    key format written by `intermediate_sharing.py --analysis-type lv` / `gene_paths.csv`.
     """
     result: dict[str, str] = {}
     nodes_dir = repo_root / "data" / "nodes"

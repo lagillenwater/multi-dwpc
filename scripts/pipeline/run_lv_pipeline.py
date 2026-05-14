@@ -139,7 +139,8 @@ def main() -> None:
     # Stage 2: Intermediate Sharing
     if should_run(2):
         is_cmd = [
-            py, "scripts/pipeline/lv_intermediate_sharing.py",
+            py, "scripts/pipeline/intermediate_sharing.py",
+            "--analysis-type", "lv",
             "--lv-output-dirs", *lv_dirs.split(),
             "--b", str(chosen_b),
             "--effect-size-threshold", str(args.effect_size_threshold),

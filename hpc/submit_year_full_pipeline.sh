@@ -165,7 +165,8 @@ for stale_dir in \"$OUTPUT_DIR/intermediate_sharing\"/b*/; do
 done
 shopt -u nullglob
 
-python3 scripts/pipeline/year_intermediate_sharing.py \\
+python3 scripts/pipeline/intermediate_sharing.py \\
+    --analysis-type year \\
     --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
     --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
     --b \$CHOSEN_B \\

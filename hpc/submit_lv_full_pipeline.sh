@@ -129,7 +129,8 @@ INT_SHARE_CMD="
 CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
 echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
 
-python3 scripts/pipeline/lv_intermediate_sharing.py \\
+python3 scripts/pipeline/intermediate_sharing.py \\
+    --analysis-type lv \\
     --lv-output-dirs $LV_OUTPUT_DIRS \\
     --b \$CHOSEN_B \\
     --effect-size-threshold $EFFECT_THRESHOLD \\
