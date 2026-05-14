@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Plot LV metapath-rank comparisons against a reference seed."""
+"""Plot metapath-rank comparisons against a reference seed.
+
+Replaces `plot_year_rank_seed_comparisons.py` and
+`plot_lv_rank_seed_comparisons.py`. Dispatches on `--analysis-type {year,lv}`.
+
+For each (control, b, entity) group in metapath_rank_table.csv, scatters the
+reference-seed rank against each comparison-seed rank for shared metapaths.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +18,6 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
@@ -25,12 +31,24 @@ SEED_COLORS = {
 }
 
 
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
 def _sanitize(value: str) -> str:
-    return "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in str(value)).strip("_")
+    return "".join(
+        ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in str(value)
+    ).strip("_")
 
 
-def _load_rank_table(path: Path) -> pd.DataFrame:
-    required_columns = {"b", "seed", "lv_id", "metapath", "metapath_rank"}
+def _load_rank_table(path: Path, domain: str) -> pd.DataFrame:
+    if domain == "year":
+        required_columns = {"b", "seed", "year", "go_id", "metapath", "metapath_rank"}
+    else:
+        required_columns = {"b", "seed", "lv_id", "metapath", "metapath_rank"}
+
     if not path.exists():
         raise FileNotFoundError(f"Required input file not found: {path}")
     df = pd.read_csv(path)
@@ -79,7 +97,10 @@ def _plot_group(group: pd.DataFrame, ref_seed: int, title: str, output_path: Pat
         plt.close(fig)
         return
 
-    ax.plot([0.5, max_rank + 0.5], [0.5, max_rank + 0.5], linestyle="--", color="#999999", linewidth=1.5)
+    ax.plot(
+        [0.5, max_rank + 0.5], [0.5, max_rank + 0.5],
+        linestyle="--", color="#999999", linewidth=1.5,
+    )
     ax.set_xlim(0.5, max_rank + 0.5)
     ax.set_ylim(0.5, max_rank + 0.5)
     ax.set_xlabel(f"Seed {ref_seed} rank")
@@ -88,16 +109,19 @@ def _plot_group(group: pd.DataFrame, ref_seed: int, title: str, output_path: Pat
     ax.grid(alpha=0.25)
     ax.legend(title="Seed")
     fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    _save_dual(fig, output_path)
     plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--analysis-dir",
-        default="output/lv_experiment/lv_rank_stability_experiment",
-        help="Directory containing metapath_rank_table.csv",
+        "--analysis-type", required=True, choices=["year", "lv"],
+        help="year or lv (drives group keys + filename).",
+    )
+    parser.add_argument(
+        "--analysis-dir", required=True,
+        help="Directory containing metapath_rank_table.csv.",
     )
     parser.add_argument("--reference-seed", type=int, default=11)
     return parser.parse_args()
@@ -105,18 +129,35 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    domain = args.analysis_type
     analysis_dir = Path(args.analysis_dir)
-    rank_df = _load_rank_table(analysis_dir / "metapath_rank_table.csv")
+    rank_df = _load_rank_table(analysis_dir / "metapath_rank_table.csv", domain)
     output_dir = analysis_dir / f"rank_scatter_ref_seed_{args.reference_seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for key, group in rank_df.groupby(["control", "b", "lv_id"], sort=True):
-        control, b, lv_id = key
-        title = f"Metapath Rank Scatter (control={control}, B={int(b)}, {lv_id})"
-        out_name = (
-            f"metapath_rank_scatter_ref_seed_{args.reference_seed}_"
-            f"{_sanitize(control)}_b{int(b)}_{_sanitize(lv_id)}.png"
-        )
+    if domain == "year":
+        group_cols = ["control", "b", "year", "go_id"]
+    else:
+        group_cols = ["control", "b", "lv_id"]
+
+    for key, group in rank_df.groupby(group_cols, sort=True):
+        if domain == "year":
+            control, b, year, go_id = key
+            title = (
+                f"Metapath Rank Scatter (control={control}, B={int(b)}, "
+                f"{int(year)}, {go_id})"
+            )
+            out_name = (
+                f"metapath_rank_scatter_ref_seed_{args.reference_seed}_"
+                f"{_sanitize(control)}_b{int(b)}_year{int(year)}_{_sanitize(go_id)}.pdf"
+            )
+        else:
+            control, b, lv_id = key
+            title = f"Metapath Rank Scatter (control={control}, B={int(b)}, {lv_id})"
+            out_name = (
+                f"metapath_rank_scatter_ref_seed_{args.reference_seed}_"
+                f"{_sanitize(control)}_b{int(b)}_{_sanitize(lv_id)}.pdf"
+            )
         out_path = output_dir / out_name
         _plot_group(group.copy(), args.reference_seed, title, out_path)
 
