@@ -7,9 +7,15 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.lv_replicate_analysis import build_b_seed_runs as build_lv_b_seed_runs  # noqa: E402
 from src.replicate_analysis import build_b_seed_runs as build_generic_b_seed_runs  # noqa: E402
-from src.year_replicate_analysis import build_b_seed_runs as build_year_b_seed_runs  # noqa: E402
+
+
+def build_year_b_seed_runs(summary_df, b_values, seeds):
+    return build_generic_b_seed_runs(summary_df, b_values, seeds, domain="year")
+
+
+def build_lv_b_seed_runs(summary_df, b_values, seeds):
+    return build_generic_b_seed_runs(summary_df, b_values, seeds, domain="lv")
 
 
 class ReplicateAnalysisResamplingTests(unittest.TestCase):

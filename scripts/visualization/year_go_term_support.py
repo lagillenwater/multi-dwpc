@@ -18,7 +18,7 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.year_replicate_analysis import load_summary_bank  # noqa: E402
+from src.replicate_analysis import load_domain_summary_bank  # noqa: E402
 
 
 def _apply_bh_fdr(df: pd.DataFrame, p_col: str, out_col: str, group_cols: list[str]) -> pd.DataFrame:
@@ -555,7 +555,7 @@ def main() -> None:
         go_df = build_go_term_support_from_runs(runs_df)
     else:
         summary_source = Path(args.summaries_dir) if args.summaries_dir else Path(args.workspace_dir) / "replicate_summaries"
-        summary_df = load_summary_bank(summary_source)
+        summary_df = load_domain_summary_bank(summary_source, domain="year")
         go_df = build_go_term_support(summary_df)
     global_df = build_global_metapath_support(go_df)
 

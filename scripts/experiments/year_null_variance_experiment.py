@@ -23,15 +23,20 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.replicate_analysis import summarize_feature_variance, summarize_overall_variance  # noqa: E402
+from src.replicate_analysis import (  # noqa: E402
+    build_b_seed_runs,
+    feature_keys,
+    load_domain_summary_bank,
+    summarize_feature_variance,
+    summarize_overall_variance,
+)
 from src.result_normalization import (  # noqa: E402
     load_normalized_year_results,
     summarize_normalized_year_results,
 )
-from src.year_replicate_analysis import build_b_seed_runs, load_summary_bank  # noqa: E402
 
 
-FEATURE_KEYS = ["year", "control", "b", "go_id", "metapath"]
+FEATURE_KEYS = ["year", "control", "b", *feature_keys("year")]
 
 
 def _save_dual(fig: plt.Figure, output_path: Path) -> None:
@@ -126,14 +131,14 @@ def main() -> None:
         summary_dir_candidate = workspace_dir / "replicate_summaries"
         if args.summaries_dir:
             summary_source = Path(args.summaries_dir)
-            summary_df = load_summary_bank(summary_source)
+            summary_df = load_domain_summary_bank(summary_source, domain="year")
         elif summary_dir_candidate.exists():
             summary_source = summary_dir_candidate
-            summary_df = load_summary_bank(summary_source)
+            summary_df = load_domain_summary_bank(summary_source, domain="year")
         else:
             summary_source = workspace_dir
             if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
-                summary_df = load_summary_bank(summary_source)
+                summary_df = load_domain_summary_bank(summary_source, domain="year")
             else:
                 normalized_df = load_normalized_year_results(
                     results_dir,
@@ -146,7 +151,12 @@ def main() -> None:
                         f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
                     )
         exp_dir.mkdir(parents=True, exist_ok=True)
-        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+        runs_df = build_b_seed_runs(
+            summary_df,
+            _parse_int_list(args.b_values),
+            _parse_int_list(args.seeds),
+            domain="year",
+        )
         feature_df = summarize_feature_variance(runs_df, FEATURE_KEYS)
         overall_df = summarize_overall_variance(
             feature_df,

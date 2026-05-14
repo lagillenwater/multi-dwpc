@@ -22,8 +22,15 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.lv_replicate_analysis import FEATURE_KEYS, build_b_seed_runs, load_summary_bank  # noqa: E402
-from src.replicate_analysis import summarize_feature_variance, summarize_overall_variance  # noqa: E402
+from src.replicate_analysis import (  # noqa: E402
+    build_b_seed_runs,
+    feature_keys,
+    load_domain_summary_bank,
+    summarize_feature_variance,
+    summarize_overall_variance,
+)
+
+FEATURE_KEYS = feature_keys("lv")
 
 
 def _save_dual(fig: plt.Figure, output_path: Path) -> None:
@@ -95,8 +102,13 @@ def main() -> None:
         print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows)")
     else:
         exp_root.mkdir(parents=True, exist_ok=True)
-        summary_df = load_summary_bank(output_dir)
-        runs_df = build_b_seed_runs(summary_df, _parse_int_list(args.b_values), _parse_int_list(args.seeds))
+        summary_df = load_domain_summary_bank(output_dir, domain="lv")
+        runs_df = build_b_seed_runs(
+            summary_df,
+            _parse_int_list(args.b_values),
+            _parse_int_list(args.seeds),
+            domain="lv",
+        )
         feature_df = summarize_feature_variance(
             runs_df,
             feature_keys=["control", "b", *FEATURE_KEYS],

@@ -1,11 +1,24 @@
-"""Shared analysis helpers for explicit null-replicate experiments."""
+"""Shared analysis helpers for explicit null-replicate experiments.
+
+`DOMAIN_CONFIG` registers per-domain (year/lv) feature keys, manifest schemas,
+and resampling pool keys so that callers can pass `domain="year"` or
+`domain="lv"` instead of restating the same constants everywhere.
+"""
 
 from __future__ import annotations
 
 from itertools import combinations
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from src.replicate_workspace import (
+    load_manifest as load_workspace_manifest,
+    load_summary_bank as load_workspace_summary_bank,
+    load_summary_bank_from_manifest,
+    resolve_manifest_path,
+)
 
 
 DEFAULT_SUMMARY_COLUMNS = {
@@ -17,13 +30,89 @@ DEFAULT_SUMMARY_COLUMNS = {
 }
 
 
+_BASE_MANIFEST_COLUMNS = [
+    "domain", "name", "control", "replicate",
+    "source_path", "result_path", "summary_path",
+]
+_BASE_SUMMARY_COLUMNS = ["domain", "name", "control", "replicate"]
+
+
+DOMAIN_CONFIG: dict[str, dict] = {
+    "year": {
+        "feature_keys": ["go_id", "metapath"],
+        "manifest_columns": [
+            "domain", "name", "control", "replicate", "year",
+            "source_path", "result_path", "summary_path",
+        ],
+        "summary_extra_cols": ["year"],
+        "join_keys_extra": ["year"],
+        "pool_keys": ["year", "control"],
+    },
+    "lv": {
+        "feature_keys": ["lv_id", "target_id", "target_name", "node_type", "metapath"],
+        "manifest_columns": list(_BASE_MANIFEST_COLUMNS),
+        "summary_extra_cols": [],
+        "join_keys_extra": [],
+        "pool_keys": ["control"],
+    },
+}
+
+
+def feature_keys(domain: str) -> list[str]:
+    """Return the per-domain feature key list (copy)."""
+    if domain not in DOMAIN_CONFIG:
+        raise ValueError(f"Unknown domain {domain!r}; expected one of {sorted(DOMAIN_CONFIG)}")
+    return list(DOMAIN_CONFIG[domain]["feature_keys"])
+
+
+def _domain_summary_columns(domain: str) -> list[str]:
+    cfg = DOMAIN_CONFIG[domain]
+    return [*_BASE_SUMMARY_COLUMNS, *cfg["summary_extra_cols"], *cfg["feature_keys"], "mean_score"]
+
+
+def load_domain_summary_bank(workspace_path: Path | str, domain: str) -> pd.DataFrame:
+    """Load a manifest-keyed summary bank for `domain` ('year' or 'lv').
+
+    Replaces `src.year_replicate_analysis.load_summary_bank` and
+    `src.lv_replicate_analysis.load_summary_bank`.
+
+    If a `replicate_manifest.csv` exists at the workspace path, summaries are
+    loaded via the manifest. Otherwise:
+    - year: falls back to the on-disk summaries directory walk in
+      `replicate_workspace.load_summary_bank` (legacy year workspaces).
+    - lv: falls back to LV artifact discovery in
+      `lv_explicit_replicates.load_manifest`.
+    """
+    if domain not in DOMAIN_CONFIG:
+        raise ValueError(f"Unknown domain {domain!r}; expected one of {sorted(DOMAIN_CONFIG)}")
+    cfg = DOMAIN_CONFIG[domain]
+    summary_cols = _domain_summary_columns(domain)
+    workspace_path = Path(workspace_path)
+    manifest_path = resolve_manifest_path(workspace_path)
+    if manifest_path.exists():
+        manifest = load_workspace_manifest(workspace_path, required_cols=cfg["manifest_columns"])
+        return load_summary_bank_from_manifest(manifest, required_summary_cols=summary_cols)
+
+    if domain == "lv":
+        # Lazy import to avoid pulling LV-specific deps when only year is in use.
+        from src.lv_explicit_replicates import load_manifest as lv_load_manifest
+
+        manifest = lv_load_manifest(workspace_path)
+        if manifest.empty:
+            raise ValueError(f"No LV replicate artifacts discovered under {workspace_path}")
+        return load_summary_bank_from_manifest(manifest, required_summary_cols=summary_cols)
+
+    return load_workspace_summary_bank(workspace_path, required_summary_cols=summary_cols)
+
+
 def build_b_seed_runs(
     summary_df: pd.DataFrame,
     b_values: list[int],
     seeds: list[int],
     *,
-    join_keys: list[str],
-    replicate_pool_keys: list[str],
+    join_keys: list[str] | None = None,
+    replicate_pool_keys: list[str] | None = None,
+    domain: str | None = None,
     control_col: str = "control",
     replicate_col: str = "replicate",
     score_col: str = "mean_score",
@@ -34,7 +123,25 @@ def build_b_seed_runs(
     Computes both raw difference (diff) and permutation z-statistic (z = diff / null_std).
     The z-statistic uses the standard deviation of null scores across sampled replicates.
     When null_std is zero, z is NaN -- tracked via z_is_nan column.
+
+    Pass either `domain` (resolves join_keys + replicate_pool_keys from DOMAIN_CONFIG)
+    or both `join_keys` and `replicate_pool_keys` explicitly. Mixing the two raises.
     """
+    if domain is not None:
+        if join_keys is not None or replicate_pool_keys is not None:
+            raise ValueError(
+                "Pass either domain or (join_keys + replicate_pool_keys), not both"
+            )
+        if domain not in DOMAIN_CONFIG:
+            raise ValueError(f"Unknown domain {domain!r}; expected one of {sorted(DOMAIN_CONFIG)}")
+        cfg = DOMAIN_CONFIG[domain]
+        join_keys = [*cfg["join_keys_extra"], *cfg["feature_keys"]]
+        replicate_pool_keys = list(cfg["pool_keys"])
+    elif join_keys is None or replicate_pool_keys is None:
+        raise ValueError(
+            "Must pass either domain or both (join_keys, replicate_pool_keys)"
+        )
+
     if summary_df.empty:
         return pd.DataFrame()
 

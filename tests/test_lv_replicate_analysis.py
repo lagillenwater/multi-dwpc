@@ -8,7 +8,11 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.lv_replicate_analysis import load_summary_bank  # noqa: E402
+from src.replicate_analysis import load_domain_summary_bank  # noqa: E402
+
+
+def load_summary_bank(output_dir):
+    return load_domain_summary_bank(output_dir, domain="lv")
 
 
 class LvReplicateAnalysisTests(unittest.TestCase):
