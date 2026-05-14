@@ -126,7 +126,7 @@ echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
 INT_SHARE_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
 
 python3 scripts/pipeline/intermediate_sharing.py \\
@@ -168,7 +168,7 @@ echo "-----------------------"
 
 SUMMARY_CMD="
 set -e
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for global summary\"
 
 ALL_RUNS_ARG=\"\"
@@ -214,7 +214,7 @@ echo "---------------------------------"
 
 # Use chosen B for consumable outputs (read from JSON after B selection completes)
 GENE_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
 python3 scripts/pipeline/generate_gene_table.py \\
@@ -248,7 +248,7 @@ echo "Stage 5: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for visualization\"
 
 python3 scripts/visualization/plot_metapath_subgraphs.py \\
@@ -283,7 +283,7 @@ echo "Stage 6: Intermediate Sharing Plots"
 echo "------------------------------------"
 
 PLOT_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for plots\"
 
 # Check if subdirectory exists

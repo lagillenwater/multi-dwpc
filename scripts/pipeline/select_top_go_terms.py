@@ -9,7 +9,7 @@ takes the top N, and writes two artifacts:
     <output-dir>/top_go_ids.json    -- just the ordered list of go_id strings
 
 The JSON list is consumed by `plot_metapath_subgraphs.py` and related
-downstream scripts via `scripts/read_json_value.py`.
+downstream HPC scripts via `jq -r 'join(" ")' top_go_ids.json`.
 
 Usage:
     python3 scripts/select_top_go_terms.py \\
