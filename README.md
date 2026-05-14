@@ -29,17 +29,29 @@ pip install -e ".[dev]"
 ## Prepare the Data
 
 ```bash
-# Production pipeline (skips GO hierarchy analysis)
-poe pipeline-production
-
-# Publication pipeline (includes GO hierarchy evaluation)
-poe pipeline-publication
-
-# Run individual steps
+# Run individual data-prep steps (no top-level pipeline runner; chain
+# the steps you need)
 poe load-data
 poe filter-change
 poe go-hierarchy-analysis
 poe filter-jaccard
+
+# Generate year null datasets
+poe gen-permutation
+poe gen-random
+
+# Compute DWPC matrices for the prepared data
+poe compute-dwpc-direct
+```
+
+For end-to-end runs, use the unified pipeline runners (or the HPC submit scripts):
+
+```bash
+# Year track end-to-end (B-selection -> intermediate sharing -> consumables)
+python3 scripts/pipeline/run_year_pipeline.py --output-dir output/year_full_analysis
+
+# LV track end-to-end
+python3 scripts/pipeline/run_lv_pipeline.py --output-dir output/lv_full_analysis
 ```
 
 ### Available tasks
@@ -48,57 +60,92 @@ Run `poe --help` to see all available tasks:
 
 | Task | Description |
 |------|-------------|
+| **Data prep** | |
 | `load-data` | Load Hetionet v1.0 (2016) and GO annotations (2024) |
 | `filter-change` | Percent-change + IQR filtering (all_GO_positive_growth) |
 | `go-hierarchy-analysis` | GO hierarchy metrics + parents_GO_postive_growth |
 | `filter-jaccard` | Jaccard filtering (all_GO, plus parents_GO when available) |
-| `gen-permutation` | Generate permutation null datasets |
-| `gen-random` | Generate random null datasets |
-| `compute-dwpc-direct` | Compute DWPC via direct matrix multiplication |
-| `validate-dwpc-concordance` | Compare direct DWPC values against historical API results |
+| `gen-permutation` | Generate permutation null datasets (year cohorts) |
+| `gen-random` | Generate promiscuity-matched random null datasets (year cohorts) |
+| `pipeline-null` | Run both null dataset generators in sequence |
+| **DWPC compute / validation** | |
+| `compute-dwpc-direct` | Compute DWPC via direct sparse-matrix multiplication |
 | `warmup-dwpc-cache` | Precompute and cache year DWPC metapath matrices only |
+| `validate-dwpc-concordance` | Compare direct DWPC values against historical API results |
 | `lookup-dwpc-api` | Lookup DWPC via the Docker API stack |
 | `lookup-dwpc-api-with-docker` | Start Docker stack, wait for API, then run DWPC |
 | `test-dwpc-accuracy` | Validate direct DWPC computation against API |
-| `benchmark-dwpc` | Benchmark direct vs API computation |
-| `year-null-variance-exp` | Year-based null variance analysis across perm/random replicates |
-| `year-rank-stability-exp` | Year-based metapath rank-stability analysis across perm/random replicates |
+| `benchmark-dwpc` | Benchmark direct vs API DWPC computation |
+| **Year experiments + plots** | |
+| `year-null-variance-exp` / `year-null-variance-plots` | Year null-variance analysis + plots |
+| `year-rank-stability-exp` / `year-rank-stability-plots` | Year metapath rank-stability analysis + plots |
+| `year-rank-seed-comparisons` | Per-seed metapath rank scatter against a reference seed |
+| `year-go-term-support` | Build year GO-term and global metapath support tables |
+| `year-snapshot-rank-similarity` | Year 2016-vs-2024 metapath rank similarity at fixed support |
+| `year-api-compare-to-mean-dwpc`, `year-api-sampled-statistics-analysis` | Year API analyses |
+| **LV preparation + experiments + plots** | |
 | `lv-prepare-exp` | Prepare shared LV inputs for explicit null-replicate experiments |
-| `lv-gen-permutation` | Generate explicit LV permuted replicate artifacts |
-| `lv-gen-random` | Generate explicit LV random replicate artifacts |
+| `lv-gen-permutation` / `lv-gen-random` | Generate explicit LV permuted / random replicate artifacts |
 | `lv-compute-replicate-summaries` | Compute one LV metapath-summary artifact per replicate |
-| `lv-null-variance-exp` | LV null variance analysis from explicit replicate summaries |
-| `lv-rank-stability-exp` | LV metapath rank-stability analysis from explicit replicate summaries |
-| `lv-prepare-exp-all-metapaths` | Prepare shared LV inputs across all metapaths |
-| `lv-null-variance-exp-all-metapaths` | LV null variance analysis for all-metapath prepared workspace |
-| `lv-rank-stability-exp-all-metapaths` | LV rank-stability analysis for all-metapath prepared workspace |
-| `pipeline-year-exp` | Run staged year-comparison experiment pipeline |
-| `pipeline-production` | Run full production pipeline |
-| `pipeline-publication` | Run full publication pipeline |
-| `pipeline-null` | Run null dataset generation |
-| `convert-notebooks` | Convert notebooks to Python scripts |
+| `lv-null-variance-exp` / `lv-null-variance-plots` | LV null-variance analysis + plots |
+| `lv-rank-stability-exp` / `lv-rank-stability-plots` | LV rank-stability analysis + plots |
+| `lv-rank-seed-comparisons` | Per-seed metapath rank scatter against a reference seed |
+| **LV multi-DWPC pipeline (staged orchestrator)** | |
+| `lv-top-genes` / `lv-target-sets` / `lv-real-dwpc` | Per-stage entrypoints |
+| `lv-precompute-scores` / `lv-nulls` / `lv-stats` | Per-stage entrypoints |
+| `lv-top-subgraphs` / `lv-plot-subgraphs` | Per-stage entrypoints |
+| `lv-pipeline-fast` / `lv-pipeline-fast-smoke` | Full / smoke runs |
+| **Maintenance** | |
 | `clean` | Remove generated data directories |
 
+The null-variance / rank-stability / rank-seed-comparison experiments and
+plots are dispatched on `--analysis-type {year,lv}` behind the scenes; the
+`year-*` and `lv-*` task names are thin wrappers that pre-fill the flag.
+
 Note: `filter-jaccard` includes parents_GO_postive_growth only when run with
-`python scripts/jaccard_similarity_and_filtering.py --include-parents` or via
-`poe pipeline-publication`.
+`python scripts/data_prep/jaccard_similarity_and_filtering.py --include-parents`.
 
 ### Pipeline scripts
 
-Located in `scripts/`:
+Layout (under `scripts/`):
 
-1. **load_data.py** - Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
-2. **percent_change_and_filtering.py** - Percent-change + IQR filtering for all_GO_positive_growth
-3. **go_hierarchy_analysis.py** - GO hierarchy metrics and parents_GO_postive_growth generation
-4. **jaccard_similarity_and_filtering.py** - Jaccard filtering for all_GO (and parents_GO when available)
-5. **build_null_datasets.py --method {permutation,random}** - Generates permutation- or promiscuity-matched random null datasets
-7. **compute_dwpc_direct.py** - Direct DWPC computation
-8. **lookup_dwpc_api.py** - API-based DWPC lookup
-9. **pipeline_publication.py** - Full publication pipeline runner
-10. **pipeline_production.py** - Full production pipeline runner
-11. **pipeline_year_experiment.py** - Staged year-comparison experiment runner
-12. **year_null_variance_experiment.py** - Year null-variance analysis runner
-13. **year_rank_stability_experiment.py** - Year metapath rank-stability analysis runner
+#### `data_prep/` — load, filter, generate nulls, compute DWPC
+- `load_data.py` — Loads Hetionet v1.0 (2016) and GO annotations (2024), filters to common genes and GO terms
+- `percent_change_and_filtering.py` — Percent-change + IQR filtering for all_GO_positive_growth
+- `go_hierarchy_analysis.py` — GO hierarchy metrics and parents_GO_postive_growth generation
+- `jaccard_similarity_and_filtering.py` — Jaccard filtering for all_GO (and parents_GO when available)
+- `build_null_datasets.py --method {permutation,random}` — Permutation- or promiscuity-matched random null datasets (year cohorts)
+- `compute_dwpc_direct.py` — Direct DWPC computation via sparse-matrix multiplication
+- `build_year_top_genes.py` — Build the per-(GO, gene) table consumed by `intermediate_sharing.py --analysis-type year`
+- `download_lv_loadings.py` — Download MultiPLIER Z matrix
+- `go_hierarchy_analysis.py` — GO hierarchy metric computation
+
+#### `pipeline/` — analysis stages chained by the runners
+- `intermediate_sharing.py --analysis-type {year,lv}` — Computes intermediate sharing per metapath
+- `select_optimal_b.py` — Joint stabilization-curve B selection from null-variance + rank-stability outputs
+- `select_top_go_terms.py` — Pick top-N GO terms by intermediate-sharing signal (year only)
+- `generate_global_summary.py` — Roll up per-metapath sharing into a global summary
+- `generate_gene_table.py` — Per-gene connectivity + DWPC table (consumable for downstream visualization)
+- `run_year_pipeline.py` / `run_lv_pipeline.py` — End-to-end orchestrators that chain the above stages
+
+#### `experiments/` — null-variance and rank-stability experiments
+- `null_variance_experiment.py --analysis-type {year,lv}` — Null variance across B/seed
+- `rank_stability_experiment.py --analysis-type {year,lv}` — Metapath rank stability across B/seed
+- `lv_prepare_experiment.py`, `lv_generate_control_replicates.py`, `lv_compute_replicate_summaries.py` — LV experiment setup steps
+- `lv_multidwpc_analysis.py` — Staged LV multi-DWPC orchestrator (run with `--stage <name>`)
+
+#### `visualization/` — plots
+- `plot_null_variance_results.py --analysis-type {year,lv}` — Null-variance plots
+- `plot_rank_stability_results.py --analysis-type {year,lv}` — Rank-stability plots
+- `plot_rank_seed_comparisons.py --analysis-type {year,lv}` — Seed-comparison rank scatter
+- `plot_year_intermediate_sharing.py` / `plot_lv_intermediate_sharing.py` — Intermediate-sharing plots (domain-specific, not unified)
+- `plot_metapath_subgraphs.py` — Subgraph rendering for top metapaths
+- `plot_year_effective_metapath_selection.py` — Year-only metapath-selection diagnostic
+- `year_go_term_support.py`, `year_snapshot_rank_similarity.py` — Year-only diagnostics
+- `plot_dwpc_benchmark.py` — DWPC benchmarking plots
+
+#### `api/` — API stack utilities
+- `wait_for_api.py`, `lookup_dwpc_api.py`, `test_dwpc_accuracy.py`, `validate_dwpc_concordance.py`, `benchmark_dwpc_methods.py`, `benchmark_dwpc_permutation_scaling.py`, `year_api_compare_statistics_to_mean_dwpc.py`, `year_api_sampled_statistics_analysis.py`
 
 ### Dataset naming
 
@@ -248,10 +295,19 @@ Outputs are written to `output/benchmark_plots/`, including:
 
 Run the staged year comparison pipeline (2016 vs 2024) with null generation,
 direct DWPC computation, year-vs-control effect-size summaries, and
-metapath rank-stability analyses:
+metapath rank-stability analyses by chaining the per-stage poe tasks (or
+use the end-to-end runner / HPC submit script):
 
 ```bash
-poe pipeline-year-exp
+# Local end-to-end (uses run_year_pipeline.py to orchestrate stages)
+python3 scripts/pipeline/run_year_pipeline.py --output-dir output/year_full_analysis
+
+# Or assemble manually from the per-stage poe tasks
+poe gen-permutation
+poe gen-random
+poe compute-dwpc-direct
+poe year-null-variance-exp
+poe year-rank-stability-exp
 ```
 
 ### Unified year experiment workflow

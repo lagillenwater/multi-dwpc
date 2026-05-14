@@ -3,7 +3,7 @@
 Visualize LV intermediate sharing results.
 
 Usage:
-    python scripts/plot_lv_intermediate_sharing.py --input-dir output/lv_intermediate_sharing
+    python scripts/visualization/plot_lv_intermediate_sharing.py --input-dir output/lv_intermediate_sharing
 """
 
 import argparse
@@ -642,8 +642,8 @@ def main() -> None:
     summary_df = pd.read_csv(summary_path)
     top_int_df = pd.read_csv(top_int_path) if top_int_path.exists() else None
 
-    # Year data should use scripts/plot_year_intermediate_sharing.py, which
-    # preserves the 2016-vs-2024 cohort split. This LV-only script's column
+    # Year data should use scripts/visualization/plot_year_intermediate_sharing.py,
+    # which preserves the 2016-vs-2024 cohort split. This LV-only script's column
     # assumptions (single n_genes_with_paths, single pct_genes_sharing) don't
     # map to year semantics without pooling cohorts, which destroys the
     # comparison. Bail out with a clear message rather than render misleading
@@ -651,8 +651,8 @@ def main() -> None:
     if args.analysis_type == "year":
         raise SystemExit(
             "This script is LV-only. For year data use "
-            "scripts/plot_year_intermediate_sharing.py (preserves the "
-            "2016-vs-2024 cohort split)."
+            "scripts/visualization/plot_year_intermediate_sharing.py "
+            "(preserves the 2016-vs-2024 cohort split)."
         )
 
     # Optional filter to a provided list of ids (top GOs for year, etc.).
