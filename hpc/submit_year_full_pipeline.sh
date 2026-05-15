@@ -96,7 +96,7 @@ CHOSEN_B_PATH="$OUTPUT_DIR/b_selection/chosen_b.json"
 
 if [[ "$SKIP_B_SELECT" == "1" ]] && [[ -f "$CHOSEN_B_PATH" ]]; then
     echo "Skipping B selection - using existing $CHOSEN_B_PATH"
-    CHOSEN_B=$(python3 scripts/pipeline/read_json_value.py "$CHOSEN_B_PATH" chosen_b)
+    CHOSEN_B=$(jq -r '.chosen_b' "$CHOSEN_B_PATH")
     echo "Chosen B = $CHOSEN_B"
 else
     # Explicit overrides win; otherwise fall back to the legacy single-root layout.
@@ -151,7 +151,7 @@ echo "Stage 2: Intermediate Sharing"
 echo "-----------------------------"
 
 INT_SHARE_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for intermediate sharing\"
 
 # Remove stale per-B subdirectories from prior runs so only the chosen B remains.
@@ -165,7 +165,8 @@ for stale_dir in \"$OUTPUT_DIR/intermediate_sharing\"/b*/; do
 done
 shopt -u nullglob
 
-python3 scripts/pipeline/year_intermediate_sharing.py \\
+python3 scripts/pipeline/intermediate_sharing.py \\
+    --analysis-type year \\
     --year-output-dir \"$YEAR_OUTPUT_DIR\" \\
     --added-pairs-path \"$ADDED_PAIRS_PATH\" \\
     --b \$CHOSEN_B \\
@@ -203,7 +204,7 @@ echo "Stage 3: Select Top GO Terms"
 echo "-----------------------------"
 
 TOP_GO_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for top GO selection\"
 
 python3 scripts/pipeline/select_top_go_terms.py \\
@@ -236,7 +237,7 @@ echo "Stage 4: Global Summary"
 echo "-----------------------"
 
 SUMMARY_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for global summary\"
 
 python3 scripts/pipeline/generate_global_summary.py \\
@@ -271,7 +272,7 @@ echo "Stage 5: Gene Connectivity Table"
 echo "---------------------------------"
 
 GENE_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for gene table\"
 
 python3 scripts/pipeline/generate_gene_table.py \\
@@ -305,8 +306,8 @@ echo "Stage 6: Subgraph Visualization"
 echo "--------------------------------"
 
 VIZ_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
-TOP_GO_IDS=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/top_go_ids.json\")
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
+TOP_GO_IDS=\$(jq -r 'join(" ")' \"$OUTPUT_DIR/top_go_ids.json\")
 echo \"Using chosen B = \$CHOSEN_B\"
 echo \"Top GO terms: \$TOP_GO_IDS\"
 
@@ -346,7 +347,7 @@ echo "Stage 7: Intermediate Sharing Plots"
 echo "-----------------------------------"
 
 INT_PLOTS_CMD="
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for year intermediate sharing plots\"
 
 python3 scripts/visualization/plot_year_intermediate_sharing.py \\
@@ -382,7 +383,7 @@ YEAR_RUNS_PATH="${YEAR_RANK_RUNS_PATH:-$YEAR_OUTPUT_DIR/year_rank_stability_expe
 
 MP_COMPARE_CMD="
 set -e
-CHOSEN_B=\$(python3 scripts/pipeline/read_json_value.py \"$OUTPUT_DIR/b_selection/chosen_b.json\" chosen_b)
+CHOSEN_B=\$(jq -r '.chosen_b' \"$OUTPUT_DIR/b_selection/chosen_b.json\")
 echo \"Using chosen B = \$CHOSEN_B for metapath selection comparison\"
 
 # 1. Build GO-term support CSV at the chosen B (one row per year x metapath x GO).

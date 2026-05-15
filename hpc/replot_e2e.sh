@@ -57,24 +57,24 @@ run_step () {
 
 # 1. Year + LV experiment plots ---------------------------------------------
 run_step "year null variance (plot-only)" \
-    python3 scripts/experiments/year_null_variance_experiment.py --plot-only \
+    python3 scripts/experiments/null_variance_experiment.py --analysis-type year --plot-only \
         --workspace-dir "$RUN/year_experiment" \
         --output-dir "$RUN/year_experiment" \
         --b-values "$B" --seeds "$S"
 
 run_step "year rank stability (plot-only)" \
-    python3 scripts/experiments/year_rank_stability_experiment.py --plot-only \
+    python3 scripts/experiments/rank_stability_experiment.py --analysis-type year --plot-only \
         --workspace-dir "$RUN/year_experiment" \
         --output-dir "$RUN/year_experiment" \
         --b-values "$B" --seeds "$S"
 
 run_step "lv null variance (plot-only)" \
-    python3 scripts/experiments/lv_null_variance_experiment.py --plot-only \
+    python3 scripts/experiments/null_variance_experiment.py --analysis-type lv --plot-only \
         --output-dir "$RUN/lv_experiment" \
         --b-values "$B" --seeds "$S"
 
 run_step "lv rank stability (plot-only)" \
-    python3 scripts/experiments/lv_rank_stability_experiment.py --plot-only \
+    python3 scripts/experiments/rank_stability_experiment.py --analysis-type lv --plot-only \
         --output-dir "$RUN/lv_experiment" \
         --b-values "$B" --seeds "$S"
 

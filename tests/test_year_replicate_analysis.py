@@ -8,7 +8,11 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.year_replicate_analysis import load_summary_bank  # noqa: E402
+from src.replicate_analysis import load_domain_summary_bank  # noqa: E402
+
+
+def load_summary_bank(workspace_path):
+    return load_domain_summary_bank(workspace_path, domain="year")
 
 
 class YearReplicateAnalysisTests(unittest.TestCase):

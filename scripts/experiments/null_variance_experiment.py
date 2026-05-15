@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""Null-variance analysis over explicit replicate summary artifacts.
+
+Replaces the prior `year_null_variance_experiment.py` and
+`lv_null_variance_experiment.py`. Dispatches on `--analysis-type {year,lv}`.
+
+Year mode: builds B/seed runs from year replicate summaries (or normalizes
+raw API/direct results when no manifest exists), summarizes feature variance
+across (year, control, b) groups, plots per-year overlays.
+
+LV mode: builds B/seed runs from LV replicate summaries, summarizes feature
+variance across (control, b) groups, plots one line per control.
+
+Outputs (under `<output-dir>/{year,lv}_null_variance_experiment/`):
+    all_runs_long.csv
+    feature_variance_summary.csv
+    overall_variance_summary.csv
+    variance_overall_by_group.pdf (+ .png)
+    sd_overall_by_group.pdf (+ .png)
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
+
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+
+matplotlib.use("Agg")
+
+if Path.cwd().name == "scripts":
+    REPO_ROOT = Path("..").resolve()
+else:
+    REPO_ROOT = Path.cwd()
+
+sys.path.insert(0, str(REPO_ROOT))
+from src.replicate_analysis import (  # noqa: E402
+    build_b_seed_runs,
+    feature_keys,
+    load_domain_summary_bank,
+    summarize_feature_variance,
+    summarize_overall_variance,
+)
+from src.result_normalization import (  # noqa: E402
+    load_normalized_year_results,
+    summarize_normalized_year_results,
+)
+
+
+def _save_dual(fig: plt.Figure, output_path: Path) -> None:
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    if output_path.suffix.lower() == ".pdf":
+        fig.savefig(output_path.with_suffix(".png"), dpi=150, bbox_inches="tight")
+
+
+def _default_results_dir(score_source: str) -> str:
+    if str(score_source) == "api":
+        return "output/dwpc_com/all_GO_positive_growth/results"
+    return "output/dwpc_direct/all_GO_positive_growth/results"
+
+
+def _parse_int_list(arg: str) -> list[int]:
+    values = [int(tok.strip()) for tok in str(arg).split(",") if tok.strip()]
+    if not values:
+        raise ValueError("Expected at least one integer value")
+    return values
+
+
+# ---------------------------------------------------------------------------
+# Year-specific plot
+# ---------------------------------------------------------------------------
+
+
+def _plot_overall_year(
+    overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, output_path: Path
+) -> None:
+    years = sorted(overall_df["year"].dropna().astype(int).unique().tolist())
+    b_values = sorted(overall_df["b"].dropna().astype(int).unique().tolist())
+    controls = sorted(overall_df["control"].dropna().astype(str).unique().tolist())
+    if not years or not controls or not b_values:
+        return
+
+    year_colors = {year: color for year, color in zip(years, ["#1f77b4", "#ff7f0e", "#2ca02c", "#9467bd"])}
+
+    fig, axes = plt.subplots(1, len(controls), figsize=(6.6 * len(controls), 4.8), sharey=True)
+    if len(controls) == 1:
+        axes = [axes]
+    for ax, control in zip(axes, controls):
+        subset = overall_df[overall_df["control"].astype(str) == control].copy()
+        for year in years:
+            year_df = subset[subset["year"].astype(int) == int(year)].copy().sort_values("b")
+            if year_df.empty:
+                continue
+            ax.plot(
+                year_df["b"].astype(int),
+                year_df[y_col].astype(float),
+                marker="o",
+                linewidth=2.2,
+                color=year_colors.get(year, "#333333"),
+                label=str(year),
+            )
+        ax.set_xlabel("B")
+        ax.set_title(control)
+        ax.grid(alpha=0.25)
+    axes[0].set_ylabel(y_label)
+    axes[-1].legend(title="Year")
+    fig.suptitle(title)
+    fig.tight_layout()
+    _save_dual(fig, output_path)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# LV-specific plot
+# ---------------------------------------------------------------------------
+
+
+def _plot_overall_lv(
+    overall_df: pd.DataFrame, y_col: str, y_label: str, title: str, output_path: Path
+) -> None:
+    if overall_df.empty:
+        return
+    controls = sorted(overall_df["control"].astype(str).unique().tolist())
+    colors = {"permuted": "#1f77b4", "random": "#d62728"}
+    fig, axes = plt.subplots(1, len(controls), figsize=(6.5 * len(controls), 4.8), sharey=True)
+    if len(controls) == 1:
+        axes = [axes]
+    for ax, control in zip(axes, controls):
+        subset = overall_df[overall_df["control"].astype(str) == control].copy().sort_values("b")
+        ax.plot(
+            subset["b"].astype(int),
+            subset[y_col].astype(float),
+            marker="o",
+            linewidth=2.2,
+            color=colors.get(control, "#333333"),
+        )
+        ax.set_xlabel("B")
+        ax.set_title(control)
+        ax.grid(alpha=0.25)
+    axes[0].set_ylabel(y_label)
+    fig.suptitle(title)
+    fig.tight_layout()
+    _save_dual(fig, output_path)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Year-specific input discovery
+# ---------------------------------------------------------------------------
+
+
+def _load_year_summary(args: argparse.Namespace) -> pd.DataFrame:
+    """Year-side fallback chain: manifest -> summaries dir -> normalize raw results."""
+    results_dir = (
+        Path(args.results_dir) if args.results_dir
+        else Path(_default_results_dir(args.score_source))
+    )
+    workspace_dir = Path(args.workspace_dir) if args.workspace_dir else results_dir.parent
+    summary_dir_candidate = workspace_dir / "replicate_summaries"
+
+    if args.summaries_dir:
+        return load_domain_summary_bank(Path(args.summaries_dir), domain="year")
+    if summary_dir_candidate.exists():
+        return load_domain_summary_bank(summary_dir_candidate, domain="year")
+
+    summary_source = workspace_dir
+    if (summary_source / "replicate_manifest.csv").exists() or summary_source.is_file():
+        return load_domain_summary_bank(summary_source, domain="year")
+
+    normalized_df = load_normalized_year_results(
+        results_dir,
+        score_source=str(args.score_source),
+        data_dir=Path(args.data_dir),
+    )
+    summary_df = summarize_normalized_year_results(normalized_df)
+    if summary_df.empty:
+        raise ValueError(
+            f"No summary rows produced from normalized {args.score_source} results under {results_dir}"
+        )
+    return summary_df
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--analysis-type", required=True, choices=["year", "lv"],
+        help="year (cross-year cohort variance) or lv (per-LV gene-set variance).",
+    )
+    # Shared
+    parser.add_argument("--output-dir", required=True,
+                        help="Root output directory; experiment subdir is `<analysis>_null_variance_experiment`.")
+    parser.add_argument("--analysis-output-dir", default=None,
+                        help="Override the experiment subdir entirely (skips the analysis-type concatenation).")
+    parser.add_argument("--b-values", default="1,2,5,10,20",
+                        help="Comma-separated B values. Default: 1,2,5,10,20.")
+    parser.add_argument("--seeds", default="11,22,33,44,55",
+                        help="Comma-separated seeds. Default: 11,22,33,44,55.")
+    parser.add_argument(
+        "--plot-only", action="store_true",
+        help="Skip aggregation; read overall_variance_summary.csv from the experiment dir and re-render plots only.",
+    )
+
+    # Year-only flags (input discovery / raw-results fallback)
+    parser.add_argument("--score-source", default="direct", choices=["direct", "api"],
+                        help="[year only] direct (default) or api scoring source for the raw-results fallback.")
+    parser.add_argument("--results-dir", default=None,
+                        help="[year only] Raw results directory; default depends on --score-source.")
+    parser.add_argument("--data-dir", default=str(REPO_ROOT / "data"),
+                        help="[year only] Data dir for raw-results normalization.")
+    parser.add_argument("--workspace-dir", default=None,
+                        help="[year only] Workspace dir containing `replicate_manifest.csv`. Default: parent of --results-dir.")
+    parser.add_argument("--summaries-dir", default=None,
+                        help="[year only] Direct path to a `replicate_summaries/` directory. Skips fallback chain.")
+
+    return parser.parse_args()
+
+
+def _resolve_exp_dir(args: argparse.Namespace) -> Path:
+    if args.analysis_output_dir:
+        return Path(args.analysis_output_dir)
+    return Path(args.output_dir) / f"{args.analysis_type}_null_variance_experiment"
+
+
+def _load_summary(args: argparse.Namespace) -> pd.DataFrame:
+    if args.analysis_type == "year":
+        return _load_year_summary(args)
+    return load_domain_summary_bank(Path(args.output_dir), domain="lv")
+
+
+def main() -> None:
+    args = parse_args()
+    domain = args.analysis_type
+    exp_dir = _resolve_exp_dir(args)
+
+    if args.plot_only:
+        overall_path = exp_dir / "overall_variance_summary.csv"
+        if not overall_path.exists():
+            raise FileNotFoundError(
+                f"--plot-only requires {overall_path} to exist. Run without --plot-only first."
+            )
+        overall_df = pd.read_csv(overall_path)
+        print(f"--plot-only: loaded {overall_path} ({len(overall_df)} rows)")
+    else:
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        summary_df = _load_summary(args)
+        runs_df = build_b_seed_runs(
+            summary_df,
+            _parse_int_list(args.b_values),
+            _parse_int_list(args.seeds),
+            domain=domain,
+        )
+
+        if domain == "year":
+            variance_keys = ["year", "control", "b", *feature_keys("year")]
+            overall_keys = ["year", "control", "b"]
+        else:
+            variance_keys = ["control", "b", *feature_keys("lv")]
+            overall_keys = ["control", "b"]
+
+        feature_df = summarize_feature_variance(runs_df, variance_keys)
+        overall_df = summarize_overall_variance(
+            feature_df,
+            overall_keys=overall_keys,
+            runs_df=runs_df,
+            replicate_col="seed",
+        )
+
+        runs_df.to_csv(exp_dir / "all_runs_long.csv", index=False)
+        feature_df.to_csv(exp_dir / "feature_variance_summary.csv", index=False)
+        overall_df.to_csv(exp_dir / "overall_variance_summary.csv", index=False)
+
+    plot_fn = _plot_overall_year if domain == "year" else _plot_overall_lv
+    entity_label = "GO terms/metapaths" if domain == "year" else "LVs/metapaths"
+    title_label = "Year" if domain == "year" else "LV"
+
+    plot_fn(
+        overall_df,
+        y_col="mean_diff_var",
+        y_label=f"Mean feature variance of diff across {entity_label}",
+        title=f"{title_label} null variance by B",
+        output_path=exp_dir / "variance_overall_by_group.pdf",
+    )
+    plot_fn(
+        overall_df,
+        y_col="mean_diff_std",
+        y_label=f"Mean feature SD of diff across {entity_label}",
+        title=f"{title_label} null SD by B",
+        output_path=exp_dir / "sd_overall_by_group.pdf",
+    )
+
+    if not args.plot_only:
+        print(f"Saved runs: {exp_dir / 'all_runs_long.csv'}")
+        print(f"Saved feature summary: {exp_dir / 'feature_variance_summary.csv'}")
+        print(f"Saved overall summary: {exp_dir / 'overall_variance_summary.csv'}")
+
+
+if __name__ == "__main__":
+    main()

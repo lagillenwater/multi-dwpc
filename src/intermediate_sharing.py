@@ -1,9 +1,9 @@
 """Shared intermediate sharing computation for year and LV analyses.
 
-Functions here are used by both ``scripts/pipeline/year_intermediate_sharing.py``
-and ``scripts/pipeline/lv_intermediate_sharing.py``.  Analysis-specific logic
+Functions here are used by ``scripts/pipeline/intermediate_sharing.py`` (which
+dispatches on ``--analysis-type {year,lv}``).  Analysis-specific logic
 (metapath selection strategy, sharing-stat definitions, DWPC numpy loading)
-stays in the respective script files.
+stays in that script.
 """
 
 from __future__ import annotations

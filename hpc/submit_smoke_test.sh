@@ -82,7 +82,7 @@ if [[ ! -d "$LV_OUTPUT_DIR" ]]; then
     echo "Skipping LV smoke test. Run LV experiments first."
     LV_JOB_ID=""
 else
-    LV_CMD="python3 scripts/pipeline/lv_intermediate_sharing.py --lv-output-dirs $LV_OUTPUT_DIR --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --output-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\""
+    LV_CMD="python3 scripts/pipeline/intermediate_sharing.py --analysis-type lv --lv-output-dirs $LV_OUTPUT_DIR --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --output-dir \"$SMOKE_OUTPUT_DIR/lv_intermediate_sharing\""
 
     LV_JOB_ID=$(submit_timed_job "lv-int" "16G" "01:00:00" "$LV_CMD")
     echo "Submitted LV intermediate sharing: $LV_JOB_ID"
@@ -194,7 +194,7 @@ if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
     fi
 
     if [[ -n "${GO_ID:-}" ]]; then
-        YEAR_CMD="python3 scripts/pipeline/year_intermediate_sharing.py --year-output-dir \"$YEAR_OUTPUT_DIR\" --added-pairs-path \"$ADDED_PAIRS_PATH\" --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --go-id \"$GO_ID\" --output-dir \"$SMOKE_OUTPUT_DIR/year_intermediate_sharing\""
+        YEAR_CMD="python3 scripts/pipeline/intermediate_sharing.py --analysis-type year --year-output-dir \"$YEAR_OUTPUT_DIR\" --added-pairs-path \"$ADDED_PAIRS_PATH\" --b $B_VALUE --effect-size-threshold 0.2 --dwpc-percentile 75 --go-id \"$GO_ID\" --output-dir \"$SMOKE_OUTPUT_DIR/year_intermediate_sharing\""
 
         YEAR_JOB_ID=$(sbatch \
             --parsable \

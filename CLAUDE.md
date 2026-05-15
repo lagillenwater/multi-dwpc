@@ -1,5 +1,11 @@
 # Multi-DWPC Project Notes
 
+## Working style (always)
+
+- Respond in as few words as possible.
+- Code in as few lines as possible.
+- Touch as little as possible when making edits.
+
 ## Environment
 
 - **Local environment**: Does not have scipy installed
@@ -8,9 +14,18 @@
 
 ## Key Scripts
 
-- `scripts/year_intermediate_sharing_2016_2024.py` - Computes intermediate sharing between 2016 and 2024-added genes
-- `scripts/lv_intermediate_sharing.py` - Computes intermediate sharing for LV gene sets with b=10 metapath selection
-- `scripts/lv_multidwpc_analysis.py` - Main LV analysis orchestrator
+Year and LV pipelines are unified behind `--analysis-type {year,lv}` entrypoints
+under `scripts/`:
+
+- `scripts/pipeline/intermediate_sharing.py --analysis-type {year,lv}` - Computes intermediate sharing (year: 2016-vs-2024 cohort split; lv: per-LV gene sets)
+- `scripts/pipeline/run_year_pipeline.py` / `run_lv_pipeline.py` - End-to-end orchestrators that chain B-selection -> intermediate sharing -> generate global summary -> gene table -> visualization
+- `scripts/experiments/null_variance_experiment.py --analysis-type {year,lv}` - Null variance across B/seed
+- `scripts/experiments/rank_stability_experiment.py --analysis-type {year,lv}` - Rank stability across B/seed
+- `scripts/experiments/lv_multidwpc_analysis.py` - LV multi-DWPC staged orchestrator (LV-only)
+- `scripts/data_prep/build_null_datasets.py --method {permutation,random}` - Year null datasets
+
+Layout: `scripts/{data_prep,pipeline,experiments,visualization}/`. Live HPC
+submit scripts in `hpc/`.
 
 ## HPC Submission
 

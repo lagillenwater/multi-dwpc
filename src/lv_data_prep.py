@@ -1,18 +1,24 @@
-"""
-Utilities for latent variable input processing.
-- load LV-gene loading tables
-- map genes to Hetionet gene nodes
-- select top fraction of genes per LV
+"""LV data preparation: load loadings, select top genes, resolve targets, build gene-target pairs.
+
+Merges the prior `src/lv_inputs.py`, `src/lv_targets.py`, and `src/lv_pairs.py` modules.
+Public API (unchanged from the originals):
+- extract_top_lv_genes
+- LVTarget, DEFAULT_LV_TARGETS, resolve_target, build_lv_targets, load_lv_targets
+- build_lv_gene_target_pairs
 """
 
 from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, NamedTuple, Optional
 
 import pandas as pd
 
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 LV_COLUMN_CANDIDATES = ("lv_id", "lv", "latent_variable", "component")
 GENE_COLUMN_CANDIDATES = (
@@ -25,16 +31,31 @@ GENE_COLUMN_CANDIDATES = (
 )
 LOADING_COLUMN_CANDIDATES = ("loading", "weight", "score", "value")
 
+DEFAULT_LV_TARGETS: dict[str, tuple[str, str]] = {
+    # lv_id -> (node_type, target_id)
+    "LV603": ("Side Effect", "C3665444"),  # Neutrophilia
+    "LV246": ("Anatomy", "UBERON:0001013"),  # Adipose tissue
+    "LV57": ("Disease", "DOID:1459"),  # Hypothyroidism
+}
 
-def _is_git_lfs_pointer(path: Path) -> bool:
-    try:
-        header = path.read_bytes()[:120]
-    except OSError:
-        return False
-    return header.startswith(b"version https://git-lfs.github.com/spec/v1")
+
+class LVTarget(NamedTuple):
+    """Single target definition for an LV."""
+
+    lv_id: str
+    target_id: str
+    target_name: str
+    node_type: str
+    target_position: int
+
+
+# ---------------------------------------------------------------------------
+# Normalization helpers
+# ---------------------------------------------------------------------------
 
 
 def _normalize_lv_id(value: object) -> str:
+    """Normalize LV IDs to canonical form (e.g., lv603 -> LV603)."""
     text = str(value).strip()
     if not text:
         return text
@@ -64,6 +85,19 @@ def _normalize_gene_token(value: object) -> str:
         if stem.isdigit():
             text = stem
     return text
+
+
+# ---------------------------------------------------------------------------
+# Loadings I/O helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_git_lfs_pointer(path: Path) -> bool:
+    try:
+        header = path.read_bytes()[:120]
+    except OSError:
+        return False
+    return header.startswith(b"version https://git-lfs.github.com/spec/v1")
 
 
 def _read_lv_loadings(path: Path) -> pd.DataFrame:
@@ -114,13 +148,7 @@ def _coerce_wide_z_to_long(
     requested_lvs: Optional[Iterable[str]],
     explicit_gene_column: Optional[str],
 ) -> Optional[pd.DataFrame]:
-    """
-    Convert wide MultiPLIER Z matrix format to long format.
-
-    Expected wide shape:
-    - one gene column (often "Unnamed: 0")
-    - many LV columns (e.g., LV1, LV2, ..., LV987)
-    """
+    """Convert wide MultiPLIER Z matrix (one gene col + many LV cols) to long format."""
     if df.empty:
         return None
 
@@ -202,6 +230,11 @@ def _map_input_gene_to_identifier(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Public: top-gene extraction
+# ---------------------------------------------------------------------------
+
+
 def extract_top_lv_genes(
     lv_loadings_path: Path,
     gene_reference_path: Path,
@@ -213,26 +246,7 @@ def extract_top_lv_genes(
     gene_column: Optional[str] = None,
     loading_column: Optional[str] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Load LV loadings, map genes to Hetionet, and select top genes per LV.
-
-    Parameters
-    ----------
-    lv_loadings_path
-        Path to LV loadings table.
-    gene_reference_path
-        Path to `data/nodes/Gene.tsv`.
-    output_top_genes_path
-        CSV path for selected top genes.
-    output_summary_path
-        CSV path for per-LV summary metrics.
-    requested_lvs
-        Optional iterable of LV IDs to keep.
-    top_fraction
-        Fraction of mapped genes to keep per LV (e.g., 0.005 for top 0.5%).
-    lv_column, gene_column, loading_column
-        Optional explicit column names in the LV loadings table.
-    """
+    """Load LV loadings, map genes to Hetionet, and select top genes per LV."""
     if top_fraction <= 0 or top_fraction > 1:
         raise ValueError("top_fraction must be in (0, 1].")
 
@@ -292,7 +306,6 @@ def extract_top_lv_genes(
     if mapped.empty:
         raise ValueError("No genes mapped to Hetionet Gene.tsv identifiers.")
 
-    # Keep strongest loading if duplicated gene appears within one LV.
     mapped = mapped.sort_values("loading", ascending=False)
     mapped = mapped.drop_duplicates(subset=["lv_id", "gene_identifier"], keep="first")
 
@@ -355,3 +368,155 @@ def extract_top_lv_genes(
     summary.to_csv(output_summary_path, index=False)
 
     return selected_output, summary
+
+
+# ---------------------------------------------------------------------------
+# Public: target resolution
+# ---------------------------------------------------------------------------
+
+
+def _load_nodes_table(path: Path) -> pd.DataFrame:
+    """Load a hetnet nodes TSV file."""
+    df = pd.read_csv(path, sep="\t")
+    required_cols = {"position", "identifier", "name"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Node table missing required columns {sorted(missing)}: {path}")
+    return df
+
+
+def resolve_target(
+    nodes_dir: Path,
+    node_type: str,
+    target_id: str,
+) -> LVTarget | None:
+    """Resolve a target node from the hetnet nodes directory. Returns None if not found."""
+    node_file = nodes_dir / f"{node_type}.tsv"
+    if not node_file.exists():
+        return None
+
+    nodes_df = _load_nodes_table(node_file)
+    match = nodes_df[nodes_df["identifier"].astype(str) == str(target_id)]
+    if match.empty:
+        return None
+
+    row = match.iloc[0]
+    return LVTarget(
+        lv_id="",  # Will be set by caller
+        target_id=str(row["identifier"]),
+        target_name=str(row["name"]),
+        node_type=node_type,
+        target_position=int(row["position"]),
+    )
+
+
+def build_lv_targets(
+    nodes_dir: Path,
+    output_path: Path,
+    lv_ids: list[str],
+    lv_target_overrides: dict[str, tuple[str, str]] | None = None,
+) -> pd.DataFrame:
+    """Build LV-to-target mapping for the specified LVs."""
+    lv_targets = lv_target_overrides or {}
+    for lv_id in lv_ids:
+        normalized = _normalize_lv_id(lv_id)
+        if normalized not in lv_targets and normalized in DEFAULT_LV_TARGETS:
+            lv_targets[normalized] = DEFAULT_LV_TARGETS[normalized]
+
+    rows: list[dict] = []
+    errors: list[str] = []
+
+    for lv_id in lv_ids:
+        normalized = _normalize_lv_id(lv_id)
+        if normalized not in lv_targets:
+            errors.append(f"No target mapping for {normalized}")
+            continue
+
+        node_type, target_id = lv_targets[normalized]
+        target = resolve_target(nodes_dir, node_type, target_id)
+        if target is None:
+            errors.append(f"Target {target_id} ({node_type}) not found for {normalized}")
+            continue
+
+        rows.append({
+            "lv_id": normalized,
+            "target_id": target.target_id,
+            "target_name": target.target_name,
+            "node_type": target.node_type,
+            "target_position": target.target_position,
+        })
+
+    if errors:
+        raise ValueError("Target resolution errors:\n" + "\n".join(errors))
+
+    if not rows:
+        raise ValueError("No LV targets were resolved")
+
+    targets_df = pd.DataFrame(rows)
+    targets_df = targets_df.sort_values("lv_id").reset_index(drop=True)
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    targets_df.to_csv(output_path, index=False)
+
+    return targets_df
+
+
+def load_lv_targets(output_dir: Path) -> pd.DataFrame:
+    """Load the LV targets CSV from an output directory."""
+    path = Path(output_dir) / "lv_targets.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"LV targets file not found: {path}")
+    return pd.read_csv(path)
+
+
+# ---------------------------------------------------------------------------
+# Public: gene-target pair construction
+# ---------------------------------------------------------------------------
+
+
+def build_lv_gene_target_pairs(
+    top_genes_path: Path,
+    lv_targets_path: Path,
+    output_pairs_path: Path,
+) -> pd.DataFrame:
+    """Build LV-specific gene-target pairs (cross-product of each LV's genes x its target)."""
+    top_genes = pd.read_csv(top_genes_path)
+    lv_targets = pd.read_csv(lv_targets_path)
+
+    required_genes = {"lv_id", "gene_identifier", "gene_symbol", "loading", "rank"}
+    required_targets = {"lv_id", "target_id", "target_name", "node_type", "target_position"}
+
+    missing_genes = required_genes - set(top_genes.columns)
+    missing_targets = required_targets - set(lv_targets.columns)
+
+    if missing_genes:
+        raise ValueError(f"Missing columns in top genes file: {sorted(missing_genes)}")
+    if missing_targets:
+        raise ValueError(f"Missing columns in targets file: {sorted(missing_targets)}")
+
+    top_genes["gene_identifier"] = top_genes["gene_identifier"].astype(str)
+
+    pairs = top_genes.merge(lv_targets, on="lv_id", how="inner")
+    if pairs.empty:
+        raise ValueError("No gene-target pairs generated. Check LV ID alignment.")
+
+    pairs = pairs.rename(columns={"rank": "gene_rank"})
+    pairs = pairs.sort_values(["lv_id", "gene_rank", "target_id"]).reset_index(drop=True)
+
+    output_cols = [
+        "lv_id",
+        "gene_identifier",
+        "gene_symbol",
+        "loading",
+        "gene_rank",
+        "target_id",
+        "target_name",
+        "node_type",
+        "target_position",
+    ]
+    pairs = pairs[output_cols]
+
+    output_pairs_path.parent.mkdir(parents=True, exist_ok=True)
+    pairs.to_csv(output_pairs_path, index=False)
+    return pairs

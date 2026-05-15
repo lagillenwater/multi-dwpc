@@ -225,13 +225,13 @@ python3 scripts/data_prep/build_year_top_genes.py --output-dir $YEAR_OUTPUT_DIR"
 
     # 1b: Year permutation nulls (array: 1 task per replicate)
     YEAR_PERM_CMD="export PERMUTATION_IDS=\$SLURM_ARRAY_TASK_ID && \
-python3 scripts/data_prep/permutation_null_datasets.py"
+python3 scripts/data_prep/build_null_datasets.py --method permutation"
     YEAR_PERM_JOB=$(submit "year-perm" "4G" "00:20:00" "$YEAR_PERM_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
     echo "  Year permutations: $YEAR_PERM_JOB (array 1-${N_REPLICATES}%10)"
 
     # 1c: Year random nulls (array: 1 task per replicate)
     YEAR_RAND_CMD="export RANDOM_SAMPLE_IDS=\$SLURM_ARRAY_TASK_ID && \
-python3 scripts/data_prep/random_null_datasets.py"
+python3 scripts/data_prep/build_null_datasets.py --method random"
     YEAR_RAND_JOB=$(submit "year-rand" "4G" "00:20:00" "$YEAR_RAND_CMD" "$DATA_JOB" 2 "1-${N_REPLICATES}%10")
     echo "  Year random nulls: $YEAR_RAND_JOB (array 1-${N_REPLICATES}%10)"
 
@@ -271,14 +271,14 @@ if [[ "$ANALYSIS_TYPE" == "year" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     echo "  Year DWPC: $YEAR_DWPC_JOB (array 1-${YEAR_N_DATASETS}%20)"
 
     # Phase 3: Experiments (depend on DWPC)
-    YEAR_VAR_CMD="python3 scripts/experiments/year_null_variance_experiment.py \
+    YEAR_VAR_CMD="python3 scripts/experiments/null_variance_experiment.py --analysis-type year \
         --workspace-dir $YEAR_OUTPUT_DIR \
         --output-dir $YEAR_OUTPUT_DIR \
         --b-values $B_VALUES --seeds $SEEDS"
     YEAR_VAR_JOB=$(submit "year-var" "$EXP_MEM" "$EXP_TIME" "$YEAR_VAR_CMD" "$YEAR_DWPC_JOB")
     echo "  Year null variance: $YEAR_VAR_JOB"
 
-    YEAR_RANK_CMD="python3 scripts/experiments/year_rank_stability_experiment.py \
+    YEAR_RANK_CMD="python3 scripts/experiments/rank_stability_experiment.py --analysis-type year \
         --workspace-dir $YEAR_OUTPUT_DIR \
         --output-dir $YEAR_OUTPUT_DIR \
         --b-values $B_VALUES --seeds $SEEDS"
@@ -377,13 +377,13 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     echo "  LV summaries: $LV_SUM_JOB"
 
     # Phase 3: Experiments (depend on summaries)
-    LV_VAR_CMD="python3 scripts/experiments/lv_null_variance_experiment.py \
+    LV_VAR_CMD="python3 scripts/experiments/null_variance_experiment.py --analysis-type lv \
         --output-dir $LV_OUTPUT_DIR \
         --b-values $B_VALUES --seeds $SEEDS"
     LV_VAR_JOB=$(submit "lv-var" "$EXP_MEM" "$EXP_TIME" "$LV_VAR_CMD" "$LV_SUM_JOB")
     echo "  LV null variance: $LV_VAR_JOB"
 
-    LV_RANK_CMD="python3 scripts/experiments/lv_rank_stability_experiment.py \
+    LV_RANK_CMD="python3 scripts/experiments/rank_stability_experiment.py --analysis-type lv \
         --output-dir $LV_OUTPUT_DIR \
         --b-values $B_VALUES --seeds $SEEDS"
     LV_RANK_JOB=$(submit "lv-rank" "$EXP_MEM" "$EXP_TIME" "$LV_RANK_CMD" "$LV_SUM_JOB")

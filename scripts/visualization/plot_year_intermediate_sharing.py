@@ -7,13 +7,13 @@ Preserves the 2016-vs-2024 cohort split from
 script never does that -- every sharing/jaccard/coverage panel shows the
 cohort breakdown explicitly.
 
-Inputs (written by scripts/year_intermediate_sharing.py):
+Inputs (written by `scripts/pipeline/intermediate_sharing.py --analysis-type year`):
     <input-dir>/intermediate_sharing_by_metapath.csv
     <input-dir>/intermediate_sharing_summary.csv        (optional)
     <input-dir>/top_intermediates_by_metapath.csv       (optional)
 
 Typical use (as the year full pipeline runs it):
-    python3 scripts/plot_year_intermediate_sharing.py \\
+    python3 scripts/visualization/plot_year_intermediate_sharing.py \\
         --input-dir output/year_full_analysis/intermediate_sharing/b10 \\
         --top-go-json output/year_full_analysis/top_go_ids.json \\
         --output-dir output/year_full_analysis/intermediate_sharing/b10/figures

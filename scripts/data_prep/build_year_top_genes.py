@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build go_top_genes.csv for year analysis.
 
-Writes a per-(GO, gene) table that year_intermediate_sharing.py reads to
-enumerate path instances. The table is the union of real-filtered 2016 and
-real-filtered 2024-added GO-gene pairs (both positive-growth filtered).
+Writes a per-(GO, gene) table that `intermediate_sharing.py --analysis-type year`
+reads to enumerate path instances. The table is the union of real-filtered 2016
+and real-filtered 2024-added GO-gene pairs (both positive-growth filtered).
 """
 
 from __future__ import annotations

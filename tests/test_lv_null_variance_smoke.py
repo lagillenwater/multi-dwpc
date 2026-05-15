@@ -62,7 +62,8 @@ class LvNullVarianceSmokeTests(unittest.TestCase):
 
             cmd = [
                 sys.executable,
-                "scripts/experiments/lv_null_variance_experiment.py",
+                "scripts/experiments/null_variance_experiment.py",
+                "--analysis-type", "lv",
                 "--output-dir",
                 str(output_dir),
                 "--analysis-output-dir",
