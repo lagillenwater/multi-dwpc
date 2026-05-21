@@ -429,11 +429,17 @@ Key outputs:
 - `output/lv_experiment/lv_null_variance_experiment/feature_variance_summary.csv`
 - `output/lv_experiment/lv_rank_stability_experiment/overall_stability_summary.csv`
 
-### Experiment runbook
 
-The full mirrored LV/year workflow, including HPC submission order, is documented in:
 
-- [`hpc/variance_and_rank_experiments_README.md`](hpc/variance_and_rank_experiments_README.md)
+## Run the web tool prototype
+
+A Streamlit app (`app.py`) lets you enter a gene list and a target node and see the metapath ranking, intermediate sharing, and surviving sub-paths inline.
+
+```bash
+streamlit run app.py
+```
+
+On first launch the app preloads all G→BP DWPC matrices (~90 seconds against a warm `data/dwpc_cache/`; substantially longer on a cold cache while the matrices are computed and saved). Subsequent queries reuse the cached matrices.
 
 # AI Assistance
 This project utilized the AI assistant Claude, developed by Anthropic, during the development process. Its assistance included generating initial code snippets and improving documentation. All AI-generated content was reviewed, tested, and validated by human developers.
