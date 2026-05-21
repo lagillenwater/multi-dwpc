@@ -50,9 +50,6 @@ output/
 
 /gene_ontology/
 
-# notes
-docs/
-
 # Archived code (untracked local copies)
 archive/src_2/
 archive/notebooks/
