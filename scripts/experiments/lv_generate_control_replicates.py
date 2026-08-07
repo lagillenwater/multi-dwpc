@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--replicate-ids", default=None)
     parser.add_argument("--n-replicates", type=int, default=20)
     parser.add_argument("--random-state-base", type=int, default=42)
-    parser.add_argument("--promiscuity-tolerance", type=int, default=2)
+    parser.add_argument("--n-bins", type=int, default=10)
     parser.add_argument("--n-swap-attempts-per-edge", type=int, default=10)
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
@@ -55,7 +55,7 @@ def main() -> None:
             control=args.control,
             replicate=replicate,
             random_state_base=args.random_state_base,
-            promiscuity_tolerance=args.promiscuity_tolerance,
+            n_bins=args.n_bins,
             n_swap_attempts_per_edge=args.n_swap_attempts_per_edge,
             force=args.force,
         )

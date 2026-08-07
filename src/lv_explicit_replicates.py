@@ -114,7 +114,7 @@ def generate_control_artifact(
     control: str,
     replicate: int,
     random_state_base: int = 42,
-    promiscuity_tolerance: int = 2,
+    n_bins: int = 10,
     n_swap_attempts_per_edge: int = 10,
     force: bool = False,
 ) -> Path:
@@ -144,7 +144,7 @@ def generate_control_artifact(
             source_col="lv_id",
             target_col="gene_identifier",
             target_universe=load_gene_universe(output_dir),
-            promiscuity_tolerance=promiscuity_tolerance,
+            n_bins=n_bins,
             random_state=seed,
             include_match_metadata=True,
         )

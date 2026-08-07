@@ -36,7 +36,7 @@ from src.bipartite_nulls import (  # noqa: E402
     generate_promiscuity_matched_samples,
 )
 
-PROMISCUITY_TOLERANCE = 2
+PROMISCUITY_N_BINS = 10
 REAL_2016_PATH = REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_filtered.csv"
 REAL_2024_PATH = REPO_ROOT / "output/intermediate/hetio_bppg_all_GO_positive_growth_2024_filtered.csv"
 ALL_2016_PATH = REPO_ROOT / "output/intermediate/hetio_bppg_2016_stable.csv"
@@ -165,7 +165,7 @@ def _generate_random_for_year(
             source_col="go_id",
             target_col="entrez_gene_id",
             target_universe=target_universe,
-            promiscuity_tolerance=PROMISCUITY_TOLERANCE,
+            n_bins=PROMISCUITY_N_BINS,
             random_state=42 + int(rep_id),
             include_match_metadata=True,
         )

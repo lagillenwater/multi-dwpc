@@ -95,77 +95,11 @@ def calculate_target_membership_counts(
     return counts
 
 
-def _sample_single_target(
-    source_id: object,
-    real_target: object,
-    real_prom: int,
-    candidate_pool: pd.DataFrame,
-    target_col: str,
-    promiscuity_tolerance: int,
-    random_state: int,
-) -> dict[str, object]:
-    prom_diff = np.abs(candidate_pool["promiscuity"] - int(real_prom))
-    candidates = candidate_pool[prom_diff <= int(promiscuity_tolerance)]
-
-    tol = int(promiscuity_tolerance)
-    while len(candidates) == 0 and tol <= 20:
-        tol += 2
-        candidates = candidate_pool[prom_diff <= tol]
-
-    if len(candidates) == 0:
-        candidates = candidate_pool
-
-    seed_string = f"{random_state}_{source_id}_{real_target}"
-    seed_hash = hashlib.md5(seed_string.encode()).hexdigest()
-    seed = int(seed_hash, 16) % (2**32)
-    rng = np.random.RandomState(seed)
-
-    idx = rng.choice(len(candidates))
-    sampled_row = candidates.iloc[idx]
-    return {
-        "target_id": sampled_row[target_col],
-        "promiscuity": int(sampled_row["promiscuity"]),
-    }
-
-
-def _sample_targets_without_replacement(
-    source_id: object,
-    source_group: pd.DataFrame,
-    candidate_pool: pd.DataFrame,
-    target_col: str,
-    promiscuity_tolerance: int,
-    random_state: int,
-) -> list[dict[str, object]]:
-    remaining = candidate_pool.copy()
-    sampled_rows: list[dict[str, object]] = []
-    source_seed = int(
-        hashlib.md5(f"{random_state}_{source_id}_order".encode()).hexdigest(),
-        16,
-    ) % (2**32)
-
-    ordered = source_group.sample(
-        frac=1.0,
-        random_state=source_seed,
-    )
-    for row in ordered.itertuples(index=False):
-        sampled = _sample_single_target(
-            source_id=source_id,
-            real_target=getattr(row, target_col),
-            real_prom=int(row.promiscuity),
-            candidate_pool=remaining,
-            target_col=target_col,
-            promiscuity_tolerance=promiscuity_tolerance,
-            random_state=random_state,
-        )
-        sampled_rows.append(sampled)
-        remaining = remaining[remaining[target_col] != sampled["target_id"]].copy()
-        if remaining.empty and len(sampled_rows) < len(source_group):
-            raise ValueError(
-                f"Ran out of unique candidate targets for source={source_id}; "
-                "cannot sample a same-size set without replacement."
-            )
-
-    return sampled_rows
+def _assign_rank_bins(values: pd.Series, n_bins: int) -> pd.Series:
+    """Partition `values` into `n_bins` fixed strata by rank (ties broken by position)."""
+    rank = values.rank(method="first")
+    bins = pd.qcut(rank, q=n_bins, labels=False, duplicates="drop")
+    return bins.astype(int)
 
 
 def generate_promiscuity_matched_samples(
@@ -174,11 +108,16 @@ def generate_promiscuity_matched_samples(
     source_col: str,
     target_col: str,
     target_universe: list[str] | list[int] | np.ndarray | pd.Series | None = None,
-    promiscuity_tolerance: int = 2,
+    n_bins: int = 10,
     random_state: int = 42,
     include_match_metadata: bool = True,
 ) -> pd.DataFrame:
-    """Generate matched random samples on an arbitrary bipartite graph."""
+    """Fixed-bin stratified SRSWOR: replace each source's real targets with an
+    equal-sized draw per promiscuity bin, from a shared bin partition of the
+    target universe. Matches the sampling design HetNetEX/HetNetEx-MD's exact
+    resampling-moment formulas assume (a fixed stratum-to-population mapping),
+    unlike a per-target sliding tolerance window.
+    """
     required = {source_col, target_col}
     missing = required - set(edge_df.columns)
     if missing:
@@ -195,6 +134,8 @@ def generate_promiscuity_matched_samples(
         target_col=target_col,
         target_universe=target_universe,
     )
+    promiscuity_df["bin_id"] = _assign_rank_bins(promiscuity_df["promiscuity"], n_bins)
+
     with_prom = edge_df.merge(promiscuity_df, on=target_col, how="left")
     with_prom["promiscuity"] = with_prom["promiscuity"].fillna(0).astype(int)
 
@@ -207,34 +148,32 @@ def generate_promiscuity_matched_samples(
         targets_in_source = source_target_sets[source_id]
         candidate_pool = promiscuity_df[
             ~promiscuity_df[target_col].isin(targets_in_source)
-        ].copy()
-        if candidate_pool.empty:
-            raise ValueError(f"No candidate pool available for source={source_id}")
-        if len(candidate_pool) < len(source_group):
-            raise ValueError(
-                f"Candidate pool too small for source={source_id}: "
-                f"{len(candidate_pool)} candidates for {len(source_group)} required targets."
-            )
+        ]
+        seed = int(
+            hashlib.md5(f"{random_state}_{source_id}".encode()).hexdigest(), 16
+        ) % (2**32)
+        rng = np.random.RandomState(seed)
 
-        sampled = _sample_targets_without_replacement(
-            source_id=source_id,
-            source_group=source_group[[target_col, "promiscuity"]].copy(),
-            candidate_pool=candidate_pool,
-            target_col=target_col,
-            promiscuity_tolerance=promiscuity_tolerance,
-            random_state=random_state,
-        )
+        sampled_chunks = []
+        for bin_id, bin_group in source_group.groupby("bin_id"):
+            k = len(bin_group)
+            bin_candidates = candidate_pool[candidate_pool["bin_id"] == bin_id]
+            if len(bin_candidates) < k:
+                raise ValueError(
+                    f"Candidate pool too small in bin {bin_id} for source={source_id}: "
+                    f"{len(bin_candidates)} candidates for {k} required targets."
+                )
+            chosen = rng.choice(len(bin_candidates), size=k, replace=False)
+            sampled_chunks.append(bin_candidates.iloc[chosen])
 
+        sampled = pd.concat(sampled_chunks, ignore_index=True)
         out = pd.DataFrame({
             source_col: source_id,
-            target_col: [item["target_id"] for item in sampled],
+            target_col: sampled[target_col].to_numpy(),
         })
         if include_match_metadata:
-            out["real_promiscuity"] = source_group["promiscuity"].to_numpy(dtype=int)
-            out["sampled_promiscuity"] = np.asarray(
-                [item["promiscuity"] for item in sampled],
-                dtype=int,
-            )
+            out["bin_id"] = sampled["bin_id"].to_numpy()
+            out["sampled_promiscuity"] = sampled["promiscuity"].to_numpy(dtype=int)
         all_results.append(out)
 
     result = pd.concat(all_results, ignore_index=True)
