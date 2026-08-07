@@ -121,7 +121,7 @@ else
             --export=ALL \
             --job-name="year-b-select" \
             --partition=acpu --account=amc-general \
-            --qos=cpu-long \
+            --qos=cpu-normal \
             --cpus-per-task=2 \
             --mem="4G" \
             --time="00:30:00" \
@@ -183,7 +183,7 @@ INT_SHARE_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-int-share" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=$INT_SHARE_CPUS \
     --mem="$INT_SHARE_MEM" \
     --time="$INT_SHARE_TIME" \
@@ -216,7 +216,7 @@ TOP_GO_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-top-go" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=1 \
     --mem="4G" \
     --time="00:10:00" \
@@ -251,7 +251,7 @@ SUMMARY_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-summary" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=2 \
     --mem="$SUMMARY_MEM" \
     --time="$SUMMARY_TIME" \
@@ -285,7 +285,7 @@ GENE_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-gene" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=$GENE_CPUS \
     --mem="$GENE_MEM" \
     --time="$GENE_TIME" \
@@ -326,7 +326,7 @@ VIZ_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-viz" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=$VIZ_CPUS \
     --mem="$VIZ_MEM" \
     --time="$VIZ_TIME" \
@@ -359,7 +359,7 @@ INT_PLOTS_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-int-plots" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=2 \
     --mem="8G" \
     --time="00:30:00" \
@@ -417,7 +417,7 @@ MP_COMPARE_JOB_ID=$(sbatch \
     --export=ALL \
     --job-name="year-mp-compare" \
     --partition=acpu --account=amc-general \
-    --qos=cpu-long \
+    --qos=cpu-normal \
     --cpus-per-task=2 \
     --mem="16G" \
     --time="01:00:00" \

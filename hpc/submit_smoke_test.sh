@@ -55,7 +55,7 @@ submit_timed_job() {
         --export=ALL \
         --job-name="smoke-$job_name" \
         --partition=acpu --account=amc-general \
-        --qos=cpu-long \
+        --qos=cpu-normal \
         --cpus-per-task=4 \
         --mem="$mem" \
         --time="$time_limit" \
@@ -101,7 +101,7 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --export=ALL \
         --job-name="smoke-summary" \
         --partition=acpu --account=amc-general \
-        --qos=cpu-long \
+        --qos=cpu-normal \
         --cpus-per-task=2 \
         --mem="4G" \
         --time="00:15:00" \
@@ -129,7 +129,7 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --export=ALL \
         --job-name="smoke-gene" \
         --partition=acpu --account=amc-general \
-        --qos=cpu-long \
+        --qos=cpu-normal \
         --cpus-per-task=2 \
         --mem="8G" \
         --time="00:30:00" \
@@ -157,7 +157,7 @@ if [[ -n "${GENE_JOB_ID:-}" ]]; then
         --export=ALL \
         --job-name="smoke-viz" \
         --partition=acpu --account=amc-general \
-        --qos=cpu-long \
+        --qos=cpu-normal \
         --cpus-per-task=2 \
         --mem="4G" \
         --time="00:15:00" \
@@ -198,7 +198,7 @@ if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
             --export=ALL \
             --job-name="smoke-year" \
             --partition=acpu --account=amc-general \
-            --qos=cpu-long \
+            --qos=cpu-normal \
             --cpus-per-task=4 \
             --mem="16G" \
             --time="01:00:00" \
@@ -310,7 +310,7 @@ done
         --export=ALL \
         --job-name="smoke-validate" \
         --partition=acpu --account=amc-general \
-        --qos=cpu-long \
+        --qos=cpu-normal \
         --cpus-per-task=1 \
         --mem="1G" \
         --time="00:05:00" \
