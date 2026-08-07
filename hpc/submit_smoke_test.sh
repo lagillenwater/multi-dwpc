@@ -54,8 +54,8 @@ submit_timed_job() {
         --parsable \
         --export=ALL \
         --job-name="smoke-$job_name" \
-        --partition=amilan \
-        --qos=normal \
+        --partition=acpu --account=amc-general \
+        --qos=cpu-long \
         --cpus-per-task=4 \
         --mem="$mem" \
         --time="$time_limit" \
@@ -100,8 +100,8 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --dependency=afterok:$LV_JOB_ID \
         --export=ALL \
         --job-name="smoke-summary" \
-        --partition=amilan \
-        --qos=normal \
+        --partition=acpu --account=amc-general \
+        --qos=cpu-long \
         --cpus-per-task=2 \
         --mem="4G" \
         --time="00:15:00" \
@@ -128,8 +128,8 @@ if [[ -n "${LV_JOB_ID:-}" ]]; then
         --dependency=afterok:$LV_JOB_ID \
         --export=ALL \
         --job-name="smoke-gene" \
-        --partition=amilan \
-        --qos=normal \
+        --partition=acpu --account=amc-general \
+        --qos=cpu-long \
         --cpus-per-task=2 \
         --mem="8G" \
         --time="00:30:00" \
@@ -156,8 +156,8 @@ if [[ -n "${GENE_JOB_ID:-}" ]]; then
         --dependency=afterok:$GENE_JOB_ID \
         --export=ALL \
         --job-name="smoke-viz" \
-        --partition=amilan \
-        --qos=normal \
+        --partition=acpu --account=amc-general \
+        --qos=cpu-long \
         --cpus-per-task=2 \
         --mem="4G" \
         --time="00:15:00" \
@@ -197,8 +197,8 @@ if [[ -d "$YEAR_OUTPUT_DIR" ]] && [[ -f "$ADDED_PAIRS_PATH" ]]; then
             --parsable \
             --export=ALL \
             --job-name="smoke-year" \
-            --partition=amilan \
-            --qos=normal \
+            --partition=acpu --account=amc-general \
+            --qos=cpu-long \
             --cpus-per-task=4 \
             --mem="16G" \
             --time="01:00:00" \
@@ -309,8 +309,8 @@ done
         --dependency=afterok:$DEPS \
         --export=ALL \
         --job-name="smoke-validate" \
-        --partition=amilan \
-        --qos=normal \
+        --partition=acpu --account=amc-general \
+        --qos=cpu-long \
         --cpus-per-task=1 \
         --mem="1G" \
         --time="00:05:00" \

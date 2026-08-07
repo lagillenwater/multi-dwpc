@@ -96,8 +96,8 @@ else
             --parsable \
             --export=ALL \
             --job-name="lv-b-select" \
-            --partition=amilan \
-            --qos=normal \
+            --partition=acpu --account=amc-general \
+            --qos=cpu-long \
             --cpus-per-task=2 \
             --mem="4G" \
             --time="00:15:00" \
@@ -145,8 +145,8 @@ INT_SHARE_JOB_ID=$(sbatch \
     $DEP_FLAG \
     --export=ALL \
     --job-name="lv-int-share" \
-    --partition=amilan \
-    --qos=normal \
+    --partition=acpu --account=amc-general \
+    --qos=cpu-long \
     --cpus-per-task=4 \
     --mem="32G" \
     --time="04:00:00" \
@@ -191,8 +191,8 @@ SUMMARY_JOB_ID=$(sbatch \
     --dependency=afterok:$INT_SHARE_JOB_ID \
     --export=ALL \
     --job-name="lv-summary" \
-    --partition=amilan \
-    --qos=normal \
+    --partition=acpu --account=amc-general \
+    --qos=cpu-long \
     --cpus-per-task=2 \
     --mem="8G" \
     --time="00:30:00" \
@@ -226,8 +226,8 @@ GENE_JOB_ID=$(sbatch \
     --dependency=afterok:$INT_SHARE_JOB_ID \
     --export=ALL \
     --job-name="lv-gene" \
-    --partition=amilan \
-    --qos=normal \
+    --partition=acpu --account=amc-general \
+    --qos=cpu-long \
     --cpus-per-task=2 \
     --mem="16G" \
     --time="01:00:00" \
@@ -261,8 +261,8 @@ VIZ_JOB_ID=$(sbatch \
     --dependency=afterok:$GENE_JOB_ID \
     --export=ALL \
     --job-name="lv-viz" \
-    --partition=amilan \
-    --qos=normal \
+    --partition=acpu --account=amc-general \
+    --qos=cpu-long \
     --cpus-per-task=2 \
     --mem="8G" \
     --time="00:30:00" \
@@ -297,8 +297,8 @@ PLOT_JOB_ID=$(sbatch \
     --dependency=afterok:$INT_SHARE_JOB_ID \
     --export=ALL \
     --job-name="lv-plot" \
-    --partition=amilan \
-    --qos=normal \
+    --partition=acpu --account=amc-general \
+    --qos=cpu-long \
     --cpus-per-task=2 \
     --mem="4G" \
     --time="00:15:00" \

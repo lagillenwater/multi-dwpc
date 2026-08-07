@@ -109,7 +109,7 @@ submit() {
     [[ -n "$dep" ]] && dep_flag="--dependency=afterok:$dep"
     local activate="module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
     sbatch --parsable $dep_flag --export=ALL \
-        --job-name="e2e-$name" --partition=amilan --qos=normal \
+        --job-name="e2e-$name" --partition=acpu --account=amc-general --qos=cpu-long \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
         --output="$LOG_DIR/${name}_%j.out" \
         --wrap="bash -c 'cd \"$REPO_ROOT\" && $activate && set -e && $cmd'"
