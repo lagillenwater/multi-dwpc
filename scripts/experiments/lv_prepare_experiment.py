@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
 
 def _prepare_metadata(args: argparse.Namespace) -> Path:
     output_dir = Path(args.output_dir)
-    pipeline = REPO_ROOT / "scripts" / "lv_multidwpc_analysis.py"
+    pipeline = REPO_ROOT / "scripts" / "experiments" / "lv_multidwpc_analysis.py"
     common = [sys.executable, str(pipeline), "--output-dir", str(output_dir)]
     if args.resume:
         common.append("--resume")
