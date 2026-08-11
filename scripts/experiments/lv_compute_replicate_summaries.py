@@ -13,7 +13,7 @@ else:
     REPO_ROOT = Path.cwd()
 
 sys.path.insert(0, str(REPO_ROOT))
-from src.lv_explicit_replicates import compute_summary_for_artifact, list_artifact_names, load_manifest  # noqa: E402
+from src.lv_explicit_replicates import compute_summary_for_artifact, list_artifact_names, write_manifest  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,7 +39,7 @@ def main() -> None:
         print(f"[saved] {path}")
         return
 
-    manifest = load_manifest(output_dir)
+    manifest = write_manifest(output_dir)
     for name in manifest["name"].astype(str).tolist():
         path = compute_summary_for_artifact(output_dir, name, force=args.force)
         print(f"[saved] {path}")
