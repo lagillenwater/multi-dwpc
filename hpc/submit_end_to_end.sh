@@ -343,7 +343,7 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
         --lv-loadings $LV_LOADINGS_PATH \
         --finalize-precompute \
         $LV_PREP_METAPATH_ARG"
-    LV_PREP_JOB=$(submit "lv-prep-finalize" "16G" "01:00:00" \
+    LV_PREP_JOB=$(submit "lv-prep-finalize" "64G" "01:00:00" \
         "$LV_FINAL_PREP_CMD" "$LV_WARMUP_JOB")
     echo "  LV prep (finalize): $LV_PREP_JOB"
 
