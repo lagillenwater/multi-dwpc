@@ -146,7 +146,7 @@ submit() {
         array_flag="--array=$array_spec"
         out_pattern="%A_%a"
     fi
-    local activate="module --ignore_cache load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
+    local activate="source /curc/sw/anaconda3/2023.09/etc/profile.d/conda.sh && conda activate multi_dwpc"
     sbatch --parsable $dep_flag $array_flag --export=ALL \
         --job-name="e2e-$name" --partition=acpu --account=amc-general --qos=cpu-normal \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
