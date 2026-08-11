@@ -331,7 +331,7 @@ if [[ "$ANALYSIS_TYPE" == "lv" ]] || [[ "$ANALYSIS_TYPE" == "both" ]]; then
     echo \"[task \$SLURM_ARRAY_TASK_ID] metapath=\$METAPATH\" && \
     python3 scripts/experiments/lv_prepare_experiment.py \
         --output-dir $LV_OUTPUT_DIR --warmup-metapath \"\$METAPATH\""
-    LV_WARMUP_JOB=$(submit "lv-warmup" "16G" "01:00:00" "$LV_WARMUP_CMD" \
+    LV_WARMUP_JOB=$(submit "lv-warmup" "64G" "01:00:00" "$LV_WARMUP_CMD" \
         "$LV_META_JOB" 2 "1-${LV_WARMUP_ARRAY_SIZE}%10")
     echo "  LV warmup: $LV_WARMUP_JOB (array 1-${LV_WARMUP_ARRAY_SIZE}%10)"
 
