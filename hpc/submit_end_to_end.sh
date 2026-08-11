@@ -148,7 +148,7 @@ submit() {
     fi
     local activate="module load anaconda && source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate multi_dwpc"
     sbatch --parsable $dep_flag $array_flag --export=ALL \
-        --job-name="e2e-$name" --partition=amilan --qos=normal \
+        --job-name="e2e-$name" --partition=acpu --account=amc-general --qos=cpu-normal \
         --cpus-per-task="$cpus" --mem="$mem" --time="$time" \
         --output="$LOG_DIR/${subdir}/${name}_${out_pattern}.out" \
         --wrap="bash -c 'cd \"$REPO_ROOT\" && $activate && set -e && $cmd'"

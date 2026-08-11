@@ -20,8 +20,9 @@ TARGET_TYPE="${TARGET_TYPE:-BP}"
 ARRAY_SIZE="${ARRAY_SIZE:-300}"  # oversized; extra tasks no-op
 MEM="${MEM:-16G}"
 TIME_LIMIT="${TIME_LIMIT:-02:00:00}"
-PARTITION="${PARTITION:-amilan}"
-QOS="${QOS:-normal}"
+PARTITION="${PARTITION:-acpu}"
+ACCOUNT="${ACCOUNT:-amc-general}"
+QOS="${QOS:-cpu-normal}"
 
 LOG_DIR="hpc/logs/prewarm_dwpc_${SOURCE_TYPE}_${TARGET_TYPE}"
 mkdir -p "$LOG_DIR"
@@ -65,7 +66,7 @@ sbatch \
     --parsable \
     --export=ALL \
     --job-name="prewarm-${SOURCE_TYPE}-${TARGET_TYPE}" \
-    --partition="$PARTITION" --qos="$QOS" \
+    --partition="$PARTITION" --qos="$QOS" --account="$ACCOUNT" \
     --cpus-per-task=1 --mem="$MEM" --time="$TIME_LIMIT" \
     --array="$ARRAY_RANGE" \
     --output="$LOG_DIR/%A_%a.out" --error="$LOG_DIR/%A_%a.err" \
