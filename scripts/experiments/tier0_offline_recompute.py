@@ -53,8 +53,8 @@ def compute_concordance_row(
 
 
 def join_and_score(df: pd.DataFrame) -> dict:
-    rho_mc, _ = spearmanr(df["z_analytical"], df["z_mc_highb"])
-    rho_orig, _ = spearmanr(df["z_analytical"], df["z_original"])
+    rho_mc, _ = spearmanr(df["z_analytical"], df["z_mc_highb"], nan_policy="omit")
+    rho_orig, _ = spearmanr(df["z_analytical"], df["z_original"], nan_policy="omit")
 
     def jaccard(a: pd.Series, b: pd.Series) -> float:
         a_set = set(df.index[a])

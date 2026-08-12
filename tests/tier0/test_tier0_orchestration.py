@@ -1,3 +1,5 @@
+import math
+import re
 import sys
 from pathlib import Path
 
@@ -5,8 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from scripts.experiments import tier0_offline_recompute
 from scripts.experiments.tier0_offline_recompute import (
-    OUTPUT_DIR,
     compute_concordance_row,
     join_and_score,
     main,
@@ -52,30 +54,43 @@ def test_join_and_score_spearman_and_jaccard():
 @pytest.mark.skipif(
     not SUBSTRATE.exists(), reason="requires the local end_to_end_2026_4_23 substrate"
 )
-def test_main_writes_length_separated_concordance_metrics(monkeypatch):
+def test_main_writes_length_separated_concordance_metrics(monkeypatch, tmp_path):
+    # Isolate from the real production output -- main() must not clobber
+    # output/tier0_offline_recompute/ (the actual Step-5 deliverable).
+    monkeypatch.setattr(tier0_offline_recompute, "OUTPUT_DIR", tmp_path / "tier0_offline_recompute")
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "tier0_offline_recompute.py",
             "--substrate-dir", str(SUBSTRATE),
-            "--per-cell-max", "2",
+            # per-cell-max matches the real Step-5 run so both length buckets
+            # keep >=3 non-degenerate rows (spearmanr(nan_policy="omit")
+            # raises below that) -- a small toy sample risked a crash here.
+            "--per-cell-max", "15",
             "--b", "200",
             "--dwpc-z-threshold", "1.65",
         ],
     )
     main()
-    summary = (OUTPUT_DIR / "summary.md").read_text()
+    summary = (tmp_path / "tier0_offline_recompute" / "summary.md").read_text()
 
     assert "## Concordance by metapath length" in summary
     assert "### L=2" in summary
     assert "### L>=3" in summary
-    # The length-specific subsections must carry actual concordance metrics
-    # (Spearman rho / Jaccard), not just the pre-existing row counts.
+
+    def rho_values(section: str) -> list[float]:
+        return [
+            float(v)
+            for v in re.findall(r"spearman_rho_\S+\*\*:\s*(\S+)", section)
+        ]
+
     l2_section = summary.split("### L=2", 1)[1].split("### L>=3", 1)[0]
     lge3_section = summary.split("### L>=3", 1)[1]
     for section in (l2_section, lge3_section):
-        assert (
-            "spearman_rho_analytical_vs_mc_highb" in section
-            or "No rows in this bucket" in section
+        rhos = rho_values(section)
+        assert rhos, "expected spearman_rho_* lines in this length bucket"
+        assert all(math.isfinite(r) for r in rhos), (
+            f"expected finite Spearman rho values, got {rhos} -- "
+            "nan_policy='omit' regression?"
         )
