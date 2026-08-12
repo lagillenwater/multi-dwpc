@@ -19,6 +19,7 @@ dependencies:
   - jupytext
   - ipython
   - poethepoet
+  - tabulate
   - pip:
       - hetmatpy==0.1.0
       - hetnetpy @ git+https://github.com/hetio/hetio.git@0a81e9ea675e2c20f235f5d74598053c1332cb85

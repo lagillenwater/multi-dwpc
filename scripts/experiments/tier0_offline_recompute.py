@@ -109,6 +109,47 @@ def run_tier0(
     return pd.DataFrame(rows)
 
 
+def check_degenerate_inputs(substrate_dir: Path) -> pd.DataFrame:
+    """Flags the three degenerate-input categories the spec calls out as
+    HetNetEX-MD's known weak spots, restricted to the `random`-null rows
+    this plan is scoped to (see Global Constraints).
+    """
+    substrate_dir = Path(substrate_dir)
+    feature_manifest = pd.read_csv(substrate_dir / "feature_manifest.csv")
+    real_scores = pd.read_csv(substrate_dir / "real_feature_scores.csv")
+    gene_scores = np.load(substrate_dir / "gene_feature_scores.npy")
+
+    issues = []
+    for _, feat in feature_manifest.iterrows():
+        col = gene_scores[:, int(feat["feature_idx"])]
+        if np.nanstd(col) == 0.0:
+            issues.append(
+                {"lv_id": feat["lv_id"], "feature_idx": int(feat["feature_idx"]),
+                 "metapath": feat["metapath"], "issue": "zero_variance_scores"}
+            )
+
+        real_row = real_scores[
+            (real_scores["lv_id"] == feat["lv_id"])
+            & (real_scores["feature_idx"] == feat["feature_idx"])
+        ]
+        if not real_row.empty:
+            n_real_genes = int(real_row.iloc[0]["n_real_genes"])
+            if n_real_genes <= 1:
+                issues.append(
+                    {"lv_id": feat["lv_id"], "feature_idx": int(feat["feature_idx"]),
+                     "metapath": feat["metapath"], "issue": "single_gene_stratum"}
+                )
+
+        n_with_paths = int((col > 0).sum())
+        if n_with_paths < 5:
+            issues.append(
+                {"lv_id": feat["lv_id"], "feature_idx": int(feat["feature_idx"]),
+                 "metapath": feat["metapath"], "issue": "few_genes_with_paths"}
+            )
+
+    return pd.DataFrame(issues, columns=["lv_id", "feature_idx", "metapath", "issue"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--substrate-dir", required=True, type=Path)
@@ -125,6 +166,7 @@ def main() -> None:
     df.to_csv(OUTPUT_DIR / "concordance.csv", index=False)
 
     metrics = join_and_score(df)
+    length_buckets = {"L=2": df[df["length"] == 2], "L>=3": df[df["length"] >= 3]}
     for l2 in (True, False):
         cell = df[df["length"] == 2] if l2 else df[df["length"] >= 3]
         if not cell.empty:
@@ -134,6 +176,25 @@ def main() -> None:
         f.write("# Tier 0 offline recompute -- summary\n\n")
         for k, v in metrics.items():
             f.write(f"- **{k}**: {v}\n")
+
+        f.write("\n## Concordance by metapath length\n\n")
+        for label, cell in length_buckets.items():
+            f.write(f"### {label}\n\n")
+            if cell.empty:
+                f.write("No rows in this bucket.\n\n")
+                continue
+            for k, v in join_and_score(cell).items():
+                f.write(f"- **{k}**: {v}\n")
+            f.write("\n")
+
+    degenerate = check_degenerate_inputs(args.substrate_dir)
+    degenerate.to_csv(OUTPUT_DIR / "degenerate_inputs.csv", index=False)
+    with open(OUTPUT_DIR / "summary.md", "a") as f:
+        f.write("\n## Degenerate inputs\n\n")
+        if degenerate.empty:
+            f.write("None found.\n")
+        else:
+            f.write(degenerate["issue"].value_counts().to_markdown() + "\n")
 
     print(f"Wrote {OUTPUT_DIR / 'concordance.csv'} ({len(df)} rows)")
     print(f"Wrote {OUTPUT_DIR / 'summary.md'}")
