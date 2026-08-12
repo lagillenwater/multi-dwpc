@@ -20,6 +20,8 @@ cd multi-dwpc
 
 ## Create the environment
 
+Init git submodules first (`env/environment.yml` editable-installs `HetNetEX-MD`, which is empty until submodules are fetched): `git submodule update --init --recursive`.
+
 ```bash
 conda env create -f env/environment.yml
 conda activate multi_dwpc

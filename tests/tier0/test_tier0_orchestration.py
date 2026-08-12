@@ -10,6 +10,7 @@ import pytest
 from scripts.experiments import tier0_offline_recompute
 from scripts.experiments.tier0_offline_recompute import (
     _mc_seed_for_row,
+    _stratum_coverage_caveat,
     compute_concordance_row,
     join_and_score,
     main,
@@ -140,6 +141,31 @@ def test_join_and_score_excludes_nan_rows_from_jaccard_and_reports_n_excluded():
     # row 2 selected in neither) -> perfect concordance, not diluted to 0.5
     # by treating row 1's NaN-derived False as a real disagreement.
     assert metrics["jaccard_selected_analytical_vs_mc_highb"] == pytest.approx(1.0)
+
+
+def test_stratum_coverage_caveat_tracks_actual_counts():
+    """New breakage B (regression fix): the caveat text previously asserted
+    a fixed "every row is single-stratum" scenario regardless of the actual
+    n_single_stratum count, which would self-contradict a computed "0 of N"
+    on a substrate where rows aren't all single-stratum. Each branch's
+    prose must match the counts passed in.
+    """
+    all_single = _stratum_coverage_caveat(n_rows=48, n_single_stratum=48)
+    assert "all 48 subsampled rows use" in all_single
+    assert "none of them exercises" in all_single
+
+    partial = _stratum_coverage_caveat(n_rows=48, n_single_stratum=10)
+    assert "10 of 48 subsampled rows" in partial
+    assert "remaining 38 row(s) exercise 2+ strata" in partial
+    # Must not claim every row is single-stratum when it isn't.
+    assert "all 48 subsampled rows use" not in partial
+
+    none_single = _stratum_coverage_caveat(n_rows=48, n_single_stratum=0)
+    assert "Multi-stratum coverage" in none_single
+    assert "all 48 subsampled rows exercise 2+ active" in none_single
+
+    empty = _stratum_coverage_caveat(n_rows=0, n_single_stratum=0)
+    assert "No subsampled rows" in empty
 
 
 def test_mc_seed_varies_by_row_and_is_deterministic():

@@ -227,6 +227,49 @@ def check_degenerate_inputs(
     return pd.DataFrame(issues, columns=["lv_id", "feature_idx", "metapath", "issue"])
 
 
+def _stratum_coverage_caveat(n_rows: int, n_single_stratum: int) -> str:
+    """Data-driven caveat text on whether this run's rows exercise
+    exact_resampling_moments's multi-stratum summation path.
+
+    Must track n_single_stratum/n_rows, not assert a fixed scenario --
+    "every row is single-stratum" prose next to a computed "0 of N" count
+    would be self-contradictory on a substrate where rows aren't all
+    single-stratum.
+    """
+    if n_rows == 0:
+        return "- No subsampled rows to evaluate stratum coverage on.\n"
+
+    synthetic_ref = (
+        "`tests/tier0/test_hetnetex_md_import.py`'s synthetic 2-stratum cases"
+    )
+    if n_single_stratum == n_rows:
+        return (
+            f"- **Single-stratum real data:** all {n_rows} subsampled rows use "
+            "only a single active promiscuity stratum (`n_active_strata <= 1`) "
+            "-- none of them exercises `exact_resampling_moments`'s "
+            f"multi-stratum summation path. That path is validated only by "
+            f"{synthetic_ref}, not by this real-data comparison. A human "
+            "making the Tier-1 go/no-go call should treat multi-stratum "
+            "correctness as unverified against real data.\n"
+        )
+    if n_single_stratum > 0:
+        n_multi = n_rows - n_single_stratum
+        return (
+            f"- **Partial single-stratum coverage:** {n_single_stratum} of "
+            f"{n_rows} subsampled rows use only a single active promiscuity "
+            f"stratum; the remaining {n_multi} row(s) exercise 2+ strata, so "
+            "`exact_resampling_moments`'s multi-stratum summation path is "
+            f"partially validated against real data here (in addition to "
+            f"{synthetic_ref}).\n"
+        )
+    return (
+        f"- **Multi-stratum coverage:** all {n_rows} subsampled rows exercise "
+        "2+ active promiscuity strata, so `exact_resampling_moments`'s "
+        "multi-stratum summation path is validated against real data here "
+        f"(in addition to {synthetic_ref}).\n"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--substrate-dir", required=True, type=Path)
@@ -271,19 +314,7 @@ def main() -> None:
             f.write("\n")
 
         f.write("## Caveats\n\n")
-        f.write(
-            f"- **Single-stratum real data:** of {len(df)} subsampled rows, "
-            f"{n_single_stratum} use only a single active promiscuity stratum "
-            "(`n_active_strata <= 1`) -- in this substrate, every real gene for "
-            "all three LVs lands in the same promiscuity bin (bin 9 of 10), so "
-            "`counts` is effectively `[0,...,0,34]`-shaped for every row here. "
-            "The multi-stratum summation path in `exact_resampling_moments` is "
-            "therefore exercised only by "
-            "`tests/tier0/test_hetnetex_md_import.py`'s synthetic 2-stratum "
-            "cases, not by this real-data comparison. A human making the "
-            "Tier-1 go/no-go call should treat multi-stratum correctness as "
-            "unverified against real data.\n"
-        )
+        f.write(_stratum_coverage_caveat(len(df), n_single_stratum))
 
     degenerate = check_degenerate_inputs(args.substrate_dir, concordance_df=df)
     degenerate.to_csv(OUTPUT_DIR / "degenerate_inputs.csv", index=False)
