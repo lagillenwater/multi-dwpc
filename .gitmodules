@@ -2,3 +2,6 @@
 	path = connectivity-search-backend
 	url = https://github.com/lagillenwater/connectivity-search-backend.git
 	branch = missing-dgp
+[submodule "HetNetEX-MD"]
+	path = HetNetEX-MD
+	url = https://github.com/lagillenwater/HetNetEx-MD.git
