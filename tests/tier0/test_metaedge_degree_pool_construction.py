@@ -75,6 +75,32 @@ def test_regulates_forward_and_reverse_bins_use_the_correct_axis():
     assert np.array_equal(rev_bins, expected_col_bins)
 
 
+def test_gene_order_check_passes_on_real_substrate():
+    """The design doc required verifying gene_ids.npy order against the
+    hetmat's own gene position table rather than assuming identity --
+    _check_gene_order is that guard. On the real substrate it must pass
+    silently (gene_ids.npy matches data/nodes/Gene.tsv's identifier column
+    in position order, verified during this fix wave)."""
+    import pandas as pd
+
+    strategy = MetaedgeDegreePoolStrategy(data_dir=DATA_DIR)
+    gene_ids = np.load(SUBSTRATE / "gene_ids.npy", allow_pickle=True)
+    strategy._check_gene_order(gene_ids, SUBSTRATE)  # must not raise
+    assert str(SUBSTRATE) in strategy._gene_order_checked
+
+
+def test_gene_order_check_raises_on_mismatched_order():
+    """A substrate whose gene_ids don't match the hetmat's Gene node order
+    (reordered, subsetted, or simply wrong) must raise ValueError rather
+    than silently scrambling every stratum."""
+    strategy = MetaedgeDegreePoolStrategy(data_dir=DATA_DIR)
+    real_gene_ids = np.load(SUBSTRATE / "gene_ids.npy", allow_pickle=True)
+    shuffled = real_gene_ids.copy()
+    shuffled[[0, 1]] = shuffled[[1, 0]]
+    with pytest.raises(ValueError):
+        strategy._check_gene_order(shuffled, SUBSTRATE)
+
+
 def test_resolve_first_hop_raises_when_no_matching_file_exists(monkeypatch):
     """Neither the edge's own filename nor its inverse's exists on disk --
     _resolve_first_hop must raise ValueError rather than silently returning
@@ -129,7 +155,14 @@ def test_active_strata_spread_beats_promiscuity_on_real_data():
         if n_active > 1:
             n_multi_stratum += 1
     print(f"\n{n_multi_stratum}/{len(sample)} sampled rows are multi-stratum under metaedge-degree")
-    # Not a hard assertion -- this is a diagnostic the report must surface,
-    # not a pass/fail gate. Sanity-check only: the function must run and
-    # produce valid (possibly single-stratum) pools for every sampled row.
-    assert n_multi_stratum >= 0
+    # This is a real regression gate, not a vacuous sanity check: on this
+    # substrate, with this fixed random_state=0 sample of 20 feature rows,
+    # metaedge-degree stratification currently gives 20/20 multi-stratum
+    # rows (versus 0/48 under promiscuity, per the predecessor plan). This
+    # test samples 20 rows from the full feature manifest, not the actual
+    # 48-row Tier-0 subsample where the full-sample finding was 48/48, so
+    # the threshold below is set with headroom under 20 rather than
+    # asserting the literal 20/20 -- but high enough that a regression back
+    # to promiscuity-like single-stratum behavior (which would produce 0)
+    # fails this test.
+    assert n_multi_stratum >= 15

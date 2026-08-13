@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from src.bipartite_nulls import calculate_target_membership_counts, _assign_rank_bins
+from src.tier0._pool_assembly import pools_from_bins
 
 N_BINS = 10
 
@@ -50,15 +51,7 @@ def build_pools_and_counts(
 
     this_lv_genes = set(top_genes[top_genes["lv_id"] == lv_id]["gene_identifier"])
     real_row_idx = np.flatnonzero(np.isin(gene_ids, list(this_lv_genes)))
-    real_bins = bin_of_row[real_row_idx]
-
-    pools: list[np.ndarray] = []
-    counts: list[int] = []
-    for b in range(N_BINS):
-        candidate_rows = np.flatnonzero(bin_of_row == b)
-        candidate_rows = candidate_rows[~np.isin(candidate_rows, real_row_idx)]
-        pools.append(candidate_rows)
-        counts.append(int((real_bins == b).sum()))
+    pools, counts = pools_from_bins(bin_of_row, real_row_idx, N_BINS)
 
     row = real_scores[
         (real_scores["lv_id"] == lv_id) & (real_scores["feature_idx"] == feature_idx)
