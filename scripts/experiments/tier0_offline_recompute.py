@@ -65,10 +65,11 @@ def join_and_score(df: pd.DataFrame) -> dict:
 
     Spearman rho and Jaccard selection concordance are rank/threshold-based
     and can stay at 1.0 even when one arm's null variance is off by a large
-    multiplicative factor (all 48 real subsampled rows here share a single
-    promiscuity stratum, so z_analytical and z_mc_highb differ only by a
-    near-constant scale plus MC noise -- ranks and threshold crossings barely
-    move even under a big magnitude error). max_abs_relative_std_error and
+    multiplicative factor -- e.g. when rows share a single active
+    stratification stratum under whatever stratification scheme built their
+    pools, z_analytical and z_mc_highb differ only by a near-constant scale
+    plus MC noise, so ranks and threshold crossings barely move even under a
+    big magnitude error. max_abs_relative_std_error and
     max_abs_mean_diff_in_mc_se are real magnitude-agreement checks that can
     actually fail where the rank-based metrics can't.
     """
@@ -234,7 +235,10 @@ def _stratum_coverage_caveat(n_rows: int, n_single_stratum: int) -> str:
     Must track n_single_stratum/n_rows, not assert a fixed scenario --
     "every row is single-stratum" prose next to a computed "0 of N" count
     would be self-contradictory on a substrate where rows aren't all
-    single-stratum.
+    single-stratum. Wording is deliberately strategy-neutral ("a
+    stratification scheme" / "active stratum", not "promiscuity") since
+    this function is shared across whichever pool_fn (promiscuity or
+    metaedge-degree) produced the rows being summarized.
     """
     if n_rows == 0:
         return "- No subsampled rows to evaluate stratum coverage on.\n"
@@ -245,28 +249,31 @@ def _stratum_coverage_caveat(n_rows: int, n_single_stratum: int) -> str:
     if n_single_stratum == n_rows:
         return (
             f"- **Single-stratum real data:** all {n_rows} subsampled rows use "
-            "only a single active promiscuity stratum (`n_active_strata <= 1`) "
-            "-- none of them exercises `exact_resampling_moments`'s "
-            f"multi-stratum summation path. That path is validated only by "
-            f"{synthetic_ref}, not by this real-data comparison. A human "
-            "making the Tier-1 go/no-go call should treat multi-stratum "
-            "correctness as unverified against real data.\n"
+            "only a single active stratum under this run's stratification "
+            "scheme (`n_active_strata <= 1`) -- none of them exercises "
+            f"`exact_resampling_moments`'s multi-stratum summation path. That "
+            f"path is validated only by {synthetic_ref}, not by this "
+            "real-data comparison. A human making the Tier-1 go/no-go call "
+            "should treat multi-stratum correctness as unverified against "
+            "real data.\n"
         )
     if n_single_stratum > 0:
         n_multi = n_rows - n_single_stratum
         return (
             f"- **Partial single-stratum coverage:** {n_single_stratum} of "
-            f"{n_rows} subsampled rows use only a single active promiscuity "
-            f"stratum; the remaining {n_multi} row(s) exercise 2+ strata, so "
+            f"{n_rows} subsampled rows use only a single active stratum "
+            "under this run's stratification scheme; the remaining "
+            f"{n_multi} row(s) exercise 2+ strata, so "
             "`exact_resampling_moments`'s multi-stratum summation path is "
             f"partially validated against real data here (in addition to "
             f"{synthetic_ref}).\n"
         )
     return (
         f"- **Multi-stratum coverage:** all {n_rows} subsampled rows exercise "
-        "2+ active promiscuity strata, so `exact_resampling_moments`'s "
-        "multi-stratum summation path is validated against real data here "
-        f"(in addition to {synthetic_ref}).\n"
+        "2+ active strata under this run's stratification scheme, so "
+        "`exact_resampling_moments`'s multi-stratum summation path is "
+        "validated against real data here (in addition to "
+        f"{synthetic_ref}).\n"
     )
 
 

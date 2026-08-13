@@ -244,10 +244,12 @@ def test_main_writes_length_separated_concordance_metrics(monkeypatch, tmp_path)
     assert "dwpc_z_threshold**: 1.65" in summary
     assert "random_state**:" in summary
 
-    # Finding 2: the single-promiscuity-stratum caveat must be explicit for
-    # a human making the Tier-1 go/no-go call.
+    # Finding 2: the single-active-stratum caveat must be explicit for a
+    # human making the Tier-1 go/no-go call. Wording is strategy-neutral
+    # ("a stratification scheme", not "promiscuity") since
+    # _stratum_coverage_caveat is now shared across strategies.
     assert "## Caveats" in summary
-    assert "single active promiscuity stratum" in summary
+    assert "single active stratum under this run's stratification scheme" in summary
     assert "tests/tier0/test_hetnetex_md_import.py" in summary
 
     # Finding 8: the fourth degenerate-input category must show up when it
