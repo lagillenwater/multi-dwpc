@@ -77,6 +77,12 @@ def sweep_b(
                 lv_id=lv_id, feature_idx=feature_idx, length=int(r["length"]),
                 scores=scores, pools=pools, counts=counts, observed=observed,
                 exact=exact, z_original=z_original,
+                # B-independent, same formula run_tier0 uses -- carried
+                # through so the sweep records evidence of how many strata
+                # each row's pool_fn actually populated (the whole point of
+                # the metaedge-degree strategy: more rows with >1 active
+                # stratum than promiscuity's single-stratum collapse).
+                n_active_strata=sum(1 for c in counts if c > 0),
             )
         )
 
@@ -94,7 +100,7 @@ def sweep_b(
                 dwpc_z_threshold=dwpc_z_threshold,
             )
             row.update(
-                length=ctx["length"],
+                length=ctx["length"], n_active_strata=ctx["n_active_strata"],
                 mean_analytical=ctx["exact"].mean, std_analytical=ctx["exact"].std,
                 mean_mc_highb=mc.mean, std_mc_highb=mc.std, b_mc_highb=mc.b,
             )
@@ -105,7 +111,15 @@ def sweep_b(
             if cell.empty:
                 continue
             metrics = join_and_score(cell)
-            metrics.update(b=b, length_bucket=label)
+            metrics.update(
+                b=b, length_bucket=label,
+                # Evidence that a stratification strategy actually spreads
+                # rows across multiple strata (join_and_score's own return
+                # contract is shared with the single-B report and
+                # deliberately left untouched -- computed here instead).
+                median_active_strata=float(cell["n_active_strata"].median()),
+                min_active_strata=int(cell["n_active_strata"].min()),
+            )
             records.append(metrics)
 
     return pd.DataFrame(records)
