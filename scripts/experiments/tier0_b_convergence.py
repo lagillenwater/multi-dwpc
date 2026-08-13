@@ -1,0 +1,151 @@
+"""Tier 0 B-convergence sweep: how do Spearman rho (analytical vs Monte
+Carlo) and Jaccard selection concordance behave as B grows, at L=2 and
+L>=3? Complements the single-B snapshot in tier0_offline_recompute.py's
+summary.md.
+
+Usage:
+    conda activate multi_dwpc
+    python scripts/experiments/tier0_b_convergence.py \\
+        --substrate-dir "output/end_to_end_2026_4_23/lv_experiment (1)" \\
+        --per-cell-max 15 --dwpc-z-threshold 1.65 --strategy promiscuity
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Callable
+
+import numpy as np
+import pandas as pd
+
+if Path.cwd().name == "scripts":
+    REPO_ROOT = Path("..").resolve()
+else:
+    REPO_ROOT = Path.cwd()
+
+sys.path.insert(0, str(REPO_ROOT / "src"))
+# Also needed (unlike tier0_offline_recompute.py) because this module is the
+# first Tier 0 script to import another scripts/ module package-style (below):
+# `python scripts/experiments/tier0_b_convergence.py ...` sets sys.path[0] to
+# the script's own directory, not the repo root, so `scripts.experiments.*`
+# doesn't resolve without this.
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.tier0.analytical_null import analytical_null  # noqa: E402
+from src.tier0.montecarlo_reference import montecarlo_reference  # noqa: E402
+from src.tier0.pool_construction import build_pools_and_counts  # noqa: E402
+from src.tier0.subsample import select_stratified_subsample  # noqa: E402
+from scripts.experiments.tier0_offline_recompute import (  # noqa: E402
+    compute_concordance_row,
+    join_and_score,
+    _mc_seed_for_row,
+)
+
+OUTPUT_DIR = Path("output/tier0_b_convergence")
+DEFAULT_B_VALUES = [10, 30, 100, 300, 1000, 3000, 10000]
+
+PoolFn = Callable[[str, int, Path], tuple]
+
+
+def sweep_b(
+    substrate_dir: Path,
+    per_cell_max: int,
+    b_values: list[int],
+    dwpc_z_threshold: float,
+    random_state: int,
+    pool_fn: PoolFn,
+) -> pd.DataFrame:
+    substrate_dir = Path(substrate_dir)
+    subsample = select_stratified_subsample(substrate_dir, per_cell_max, random_state)
+
+    # Per-row context is B-independent (pools, analytical result, original
+    # arm's z) -- compute once, reuse across every B in the sweep, rather
+    # than recomputing pools/analytical_null redundantly per B.
+    row_context = []
+    for _, r in subsample.iterrows():
+        lv_id = r["lv_id"]
+        feature_idx = int(r["feature_idx"])
+        scores, pools, counts, observed = pool_fn(lv_id, feature_idx, substrate_dir)
+        exact = analytical_null(scores, pools, counts, observed)
+        z_original = (
+            (observed - r["null_mean"]) / r["null_std"] if r["null_std"] > 0 else np.nan
+        )
+        row_context.append(
+            dict(
+                lv_id=lv_id, feature_idx=feature_idx, length=int(r["length"]),
+                scores=scores, pools=pools, counts=counts, observed=observed,
+                exact=exact, z_original=z_original,
+            )
+        )
+
+    records = []
+    for b in b_values:
+        rows = []
+        for ctx in row_context:
+            row_seed = _mc_seed_for_row(random_state, ctx["lv_id"], ctx["feature_idx"])
+            mc = montecarlo_reference(
+                ctx["scores"], ctx["pools"], ctx["counts"], ctx["observed"],
+                b=b, random_state=row_seed,
+            )
+            row = compute_concordance_row(
+                z_original=ctx["z_original"], z_mc_highb=mc.z, z_analytical=ctx["exact"].z,
+                dwpc_z_threshold=dwpc_z_threshold,
+            )
+            row.update(
+                length=ctx["length"],
+                mean_analytical=ctx["exact"].mean, std_analytical=ctx["exact"].std,
+                mean_mc_highb=mc.mean, std_mc_highb=mc.std, b_mc_highb=mc.b,
+            )
+            rows.append(row)
+
+        df_b = pd.DataFrame(rows)
+        for label, cell in (("L=2", df_b[df_b["length"] == 2]), ("L>=3", df_b[df_b["length"] >= 3])):
+            if cell.empty:
+                continue
+            metrics = join_and_score(cell)
+            metrics.update(b=b, length_bucket=label)
+            records.append(metrics)
+
+    return pd.DataFrame(records)
+
+
+def _strategy_pool_fn(strategy: str) -> PoolFn:
+    if strategy == "promiscuity":
+        return build_pools_and_counts
+    if strategy == "metaedge_degree":
+        # Deferred import: this module doesn't exist until Task 2 lands, and
+        # Task 1 must be runnable (with --strategy promiscuity, the default)
+        # before Task 2 exists.
+        from src.tier0.metaedge_degree_pool_construction import MetaedgeDegreePoolStrategy
+        return MetaedgeDegreePoolStrategy(data_dir=Path("data"))
+    raise ValueError(f"unknown strategy: {strategy!r}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--substrate-dir", required=True, type=Path)
+    parser.add_argument("--per-cell-max", type=int, default=15)
+    parser.add_argument("--b-values", type=str, default=",".join(str(b) for b in DEFAULT_B_VALUES))
+    parser.add_argument("--dwpc-z-threshold", type=float, default=1.65)
+    parser.add_argument("--random-state", type=int, default=0)
+    parser.add_argument("--strategy", choices=["promiscuity", "metaedge_degree"], default="promiscuity")
+    args = parser.parse_args()
+
+    b_values = [int(x) for x in args.b_values.split(",")]
+    pool_fn = _strategy_pool_fn(args.strategy)
+
+    df = sweep_b(
+        args.substrate_dir, args.per_cell_max, b_values, args.dwpc_z_threshold,
+        args.random_state, pool_fn,
+    )
+
+    out_dir = OUTPUT_DIR / args.strategy
+    out_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out_dir / "curve_data.csv", index=False)
+    print(f"Wrote {out_dir / 'curve_data.csv'} ({len(df)} rows)")
+
+
+if __name__ == "__main__":
+    main()
