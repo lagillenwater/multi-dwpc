@@ -48,6 +48,45 @@ def test_regulates_forward_and_reverse_resolve_to_the_same_file_different_axis()
     assert axis_rev == "col"
 
 
+def test_regulates_forward_and_reverse_bins_use_the_correct_axis():
+    """Not just the axis LABEL (covered by
+    test_regulates_forward_and_reverse_resolve_to_the_same_file_different_axis)
+    -- this verifies _bins_for_first_hop actually computes degree on that
+    axis, not the other one.
+    """
+    from scipy import sparse
+    import pandas as pd
+
+    from src.bipartite_nulls import _assign_rank_bins
+
+    strategy = MetaedgeDegreePoolStrategy(data_dir=DATA_DIR)
+    matrix = sparse.load_npz(DATA_DIR / "edges" / "Gr>G.sparse.npz").tocsr()
+    expected_row_bins = _assign_rank_bins(
+        pd.Series(np.asarray(matrix.sum(axis=1)).flatten()), 10
+    ).to_numpy()
+    expected_col_bins = _assign_rank_bins(
+        pd.Series(np.asarray(matrix.sum(axis=0)).flatten()), 10
+    ).to_numpy()
+    assert not np.array_equal(expected_row_bins, expected_col_bins)  # sanity: axes actually differ
+
+    fwd_bins = strategy._bins_for_first_hop("Gr>GdA")
+    rev_bins = strategy._bins_for_first_hop("G<rGiGdD")
+    assert np.array_equal(fwd_bins, expected_row_bins)
+    assert np.array_equal(rev_bins, expected_col_bins)
+
+
+def test_resolve_first_hop_raises_when_no_matching_file_exists(monkeypatch):
+    """Neither the edge's own filename nor its inverse's exists on disk --
+    _resolve_first_hop must raise ValueError rather than silently returning
+    a nonexistent path. Mocks Path.exists to always miss so this is
+    independent of which real metapath/filename is used.
+    """
+    strategy = MetaedgeDegreePoolStrategy(data_dir=DATA_DIR)
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+    with pytest.raises(ValueError):
+        strategy._resolve_first_hop("Gr>GdA")
+
+
 def test_pools_partition_matches_sampled_gene_count_and_self_exclusion():
     scores, pools, counts, observed = strategy_call("LV246", 0, SUBSTRATE)
     assert scores.shape == (20945,)
