@@ -2,7 +2,7 @@ import pandas as pd
 
 from scripts.experiments.tier0_b_comparison import (
     ROW_COMPOSITION_CAVEAT,
-    build_comparison,
+    stack_frames,
     render_markdown,
 )
 
@@ -23,15 +23,15 @@ def _synthetic_curve_df(n_values: list[int]) -> pd.DataFrame:
     )
 
 
-def test_build_comparison_tags_and_stacks_rows_without_mutating_inputs():
+def test_stack_frames_tags_and_stacks_rows_without_mutating_inputs():
     promiscuity_df = _synthetic_curve_df([8, 23])
     metaedge_df = _synthetic_curve_df([10, 23])
 
-    combined = build_comparison(promiscuity_df, metaedge_df)
+    combined = stack_frames({"promiscuity": promiscuity_df, "metaedge_degree": metaedge_df})
 
     assert len(combined) == 4
     assert set(combined["strategy"]) == {"promiscuity", "metaedge_degree"}
-    # Inputs must not be mutated in place (build_comparison copies before tagging).
+    # Inputs must not be mutated in place (stack_frames copies before tagging).
     assert "strategy" not in promiscuity_df.columns
     assert "strategy" not in metaedge_df.columns
 
@@ -39,24 +39,36 @@ def test_build_comparison_tags_and_stacks_rows_without_mutating_inputs():
     assert sorted(prom_rows["n"].tolist()) == [8, 23]
 
 
-def test_build_comparison_preserves_row_composition_difference():
+def test_stack_frames_preserves_row_composition_difference():
     """The whole point of Finding 4: two strategies over the same B/bucket
     can legitimately report different n counts (different rows excluded as
-    NaN) -- build_comparison must not silently align/merge them into one
-    row, which would hide that.
+    NaN) -- stack_frames must not silently align/merge them into one row,
+    which would hide that.
     """
     promiscuity_df = _synthetic_curve_df([8, 23])
     metaedge_df = _synthetic_curve_df([10, 23])
 
-    combined = build_comparison(promiscuity_df, metaedge_df)
+    combined = stack_frames({"promiscuity": promiscuity_df, "metaedge_degree": metaedge_df})
     l2 = combined[(combined["b"] == 10) & (combined["length_bucket"] == "L=2")]
     assert set(l2["n"]) == {8, 10}
+
+
+def test_stack_frames_supports_more_than_two_strategies():
+    frames = {
+        "promiscuity": _synthetic_curve_df([8, 23]),
+        "metaedge_degree": _synthetic_curve_df([10, 23]),
+        "capacity_hurdle_adaptive": _synthetic_curve_df([9, 20]),
+        "metaedge_degree_hurdle_adaptive": _synthetic_curve_df([9, 21]),
+    }
+    combined = stack_frames(frames)
+    assert len(combined) == 8
+    assert set(combined["strategy"]) == set(frames)
 
 
 def test_render_markdown_includes_caveat_note_and_per_b_sections():
     promiscuity_df = _synthetic_curve_df([8, 23])
     metaedge_df = _synthetic_curve_df([10, 23])
-    combined = build_comparison(promiscuity_df, metaedge_df)
+    combined = stack_frames({"promiscuity": promiscuity_df, "metaedge_degree": metaedge_df})
 
     md = render_markdown(combined)
 
@@ -75,8 +87,27 @@ def test_render_markdown_handles_multiple_b_values():
         [_synthetic_curve_df([10, 23]).assign(b=10), _synthetic_curve_df([10, 24]).assign(b=30)],
         ignore_index=True,
     )
-    combined = build_comparison(promiscuity_df, metaedge_df)
+    combined = stack_frames({"promiscuity": promiscuity_df, "metaedge_degree": metaedge_df})
 
     md = render_markdown(combined)
     assert "## B=10" in md
     assert "## B=30" in md
+
+
+def test_render_markdown_includes_pass_rate_and_merge_sections_when_provided():
+    combined = stack_frames({"promiscuity": _synthetic_curve_df([8, 23])})
+    pass_rates = pd.DataFrame(
+        {
+            "strategy": ["promiscuity"],
+            "n_valid": [5],
+            "n_pass": [3],
+            "pass_rate": [0.6],
+            "n_near_threshold": [3],
+        }
+    )
+    md = render_markdown(combined, pass_rates=pass_rates, merge_counts={"promiscuity": 2})
+
+    assert "## Pass rates and near-threshold density" in md
+    assert "## Fallback merges" in md
+    assert "promiscuity" in md.split("## Fallback merges", 1)[1]
+    assert "2" in md.split("## Fallback merges", 1)[1]

@@ -299,3 +299,17 @@ def test_main_writes_length_separated_concordance_metrics(monkeypatch, tmp_path)
     # fires (it always has on this real substrate as of this fix).
     degenerate_csv = (tmp_path / "tier0_offline_recompute" / "degenerate_inputs.csv").read_text()
     assert "zero_variance_null" in degenerate_csv
+
+
+def test_pass_rate_table_counts_pass_and_near_threshold():
+    import pandas as pd
+    from scripts.experiments.tier0_b_comparison import pass_rate_table
+
+    rows = pd.DataFrame({"z_analytical": [0.2, 1.4, 1.7, 2.0, 25.0, float("nan")]})
+    table = pass_rate_table({"s1": rows}, threshold=1.65)
+    r = table.iloc[0]
+    assert r["strategy"] == "s1"
+    assert r["n_valid"] == 5
+    assert r["n_pass"] == 3
+    assert r["pass_rate"] == 3 / 5
+    assert r["n_near_threshold"] == 3  # 1.4, 1.7, 2.0 within 0.5 of 1.65
