@@ -149,6 +149,23 @@ hash-derived per-row seeds). Outputs to `output/tier0_capacity_hurdle/`.
    this count); pass-rate table across promiscuity, metaedge_degree (10
    rank bins), S2, and S1 on the same rows; count and identity of fallback
    merges; wall-time per row for pool construction and moments.
+5. **Runtime benchmark (the speedup claim)**: per-row wall time of the
+   analytical kernel vs the MC reference at B = 1,000 and B = 10,000 on the
+   validation rows themselves, same partitions, same machine as the run,
+   reported in the outputs. Preliminary measurement (2026-08-28, GpBP
+   realistic setup, 10-bin partition, this repo's own
+   `montecarlo_reference`): analytical 0.08 ms/row vs MC 16.9 ms/row at
+   B = 1,000 (~210x) and 150 ms/row at B = 10,000 (~1,865x) — and the
+   analytical result is the exact B→∞ limit, where B = 10,000 MC still
+   carries ~0.7% sampling error on sigma. At web-query scale (453 metapaths
+   per query) that is roughly 68 s of null computation per query at
+   B = 10,000 versus ~40 ms analytical. The MC reference is a clarity-first
+   implementation, so the promoted claim is stated as "orders of magnitude
+   at matched-or-better precision," not a precise constant; the follow-on
+   integration task re-runs `scripts/benchmark_null_methods.py` against the
+   MD backend for the official app-facing number (the existing benchmark
+   commit measured the dropped configuration-model backend and is
+   superseded).
 
 ## Success criteria
 
