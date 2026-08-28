@@ -89,18 +89,25 @@ class MetaedgeDegreePoolStrategy:
                 return fname, axis
         raise ValueError(f"could not resolve first-hop matrix file for metapath {metapath!r}")
 
-    def _bins_for_first_hop(self, metapath: str) -> np.ndarray:
+    def _degree_for_first_hop(self, metapath: str) -> np.ndarray:
         fname, axis = self._resolve_first_hop(metapath)
-        cache_key = f"{fname}:{axis}"
+        cache_key = f"deg:{fname}:{axis}"
         if cache_key in self._bins_by_file:
             return self._bins_by_file[cache_key]
-
         matrix = sparse.load_npz(self.data_dir / "edges" / fname).tocsr()
         if axis == "row":
             degree = np.asarray(matrix.sum(axis=1)).flatten()
         else:
             degree = np.asarray(matrix.sum(axis=0)).flatten()
+        self._bins_by_file[cache_key] = degree
+        return degree
 
+    def _bins_for_first_hop(self, metapath: str) -> np.ndarray:
+        fname, axis = self._resolve_first_hop(metapath)
+        cache_key = f"{fname}:{axis}"
+        if cache_key in self._bins_by_file:
+            return self._bins_by_file[cache_key]
+        degree = self._degree_for_first_hop(metapath)
         bins = _assign_rank_bins(pd.Series(degree), N_BINS).to_numpy()
         self._bins_by_file[cache_key] = bins
         return bins
