@@ -56,7 +56,7 @@ def sweep_b(
     dwpc_z_threshold: float,
     random_state: int,
     pool_fn: PoolFn,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     substrate_dir = Path(substrate_dir)
     subsample = select_stratified_subsample(substrate_dir, per_cell_max, random_state)
 
@@ -100,6 +100,7 @@ def sweep_b(
                 dwpc_z_threshold=dwpc_z_threshold,
             )
             row.update(
+                lv_id=ctx["lv_id"], feature_idx=ctx["feature_idx"],
                 length=ctx["length"], n_active_strata=ctx["n_active_strata"],
                 mean_analytical=ctx["exact"].mean, std_analytical=ctx["exact"].std,
                 mean_mc_highb=mc.mean, std_mc_highb=mc.std, b_mc_highb=mc.b,
@@ -107,6 +108,8 @@ def sweep_b(
             rows.append(row)
 
         df_b = pd.DataFrame(rows)
+        if b == max(b_values):
+            rows_at_max_b = df_b
         for label, cell in (("L=2", df_b[df_b["length"] == 2]), ("L>=3", df_b[df_b["length"] >= 3])):
             if cell.empty:
                 continue
@@ -122,7 +125,7 @@ def sweep_b(
             )
             records.append(metrics)
 
-    return pd.DataFrame(records)
+    return pd.DataFrame(records), rows_at_max_b
 
 
 def _strategy_pool_fn(strategy: str) -> PoolFn:
@@ -134,6 +137,13 @@ def _strategy_pool_fn(strategy: str) -> PoolFn:
         # before Task 2 exists.
         from src.tier0.metaedge_degree_pool_construction import MetaedgeDegreePoolStrategy
         return MetaedgeDegreePoolStrategy(data_dir=Path("data"))
+    if strategy == "capacity_hurdle_adaptive":
+        # Deferred import: same rationale as metaedge_degree above.
+        from src.tier0.hurdle_adaptive_pool_construction import CapacityHurdleAdaptiveStrategy
+        return CapacityHurdleAdaptiveStrategy(data_dir=Path("data"))
+    if strategy == "metaedge_degree_hurdle_adaptive":
+        from src.tier0.hurdle_adaptive_pool_construction import MetaedgeDegreeHurdleAdaptiveStrategy
+        return MetaedgeDegreeHurdleAdaptiveStrategy(data_dir=Path("data"))
     raise ValueError(f"unknown strategy: {strategy!r}")
 
 
@@ -144,21 +154,34 @@ def main() -> None:
     parser.add_argument("--b-values", type=str, default=",".join(str(b) for b in DEFAULT_B_VALUES))
     parser.add_argument("--dwpc-z-threshold", type=float, default=1.65)
     parser.add_argument("--random-state", type=int, default=0)
-    parser.add_argument("--strategy", choices=["promiscuity", "metaedge_degree"], default="promiscuity")
+    parser.add_argument(
+        "--strategy",
+        choices=[
+            "promiscuity", "metaedge_degree",
+            "capacity_hurdle_adaptive", "metaedge_degree_hurdle_adaptive",
+        ],
+        default="promiscuity",
+    )
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args()
 
     b_values = [int(x) for x in args.b_values.split(",")]
     pool_fn = _strategy_pool_fn(args.strategy)
 
-    df = sweep_b(
+    metrics, rows = sweep_b(
         args.substrate_dir, args.per_cell_max, b_values, args.dwpc_z_threshold,
         args.random_state, pool_fn,
     )
 
-    out_dir = OUTPUT_DIR / args.strategy
+    out_dir = args.output_dir / args.strategy
     out_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out_dir / "curve_data.csv", index=False)
-    print(f"Wrote {out_dir / 'curve_data.csv'} ({len(df)} rows)")
+    metrics.to_csv(out_dir / "curve_data.csv", index=False)
+    rows.to_csv(out_dir / "rows_at_max_b.csv", index=False)
+    merge_log = getattr(pool_fn, "merge_log", [])
+    pd.DataFrame(merge_log, columns=["lv_id", "feature_idx", "from_stratum", "into_stratum"]).to_csv(
+        out_dir / "merge_log.csv", index=False
+    )
+    print(f"Wrote {out_dir / 'curve_data.csv'} ({len(metrics)} rows)")
 
 
 if __name__ == "__main__":

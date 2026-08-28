@@ -182,6 +182,49 @@ def test_mc_seed_varies_by_row_and_is_deterministic():
     assert _mc_seed_for_row(0, "LV246", 7) == s_a
 
 
+def test_strategy_dispatch_knows_hurdle_adaptive_strategies():
+    from scripts.experiments.tier0_b_convergence import _strategy_pool_fn
+    from src.tier0.hurdle_adaptive_pool_construction import (
+        CapacityHurdleAdaptiveStrategy,
+        MetaedgeDegreeHurdleAdaptiveStrategy,
+    )
+
+    assert isinstance(
+        _strategy_pool_fn("capacity_hurdle_adaptive"), CapacityHurdleAdaptiveStrategy
+    )
+    assert isinstance(
+        _strategy_pool_fn("metaedge_degree_hurdle_adaptive"),
+        MetaedgeDegreeHurdleAdaptiveStrategy,
+    )
+
+
+def test_sweep_b_returns_metrics_and_per_row_frame(monkeypatch, tmp_path):
+    import numpy as np
+    import pandas as pd
+    from scripts.experiments import tier0_b_convergence as mod
+
+    def stub_subsample(substrate_dir, per_cell_max, random_state):
+        return pd.DataFrame(
+            {"lv_id": ["LV1", "LV1"], "feature_idx": [0, 1], "length": [2, 3],
+             "null_mean": [0.0, 0.0], "null_std": [1.0, 1.0]}
+        )
+
+    rng = np.random.default_rng(0)
+    scores = rng.normal(size=200)
+
+    def stub_pool_fn(lv_id, feature_idx, substrate_dir):
+        return scores, [np.arange(0, 100), np.arange(100, 200)], [3, 2], 0.4
+
+    monkeypatch.setattr(mod, "select_stratified_subsample", stub_subsample)
+    metrics, rows = mod.sweep_b(
+        substrate_dir=tmp_path, per_cell_max=15, b_values=[10, 30],
+        dwpc_z_threshold=1.65, random_state=0, pool_fn=stub_pool_fn,
+    )
+    assert {"z_analytical", "z_mc_highb", "lv_id", "feature_idx"} <= set(rows.columns)
+    assert (rows["b_mc_highb"] == 30).all()  # per-row frame is at max B
+    assert len(rows) == 2
+
+
 @pytest.mark.skipif(
     not SUBSTRATE.exists(), reason="requires the local end_to_end_2026_4_23 substrate"
 )

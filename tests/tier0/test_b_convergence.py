@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_sweep_b_returns_expected_columns_and_length_buckets():
-    df = sweep_b(
+    df, _rows = sweep_b(
         SUBSTRATE, per_cell_max=3, b_values=[10, 100], dwpc_z_threshold=1.65,
         random_state=0, pool_fn=build_pools_and_counts,
     )
@@ -70,7 +70,7 @@ def test_sweep_b_smoke_test_with_metaedge_degree_pool_fn():
     object can be constructed. Deliberately small (2 B values, small
     per-cell-max) -- this isn't meant to be exhaustive, just to prove the
     strategy plugs into sweep_b the same way build_pools_and_counts does."""
-    df = sweep_b(
+    df, _rows = sweep_b(
         SUBSTRATE, per_cell_max=3, b_values=[10, 100], dwpc_z_threshold=1.65,
         random_state=0, pool_fn=MetaedgeDegreePoolStrategy(data_dir=DATA_DIR),
     )
@@ -86,11 +86,11 @@ def test_sweep_b_analytical_result_is_computed_once_not_per_b():
     spearman_rho_analytical_vs_original (which only depends on z_analytical
     and z_original, neither of which varies with B) at every B they share.
     """
-    df1 = sweep_b(
+    df1, _rows1 = sweep_b(
         SUBSTRATE, per_cell_max=3, b_values=[10], dwpc_z_threshold=1.65,
         random_state=0, pool_fn=build_pools_and_counts,
     )
-    df2 = sweep_b(
+    df2, _rows2 = sweep_b(
         SUBSTRATE, per_cell_max=3, b_values=[10, 50], dwpc_z_threshold=1.65,
         random_state=0, pool_fn=build_pools_and_counts,
     )
@@ -131,7 +131,7 @@ def test_sweep_b_mc_metrics_vary_with_b_on_synthetic_data(monkeypatch):
     # module's own attribute is what sweep_b() actually calls.
     monkeypatch.setattr(mod, "select_stratified_subsample", lambda *a, **k: fake_subsample)
 
-    df = sweep_b(
+    df, _rows = sweep_b(
         Path("."), per_cell_max=10, b_values=[10, 10000], dwpc_z_threshold=1.65,
         random_state=0, pool_fn=fake_pool_fn,
     )
