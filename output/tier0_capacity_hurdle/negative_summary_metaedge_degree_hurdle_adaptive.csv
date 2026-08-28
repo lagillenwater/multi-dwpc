@@ -1,0 +1,2 @@
+strategy,n_draws,n_tail,tail_fraction,ci_low,ci_high,nominal
+metaedge_degree_hurdle_adaptive,6800,357,0.0525,0.047318255919706835,0.058069560658313646,0.050000000000000044

@@ -1,0 +1,5 @@
+strategy,n_valid,n_pass,pass_rate,n_near_threshold
+promiscuity,34,29,0.8529411764705882,0
+metaedge_degree,36,17,0.4722222222222222,6
+capacity_hurdle_adaptive,34,5,0.14705882352941177,2
+metaedge_degree_hurdle_adaptive,34,7,0.20588235294117646,2

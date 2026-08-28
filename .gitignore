@@ -68,3 +68,9 @@ connectivity-search-backend/data/postgres/
 # hpc
 slurm*
 /hpc/logs/
+
+# Promoted evidence for docs/tasks/capacity-hurdle-adaptive-null (design: evidence lands on the branch)
+!output/
+output/*
+!output/tier0_capacity_hurdle/
+!output/tier0_capacity_hurdle/**

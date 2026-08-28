@@ -1,0 +1,12 @@
+Wrote output/tier0_capacity_hurdle/b_convergence/promiscuity/curve_data.csv (14 rows)
+Wrote output/tier0_capacity_hurdle/b_convergence/metaedge_degree/curve_data.csv (14 rows)
+Wrote output/tier0_capacity_hurdle/b_convergence/capacity_hurdle_adaptive/curve_data.csv (14 rows)
+Wrote output/tier0_capacity_hurdle/b_convergence/metaedge_degree_hurdle_adaptive/curve_data.csv (14 rows)
+capacity_hurdle_adaptive: tail 340/6800 = 0.0500  95% CI [0.0449, 0.0554]
+metaedge_degree_hurdle_adaptive: tail 357/6800 = 0.0525  95% CI [0.0473, 0.0581]
+B=1000: median MC 107.5 ms/row, analytical 0.481 ms/row, median speedup 214x
+B=10000: median MC 1074.4 ms/row, analytical 0.481 ms/row, median speedup 2145x
+Wrote output/tier0_capacity_hurdle/runtime_benchmark_capacity_hurdle_adaptive.csv
+Wrote output/tier0_capacity_hurdle/comparison.csv (56 rows)
+Wrote output/tier0_capacity_hurdle/pass_rates.csv
+Wrote output/tier0_capacity_hurdle/comparison.md
