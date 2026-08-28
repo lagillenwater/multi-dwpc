@@ -23,6 +23,19 @@ class McReferenceResult:
     b: int
 
 
+def sample_null_sets(rng: np.random.Generator, pools, counts) -> np.ndarray:
+    """One stratified-SRSWOR draw: counts[r] indices from pools[r], concatenated."""
+    k_total = int(sum(counts))
+    sampled_idx = np.empty(k_total, dtype=np.int64)
+    pos = 0
+    for pool, k in zip(pools, counts):
+        if k == 0:
+            continue
+        sampled_idx[pos : pos + k] = rng.choice(pool, size=k, replace=False)
+        pos += k
+    return sampled_idx
+
+
 def montecarlo_reference(
     scores: np.ndarray,
     pools: Sequence[np.ndarray],
@@ -33,18 +46,10 @@ def montecarlo_reference(
 ) -> McReferenceResult:
     scores = np.asarray(scores, dtype=float)
     rng = np.random.default_rng(random_state)
-    k_total = int(sum(counts))
     draws = np.empty(b, dtype=float)
 
     for i in range(b):
-        sampled_idx = np.empty(k_total, dtype=np.int64)
-        pos = 0
-        for pool, k in zip(pools, counts):
-            if k == 0:
-                continue
-            sampled_idx[pos : pos + k] = rng.choice(pool, size=k, replace=False)
-            pos += k
-        draws[i] = scores[sampled_idx].mean()
+        draws[i] = scores[sample_null_sets(rng, pools, counts)].mean()
 
     mean = float(draws.mean())
     std = float(draws.std(ddof=1))
