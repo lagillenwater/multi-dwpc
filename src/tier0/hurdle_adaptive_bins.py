@@ -64,3 +64,42 @@ def hurdle_adaptive_bins(keys: np.ndarray, min_stratum_size: int = 50) -> np.nda
     idx = np.searchsorted(values, keys[pos_mask])
     bins[pos_mask] = value_bin[idx]
     return bins
+
+
+def merge_deficient_strata(
+    pools: list[np.ndarray], counts: list[int]
+) -> tuple[list[np.ndarray], list[int], list[tuple[int, int]]]:
+    """Deterministic feasibility fallback (design doc: binning contract).
+
+    A stratum whose candidate pool (post self-exclusion) is smaller than its
+    real-gene count cannot be drawn from; it is merged into its lower-key
+    neighbor (next-higher for the lowest stratum), repeatedly, until every
+    stratum with count > 0 satisfies count <= pool size. Merge events are
+    returned in original stratum indices so callers can log them -- part of
+    the null's definition, applied identically to analytical and MC arms.
+    A stratum with count == 0 is never deficient (nothing is drawn from it).
+    """
+    if sum(int(c) for c in counts) > sum(len(p) for p in pools):
+        raise ValueError(
+            "total real-gene count exceeds total candidate pool; "
+            "no partition of these pools is feasible"
+        )
+    pools = [np.asarray(p) for p in pools]
+    counts = [int(c) for c in counts]
+    orig_idx = list(range(len(pools)))
+    merges: list[tuple[int, int]] = []
+
+    while True:
+        deficient = next(
+            (i for i, (p, c) in enumerate(zip(pools, counts)) if c > 0 and c > len(p)),
+            None,
+        )
+        if deficient is None:
+            return pools, counts, merges
+        into = deficient - 1 if deficient > 0 else deficient + 1
+        merges.append((orig_idx[deficient], orig_idx[into]))
+        lo, hi = sorted((deficient, into))
+        pools[lo] = np.concatenate([pools[lo], pools[hi]])
+        counts[lo] += counts[hi]
+        orig_idx[lo] = orig_idx[into]
+        del pools[hi], counts[hi], orig_idx[hi]

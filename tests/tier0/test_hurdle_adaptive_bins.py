@@ -58,3 +58,58 @@ def test_continuous_keys_work():
 def test_negative_keys_rejected():
     with pytest.raises(ValueError):
         hurdle_adaptive_bins(np.array([-1.0, 0.0, 1.0]), min_stratum_size=2)
+
+
+from src.tier0.hurdle_adaptive_bins import merge_deficient_strata
+
+
+def _pools(*sizes):
+    start = 0
+    out = []
+    for s in sizes:
+        out.append(np.arange(start, start + s))
+        start += s
+    return out
+
+
+def test_no_merge_when_feasible():
+    pools, counts, merges = merge_deficient_strata(_pools(5, 5, 5), [2, 3, 1])
+    assert merges == []
+    assert [len(p) for p in pools] == [5, 5, 5]
+    assert counts == [2, 3, 1]
+
+
+def test_deficient_stratum_merges_into_lower_neighbor():
+    # stratum 2 needs 4 but has 2 candidates
+    pools, counts, merges = merge_deficient_strata(_pools(5, 5, 2), [1, 1, 4])
+    assert merges == [(2, 1)]
+    assert len(pools) == 2
+    assert counts == [1, 5]
+    assert len(pools[1]) == 7
+
+
+def test_lowest_stratum_merges_upward():
+    pools, counts, merges = merge_deficient_strata(_pools(1, 6), [3, 1])
+    assert merges == [(0, 1)]
+    assert counts == [4]
+    assert len(pools[0]) == 7
+
+
+def test_cascading_merge():
+    # After (2 -> 1), stratum 1 holds pool 3+2=5 vs count 2+4=6: still short,
+    # so it merges into 0.
+    pools, counts, merges = merge_deficient_strata(_pools(9, 3, 2), [1, 2, 4])
+    assert merges == [(2, 1), (1, 0)]
+    assert counts == [7]
+    assert len(pools[0]) == 14
+
+
+def test_globally_infeasible_raises():
+    with pytest.raises(ValueError):
+        merge_deficient_strata(_pools(2, 2), [3, 3])
+
+
+def test_zero_count_strata_untouched():
+    pools, counts, merges = merge_deficient_strata(_pools(4, 0, 4), [2, 0, 2])
+    assert merges == []
+    assert counts == [2, 0, 2]
