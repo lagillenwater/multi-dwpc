@@ -205,12 +205,36 @@ Name: count, dtype: int64
 ```
 
 S1 (`capacity_hurdle_adaptive`): all 34 rows recover at f = 0.5 — spec's
-minimum requirement is met. In fact every row recovers at the smallest
-tested fraction, f = 0.1 (identical distribution for S2). S1 fails no row
+minimum requirement is met. Every row also recovers at the smallest tested
+fraction, f = 0.1 (identical min-f distribution for S2). S1 fails no row
 that S2 passes: the fallback-decision condition ("if S1 fails recovery that
 S2 passes on the same rows") does not fire — there is no S1 failure to
 compare against. The data fits the rule's default case cleanly (no
 ambiguity requiring a dual reading).
+
+**Disclosure — nominal f is a lower bound, not the effective replaced
+fraction**: `plant_signal` computes `m = min(ceil(fraction * k_r), k_r)`
+*per stratum*, so every active stratum with a nonzero count has at least
+one member replaced regardless of how small the nominal fraction is. Under
+S1, the median row has 18+ active strata, most with singleton counts, so
+the effective replaced fraction at nominal f = 0.1 is roughly
+`n_active_strata / K` — several times the nominal value — and the f-sweep
+is largely degenerate rather than a granular power curve. Concretely, in
+the committed `positive_control_capacity_hurdle_adaptive.csv`, 22 of 34
+rows have byte-identical `z_planted` across all three tested fractions
+(5 of 34 for S2), and the minimum S1 `z_planted` at f = 0.1 is 3.54 (S2:
+2.04) — i.e. even the "smallest" nominal fraction already plants a
+strong, easily-recovered signal for most rows. Replacement also removes
+the lowest-scoring drawn members and inserts the highest-scoring
+candidates, the most favorable reading of "replace a fraction f" of the
+pool. None of this affects the criterion actually being scored: the
+f = 0.5 recovery requirement passes robustly because the true effective
+fraction is always >= the nominal fraction, and the S1-vs-S2 fallback rule
+above is unaffected. It does mean the "every row recovers at f = 0.1"
+observation is not a granular power result and should not be read as
+evidence of sensitivity down to a 10% replacement rate — it reflects a
+per-stratum ceiling behavior specified by the planting procedure itself,
+not a campaign artifact or implementation bug.
 
 **Decision-rule branch applied**: default branch — S1 ships (S2 fallback
 not triggered).
@@ -316,12 +340,20 @@ Output: all four `merge_log.csv` files (`promiscuity`, `metaedge_degree`,
 `capacity_hurdle_adaptive`, `metaedge_degree_hurdle_adaptive`) contain only
 the header row (`lv_id,feature_idx,from_stratum,into_stratum`) — zero
 fallback merges occurred in any strategy on the 48-row validation sample.
-The feasibility fallback exists in the implementation but was never
-exercised by this sample; this is expected given the sample's `min_stratum_size`
-default of 50 and the substrate's stratum pool sizes, but means the fallback
-path itself is unexercised by this validation run (noted as a residual gap
-for the integration task's own test suite, which should exercise it with
-unit tests rather than relying on this sample).
+
+**Clarification — the two legacy strategies have no merge machinery**:
+"zero merges" is a real observation only for the two hurdle+adaptive
+strategies, which implement the feasibility-fallback merge logic. The
+sweep writes each strategy's log via `getattr(pool_fn, "merge_log", [])`,
+and `promiscuity`/`metaedge_degree` have no `merge_log` attribute at all —
+their empty CSVs are structural (the attribute defaults to `[]`), not a
+measured zero from an exercised code path. The feasibility fallback exists
+in the S1/S2 implementations but was never exercised by this sample; this
+is expected given the sample's `min_stratum_size` default of 50 and the
+substrate's stratum pool sizes, but means the fallback path itself is
+unexercised by this validation run (noted as a residual gap for the
+integration task's own test suite, which should exercise it with unit
+tests rather than relying on this sample).
 
 ---
 
