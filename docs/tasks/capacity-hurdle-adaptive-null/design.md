@@ -215,3 +215,18 @@ hash-derived per-row seeds). Outputs to `output/tier0_capacity_hurdle/`.
   capacity key was chosen over joint or weighted-calibration designs because
   it subsumes first-hop degree, needs no kernel changes, and keeps the
   partition fixed per feature.
+- **2026-08-28** — validation verdict (Task 11, full detail in
+  `verification.md`): all five scored success criteria (formula concordance,
+  calibration, power, informativeness, runtime) pass for both S1
+  (`capacity_hurdle_adaptive`) and S2 (`metaedge_degree_hurdle_adaptive`) on
+  the Alpine campaign (jobs 31770079/31770080). The Power criterion's
+  fallback condition (S1 fails a row that S2 recovers) never fires, so the
+  default rule applies: **S1 (`capacity_hurdle_adaptive`) is the shipping
+  strategy**. Pass-rate consequence across all four strategies at z >= 1.65
+  (`output/tier0_capacity_hurdle/pass_rates.csv`): `promiscuity` 29/34
+  (85%, vacuous — `n_near_threshold`=0), `metaedge_degree` 17/36 (47%,
+  regenerating the previously-unpersisted figure), `capacity_hurdle_adaptive`
+  (shipping) 5/34 (14.7%), `metaedge_degree_hurdle_adaptive` 7/34 (20.6%).
+  See `verification.md` for the per-criterion commands/output and
+  `output/tier0_capacity_hurdle/` (commit `9525647`) for the underlying
+  artifacts.
